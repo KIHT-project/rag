@@ -1,0 +1,11 @@
+---
+services:
+
+# docker-compose run --rm -it --build application
+  application:
+      build: .
+      container_name: service-x-api
+      volumes:
+        - ./outputs/docker:/set/outputs
+      mem_limit: 4g
+      cpus: 2.0

@@ -1,0 +1,109 @@
+**/*ignore*
+
+# AWS
+.aws-sam/
+*.awscli
+*.aws-config
+
+# GCP
+*.gcloudignore
+*.gcloud/
+.cloudshell/
+
+# Azure
+*.azure/
+*.azcli
+
+# OCI Build
+bldenv/
+input_ocibuild/
+output_ocibuild_compilesource/
+output_ocibuild_dockerize_api/
+output_ocibuild_dockerize_worker/
+
+# Python artifacts
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env
+
+# Logs and output
+*.log
+outputs/
+output/
+
+# Misc
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+*~
+*#
+*.swp
+*.tmp
+
+# Editor/IDE
+.idea/
+.idea/*
+.idea_modules/
+.idea.log
+.vscode/
+.spyderproject
+.spyproject
+.spyderworkspace
+.spyderproject.ini
+.spyderworkspace.ini
+.ipynb_checkpoints/
+
+# Test artifacts
+.coverage
+htmlcov/
+.tox/
+.pytest_cache/
+
+# Security
+*.pem
+*.key
+*.gpg
+*.crt
+*.p12
+*.pfx
+*.der
+*.jks
+*.keystore
+id_rsa
+id_rsa.pub
+id_ecdsa
+id_ecdsa.pub
+id_ed25519
+id_ed25519.pub
+.ssh/
+secrets.yml
+secrets.yaml
+*.credentials
+*.secrets
+*.secret
+*.token
+*.vault
