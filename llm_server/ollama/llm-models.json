@@ -1,0 +1,8 @@
+{
+  "models": [
+    "llama3.1:8b-instruct-q4_K_M",
+    "mistral:7b-instruct-q4_K_M",
+    "gemma3:4b-it-qat",
+    "deepseek-r1:8b"
+  ]
+}

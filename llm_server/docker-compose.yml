@@ -1,0 +1,64 @@
+services:
+  traefik:
+    image: traefik:v3.6.5
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - "--entrypoints.web.address=:7000"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+    ports:
+      - "7000:7000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - llm_net
+
+  ollama:
+    build: ./ollama
+    container_name: ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ollama.rule=Host(`ollama.lan`) && PathPrefix(`/ollama`)"
+      - "traefik.http.routers.ollama.entrypoints=web"
+      - "traefik.http.services.ollama.loadbalancer.server.port=11434"
+      - "traefik.http.middlewares.ollama-stripprefix.stripprefix.prefixes=/ollama"
+      - "traefik.http.routers.ollama.middlewares=ollama-stripprefix"
+    networks:
+      - llm_net
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:0.6.43
+    container_name: open-webui
+    restart: unless-stopped
+    environment:
+      # WebUI talks directly to Ollama on the docker network
+      - OLLAMA_BASE_URL=http://ollama:11434
+    volumes:
+      - open_webui_data:/app/backend/data
+    depends_on:
+      - ollama
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.webui.rule=Host(`ollama.lan`) && PathPrefix(`/`)"
+      - "traefik.http.routers.webui.entrypoints=web"
+      - "traefik.http.services.webui.loadbalancer.server.port=8080"
+    networks:
+      - llm_net
+
+volumes:
+  ollama_models:
+  open_webui_data:
+
+networks:
+  llm_net:
+    driver: bridge
