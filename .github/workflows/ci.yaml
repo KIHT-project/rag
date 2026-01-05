@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  biomed-knowledge-platform:
+  tests-code-style:
     runs-on: ubuntu-24.04
 
     defaults:
@@ -55,3 +55,25 @@ jobs:
             biomed_knowledge_platform/tests_output.ignore/coverage/
             biomed_knowledge_platform/tests_output.ignore/coverage.svg
           if-no-files-found: warn
+
+  dockerization:
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        working-directory: biomed_knowledge_platform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: biomed_knowledge_platform
+          file: biomed_knowledge_platform/Dockerfile
+          push: false
+          tags: biomed-platform:ci
