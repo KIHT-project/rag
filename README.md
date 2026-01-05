@@ -4,8 +4,8 @@
 Set up a virtual environment and install the required dependencies:
 
 ```shell
-pyenv install 3.11.9
-pyenv local 3.11.9
+pyenv install 3.14.2
+pyenv local 3.14.2
 python --version
 python -m venv .venv
 

@@ -1,0 +1,16 @@
+# Core testing & data stack
+flake8==7.3.0
+black==25.12.0
+unittest-xml-reporting==3.2.0
+coverage==7.13.1
+coverage-badge==1.1.2
+pytest-cov==7.0.0
+pytest-html==4.1.1
+pytest-order==1.3.0
+pytest==9.0.2
+python-dotenv==1.2.1
+pyyaml==6.0.3
+
+# FastAPI
+fastapi==0.128.0
+uvicorn==0.40.0

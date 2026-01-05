@@ -1,1 +1,1 @@
--r service-x/requirements.txt
+-r biomed_knowledge_platform/requirements.txt

@@ -14,13 +14,6 @@
 *.azure/
 *.azcli
 
-# OCI Build
-bldenv/
-input_ocibuild/
-output_ocibuild_compilesource/
-output_ocibuild_dockerize_api/
-output_ocibuild_dockerize_worker/
-
 # Python artifacts
 *.pyc
 *.pyo
@@ -31,7 +24,7 @@ __pycache__/
 .venv/
 venv/
 env/
-.env
+src/.env
 
 # Logs and output
 *.log
