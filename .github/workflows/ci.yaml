@@ -1,0 +1,57 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+      - release/**
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  biomed-knowledge-platform:
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        working-directory: biomed_knowledge_platform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14.2"
+          cache: "pip"
+          cache-dependency-path: biomed_knowledge_platform/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Black check
+        run: make check
+
+      - name: Lint
+        run: make lint
+
+      - name: Tests with coverage
+        run: make test
+
+      - name: Upload test reports
+        if: always() && !env.ACT # Act it is used from local env.
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            biomed_knowledge_platform/tests_output.ignore/test_report.html
+            biomed_knowledge_platform/tests_output.ignore/junit.xml
+            biomed_knowledge_platform/tests_output.ignore/coverage/
+            biomed_knowledge_platform/tests_output.ignore/coverage.svg
+          if-no-files-found: warn
