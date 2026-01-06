@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -12,7 +13,12 @@ def project_root() -> Path:
 
 
 def configs_dir() -> Path:
-    d = project_root() / "configs"
+    env_dir = os.getenv("BIOMED_CONFIG_DIR")
+    if env_dir:
+        d = Path(env_dir).expanduser().resolve()
+    else:
+        d = project_root() / "configs"
+
     if not d.exists():
         raise FileNotFoundError(f"Configs directory not found: {d}")
     return d
@@ -43,10 +49,24 @@ class AppSettings:
             raise KeyError(f"Missing config: {name}.yaml")
         return self.by_name[name]
 
-    def get(self, name: str, default: dict[str, Any] | None = None) -> dict[str, Any]:
-        if default is None:
-            default = {}
-        return self.by_name.get(name, default)
+    def require_api(self) -> dict[str, Any]:
+        return self.require("api")
+
+    def require_rag(self) -> dict[str, Any]:
+        return self.require("rag")
+
+    def require_qdrant(self) -> dict[str, Any]:
+        return self.require("qdrant")
+
+    def require_llm(self) -> dict[str, Any]:
+        return self.require("llm")
+
+
+def _validate_required_configs(settings: AppSettings) -> None:
+    settings.require_api()
+    settings.require_rag()
+    settings.require_qdrant()
+    settings.require_llm()
 
 
 def load_settings() -> AppSettings:
@@ -62,4 +82,6 @@ def load_settings() -> AppSettings:
     if not (d / "logging.yaml").exists():
         raise FileNotFoundError(f"Missing required logging config: {d / 'logging.yaml'}")
 
-    return AppSettings(config_dir=d, by_name=by_name)
+    settings = AppSettings(config_dir=d, by_name=by_name)
+    _validate_required_configs(settings)
+    return settings
