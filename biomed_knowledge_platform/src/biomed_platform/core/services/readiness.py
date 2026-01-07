@@ -11,6 +11,7 @@ from biomed_platform.core.domains.readiness import (
     ReadinessResult,
     ReadinessStatus,
 )
+from biomed_platform.core.errors.errors import dependency_connection_failed
 
 log = get_logger(__name__)
 
@@ -86,13 +87,19 @@ async def check_ollama(client: httpx.AsyncClient, base_url: str) -> CheckStatus:
     try:
         r = await client.get(f"{base_url}/api/version")
     except httpx.TimeoutException:
-        log.warning("Readiness dependency timeout, dep=ollama")
-        return CheckStatus.error
+        log.warning("Readiness dependency timeout, dep=ollama, base_url=%s", base_url)
+        raise dependency_connection_failed(
+            base_url=base_url, reason="timeout", dependency="ollama"
+        )
     except httpx.RequestError as e:
         log.warning(
-            "Readiness dependency request error, dep=ollama, type=%s", type(e).__name__
+            "Readiness dependency request error, dep=ollama, type=%s, base_url=%s",
+            type(e).__name__,
+            base_url,
         )
-        return CheckStatus.error
+        raise dependency_connection_failed(
+            base_url=base_url, reason=type(e).__name__, dependency="ollama"
+        )
 
     if 200 <= r.status_code < 300:
         return CheckStatus.ok

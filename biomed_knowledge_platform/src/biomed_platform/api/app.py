@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from biomed_platform.api.endpoints.system import router as system_router
+from biomed_platform.api.error_handlers import install_error_handlers
 from biomed_platform.common.middleware.request_context import (
     RequestContextMiddleware,
     AccessLogMiddleware,
@@ -24,6 +25,7 @@ def create_app() -> FastAPI:
         description=api_cfg.get("description"),
         version=api_cfg.get("version"),
     )
+    install_error_handlers(app)
 
     app.state.settings = settings
     app.include_router(system_router)

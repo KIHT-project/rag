@@ -12,6 +12,7 @@ from biomed_platform.core.domains.readiness import (
     ReadinessResult,
     ReadinessStatus,
 )
+from biomed_platform.core.errors.errors import dependency_connection_failed
 from biomed_platform.core.services import readiness as readiness_mod
 
 
@@ -33,7 +34,9 @@ class _FakeAsyncClient:
             raise result
         if isinstance(result, _FakeResponse):
             return result
-        raise TypeError(f"Fake client get_impl must return _FakeResponse or Exception, got {type(result)}")
+        raise TypeError(
+            f"Fake client get_impl must return _FakeResponse or Exception, got {type(result)}"
+        )
 
     async def aclose(self) -> None:
         self.closed = True
@@ -212,16 +215,7 @@ class TestReadinessService:
         # Then
         assert result == CheckStatus.error
 
-    @pytest.mark.asyncio
-    async def test_check_ollama_returns_error_on_timeout(self) -> None:
-        # Given
-        client = _FakeAsyncClient(lambda _: httpx.TimeoutException("timeout"))
 
-        # When
-        result = await readiness_mod.check_ollama(client, "http://ollama:11434")
-
-        # Then
-        assert result == CheckStatus.error
 
     @pytest.mark.asyncio
     async def test_check_qdrant_returns_error_on_request_error(self) -> None:
@@ -235,15 +229,37 @@ class TestReadinessService:
         assert result == CheckStatus.error
 
     @pytest.mark.asyncio
-    async def test_check_ollama_returns_error_on_request_error(self) -> None:
+    async def test_check_ollama_raises_dependency_connection_failed_on_timeout(self) -> None:
+        # Given
+        client = _FakeAsyncClient(lambda _: httpx.TimeoutException("timeout"))
+
+        # When
+        try:
+            await readiness_mod.check_ollama(client, "http://ollama:11434")
+            pytest.fail("Expected dependency_connection_failed to be raised")
+        except Exception as e:
+            # Then
+            expected = dependency_connection_failed(base_url="http://ollama:11434", reason="timeout", dependency="ollama")
+            assert type(e) is type(expected)
+            assert e == expected
+
+    @pytest.mark.asyncio
+    async def test_check_ollama_raises_dependency_connection_failed_on_request_error(self) -> None:
         # Given
         client = _FakeAsyncClient(lambda _: httpx.RequestError("boom"))
 
         # When
-        result = await readiness_mod.check_ollama(client, "http://ollama:11434")
-
-        # Then
-        assert result == CheckStatus.error
+        try:
+            await readiness_mod.check_ollama(client, "http://ollama:11434")
+            pytest.fail("Expected dependency_connection_failed to be raised")
+        except Exception as e:
+            # Then
+            expected = dependency_connection_failed(base_url="http://ollama:11434", reason="RequestError", dependency="ollama")
+            assert type(e) is type(expected)
+            assert e.code == expected.code
+            assert e.details == expected.details
+            assert e.retryable == expected.retryable
+            assert e.dependency == expected.dependency
 
     @pytest.mark.asyncio
     async def test_compute_readiness_returns_ready_when_both_dependencies_ok(self) -> None:
@@ -273,8 +289,7 @@ class TestReadinessService:
         assert client.closed is False
 
     @pytest.mark.asyncio
-    async def test_compute_readiness_returns_not_ready_when_any_dependency_not_ok(self) -> None:
-        # Given
+    async def test_compute_readiness_returns_not_ready_when_qdrant_not_ok(self) -> None:
         def fake_get(url: str) -> Any:
             if url == "http://qdrant:6333/collections":
                 return _FakeResponse(status_code=500)
@@ -297,6 +312,28 @@ class TestReadinessService:
         assert result.status == ReadinessStatus.not_ready
         assert result.checks.qdrant == CheckStatus.unhealthy
         assert result.checks.llm == CheckStatus.ok
+        assert client.closed is False
+
+    @pytest.mark.asyncio
+    async def test_compute_readiness_propagates_ollama_connection_failed(self) -> None:
+        def fake_get(url: str) -> Any:
+            if url == "http://qdrant:6333/collections":
+                return _FakeResponse(status_code=200)
+            if url == "http://ollama:11434/api/version":
+                return httpx.TimeoutException("timeout")
+            return _FakeResponse(status_code=500)
+
+        client = _FakeAsyncClient(fake_get)
+        timeout = httpx.Timeout(connect=0.1, read=0.1, write=0.1, pool=0.1)
+
+        with pytest.raises(type(dependency_connection_failed(base_url="x", reason="timeout", dependency="ollama"))):
+            await readiness_mod.compute_readiness(
+                qdrant_url="http://qdrant:6333",
+                ollama_url="http://ollama:11434",
+                timeout=timeout,
+                client=client,
+            )
+
         assert client.closed is False
 
     @pytest.mark.asyncio
