@@ -24,6 +24,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         response.headers["X-Request-Id"] = request_id
         return response
 
+
 class AccessLogMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start = time.perf_counter()

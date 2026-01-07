@@ -6,8 +6,13 @@ from fastapi import APIRouter, Request, Response, status
 from biomed_platform.api.mappers.readiness_mapper import to_api_readiness_response
 from biomed_platform.api.models.generated.schemas import ReadinessResponse
 from biomed_platform.common.logging import get_logger
-from biomed_platform.core.domains.readiness import ReadinessStatus as DomainReadinessStatus
-from biomed_platform.core.services.readiness import compute_readiness, normalize_ollama_base_url
+from biomed_platform.core.domains.readiness import (
+    ReadinessStatus as DomainReadinessStatus,
+)
+from biomed_platform.core.services.readiness import (
+    compute_readiness,
+    normalize_ollama_base_url,
+)
 
 router = APIRouter(tags=["System"])
 log = get_logger(__name__)
@@ -29,7 +34,9 @@ async def readiness_check(request: Request, response: Response) -> ReadinessResp
         qdrant_cfg = settings.require_qdrant()
         llm_cfg = settings.require_llm()
         qdrant_url = str(qdrant_cfg.get("url", "")).rstrip("/")
-        ollama_url = normalize_ollama_base_url(str(llm_cfg.get("ollama_base_url", "")).rstrip("/"))
+        ollama_url = normalize_ollama_base_url(
+            str(llm_cfg.get("ollama_base_url", "")).rstrip("/")
+        )
 
     timeout = httpx.Timeout(connect=2.0, read=2.0, write=2.0, pool=2.0)
 
@@ -40,7 +47,9 @@ async def readiness_check(request: Request, response: Response) -> ReadinessResp
     )
 
     is_ready = domain_result.status == DomainReadinessStatus.ready
-    response.status_code = status.HTTP_200_OK if is_ready else status.HTTP_503_SERVICE_UNAVAILABLE
+    response.status_code = (
+        status.HTTP_200_OK if is_ready else status.HTTP_503_SERVICE_UNAVAILABLE
+    )
 
     (log.debug if is_ready else log.warning)(
         "Readiness result, status=%s, qdrant=%s, llm=%s",

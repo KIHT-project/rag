@@ -8,41 +8,41 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, RootModel
 
 
 class Error(StrEnum):
-    validation_error = 'validation_error'
-    invalid_model_id = 'invalid_model_id'
-    duplicate_doi = 'duplicate_doi'
-    not_found = 'not_found'
-    too_many_requests = 'too_many_requests'
+    validation_error = "validation_error"
+    invalid_model_id = "invalid_model_id"
+    duplicate_doi = "duplicate_doi"
+    not_found = "not_found"
+    too_many_requests = "too_many_requests"
 
 
 class ErrorResponse(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    request_id: Annotated[str, Field(description='Request id for tracing')]
-    error: Annotated[Error, Field(description='Machine-readable error code')]
-    message: Annotated[str, Field(description='Human-readable error message')]
+    request_id: Annotated[str, Field(description="Request id for tracing")]
+    error: Annotated[Error, Field(description="Machine-readable error code")]
+    message: Annotated[str, Field(description="Human-readable error message")]
     details: Annotated[
-        dict[str, Any] | None, Field(description='Optional structured details')
+        dict[str, Any] | None, Field(description="Optional structured details")
     ] = None
 
 
 class ReadinessStatus(StrEnum):
-    ready = 'ready'
-    not_ready = 'not_ready'
+    ready = "ready"
+    not_ready = "not_ready"
 
 
 class CheckStatus(StrEnum):
-    ok = 'ok'
-    missing_config = 'missing_config'
-    unhealthy = 'unhealthy'
-    degraded = 'degraded'
-    error = 'error'
+    ok = "ok"
+    missing_config = "missing_config"
+    unhealthy = "unhealthy"
+    degraded = "degraded"
+    error = "error"
 
 
 class ReadinessChecks(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     qdrant: CheckStatus
     llm: CheckStatus
@@ -50,29 +50,29 @@ class ReadinessChecks(BaseModel):
 
 class ReadinessResponse(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     status: ReadinessStatus
     checks: ReadinessChecks
 
 
 class Disease(StrEnum):
-    thrombosis = 'thrombosis'
+    thrombosis = "thrombosis"
 
 
 class SourceType(StrEnum):
-    pubmed_abstract = 'pubmed_abstract'
-    other_abstract = 'other_abstract'
-    full_text = 'full_text'
+    pubmed_abstract = "pubmed_abstract"
+    other_abstract = "other_abstract"
+    full_text = "full_text"
 
 
 class Section(StrEnum):
-    abstract = 'abstract'
-    methods = 'methods'
-    results = 'results'
-    discussion = 'discussion'
-    conclusion = 'conclusion'
-    other = 'other'
+    abstract = "abstract"
+    methods = "methods"
+    results = "results"
+    discussion = "discussion"
+    conclusion = "conclusion"
+    other = "other"
 
 
 class Author(RootModel[str]):
@@ -81,12 +81,12 @@ class Author(RootModel[str]):
 
 class IngestItem(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     doi: Annotated[
         str,
         Field(
-            description='DOI as provided by client, stored for end users as doi_original',
+            description="DOI as provided by client, stored for end users as doi_original",
             max_length=512,
             min_length=3,
         ),
@@ -100,7 +100,7 @@ class IngestItem(BaseModel):
     content_text: Annotated[
         str,
         Field(
-            description='Document text. In v1 this is typically the abstract. In future it may contain full text.\n',
+            description="Document text. In v1 this is typically the abstract. In future it may contain full text.\n",
             max_length=50000,
             min_length=1,
         ),
@@ -109,49 +109,49 @@ class IngestItem(BaseModel):
 
 class IngestBatchRequest(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     embedding_model_id: Annotated[
         str | None,
         Field(
-            description='Optional, defaults to rag.yaml default_embedding_model_id',
-            examples=['nomic-embed-text'],
+            description="Optional, defaults to rag.yaml default_embedding_model_id",
+            examples=["nomic-embed-text"],
         ),
     ] = None
     items: Annotated[list[IngestItem], Field(max_length=100, min_length=1)]
 
 
 class State(StrEnum):
-    queued = 'queued'
+    queued = "queued"
 
 
 class IngestJobAcceptedResponse(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     job_id: str
     state: State
 
 
 class JobState(StrEnum):
-    queued = 'queued'
-    running = 'running'
-    succeeded = 'succeeded'
-    failed = 'failed'
-    partial = 'partial'
+    queued = "queued"
+    running = "running"
+    succeeded = "succeeded"
+    failed = "failed"
+    partial = "partial"
 
 
 class IngestItemState(StrEnum):
-    queued = 'queued'
-    running = 'running'
-    succeeded = 'succeeded'
-    failed = 'failed'
-    skipped_duplicate = 'skipped_duplicate'
+    queued = "queued"
+    running = "running"
+    succeeded = "succeeded"
+    failed = "failed"
+    skipped_duplicate = "skipped_duplicate"
 
 
 class IngestItemStatus(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     doi: str
     state: IngestItemState
@@ -160,7 +160,7 @@ class IngestItemStatus(BaseModel):
 
 class JobCounts(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     total: Annotated[int, Field(ge=0)]
     succeeded: Annotated[int, Field(ge=0)]
@@ -170,14 +170,14 @@ class JobCounts(BaseModel):
 
 class IngestJobStatusResponse(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     job_id: str
     state: JobState
     created_at: AwareDatetime
     updated_at: AwareDatetime
     effective_embedding_model_id: Annotated[
-        str, Field(description='Embedding model actually used')
+        str, Field(description="Embedding model actually used")
     ]
     counts: JobCounts
     items: list[IngestItemStatus]
@@ -185,7 +185,7 @@ class IngestJobStatusResponse(BaseModel):
 
 class SearchFilters(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     disease: Disease
     year_min: Annotated[int | None, Field(ge=1800, le=2100)] = None
@@ -196,82 +196,82 @@ class SearchFilters(BaseModel):
 
 class SearchRequest(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     query: Annotated[str, Field(max_length=2000, min_length=1)]
     embedding_model_id: Annotated[
         str | None,
         Field(
-            description='Optional, defaults to rag.yaml default_embedding_model_id',
-            examples=['nomic-embed-text'],
+            description="Optional, defaults to rag.yaml default_embedding_model_id",
+            examples=["nomic-embed-text"],
         ),
     ] = None
     top_k: Annotated[int | None, Field(ge=1, le=100)] = 20
     cursor: Annotated[
         str | None,
-        Field(description='Optional cursor for pagination (reserved for future use)'),
+        Field(description="Optional cursor for pagination (reserved for future use)"),
     ] = None
     filters: SearchFilters
 
 
 class SearchHit(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     chunk_id: str
     doc_id: str
-    doi: Annotated[str, Field(description='Original DOI string for end users')]
+    doi: Annotated[str, Field(description="Original DOI string for end users")]
     section: Section
     score: float
     year: int | None = None
     source_type: SourceType | None = None
     title: str | None = None
     chunk_text: Annotated[
-        str, Field(description='Returned chunk text. May be truncated by server.')
+        str, Field(description="Returned chunk text. May be truncated by server.")
     ]
 
 
 class SearchResponse(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     effective_embedding_model_id: str
     next_cursor: Annotated[
         str | None,
-        Field(description='Optional cursor for next page (reserved for future use)'),
+        Field(description="Optional cursor for next page (reserved for future use)"),
     ] = None
     hits: list[SearchHit]
 
 
 class RerankerMode(StrEnum):
-    llm = 'llm'
-    off = 'off'
+    llm = "llm"
+    off = "off"
 
 
 class AskRequest(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     question: Annotated[str, Field(max_length=2000, min_length=1)]
     embedding_model_id: Annotated[
         str | None,
         Field(
-            description='Optional, defaults to rag.yaml default_embedding_model_id',
-            examples=['nomic-embed-text'],
+            description="Optional, defaults to rag.yaml default_embedding_model_id",
+            examples=["nomic-embed-text"],
         ),
     ] = None
     generator_model_id: Annotated[
         str | None,
         Field(
-            description='Optional, defaults to rag.yaml default_generator_model_id',
-            examples=['llama3.1:8b-instruct-q4_K_M'],
+            description="Optional, defaults to rag.yaml default_generator_model_id",
+            examples=["llama3.1:8b-instruct-q4_K_M"],
         ),
     ] = None
     retrieval_top_k: Annotated[int | None, Field(ge=5, le=100)] = 30
     final_context_k: Annotated[int | None, Field(ge=3, le=30)] = 10
     hyde_enabled: Annotated[
         bool | None,
-        Field(description='Optional, defaults to rag.yaml hyde_enabled_default'),
+        Field(description="Optional, defaults to rag.yaml hyde_enabled_default"),
     ] = None
     reranker_mode: RerankerMode | None = None
     filters: SearchFilters
@@ -279,7 +279,7 @@ class AskRequest(BaseModel):
 
 class AskJobAcceptedResponse(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     job_id: str
     state: State
@@ -287,15 +287,15 @@ class AskJobAcceptedResponse(BaseModel):
 
 class Citation(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     chunk_id: str
-    doi: Annotated[str, Field(description='Original DOI string for end users')]
+    doi: Annotated[str, Field(description="Original DOI string for end users")]
     section: Section
     title: str | None = None
     year: int | None = None
     snippet: Annotated[
-        str, Field(description='Excerpt of the chunk text used as evidence')
+        str, Field(description="Excerpt of the chunk text used as evidence")
     ]
 
 
@@ -305,41 +305,37 @@ class Alias(RootModel[str]):
 
 class RiskFactor(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     rank: Annotated[int, Field(ge=1)]
     normalized_name: Annotated[
         str,
         Field(
-            description='Normalized risk factor name (controlled vocabulary target)',
+            description="Normalized risk factor name (controlled vocabulary target)",
             max_length=512,
         ),
     ]
     aliases: Annotated[
         list[Alias],
         Field(
-            description='Free-text aliases as extracted or implied by the model',
+            description="Free-text aliases as extracted or implied by the model",
             max_length=50,
         ),
     ]
     confidence: Annotated[
         float,
-        Field(
-            description='Relative confidence within this answer only', ge=0.0, le=1.0
-        ),
+        Field(description="Relative confidence within this answer only", ge=0.0, le=1.0),
     ]
     rationale: Annotated[
         str,
         Field(
-            description='Short explanation grounded in provided context',
+            description="Short explanation grounded in provided context",
             max_length=5000,
         ),
     ]
     citations: Annotated[
         list[str],
-        Field(
-            description='List of chunk_ids supporting this risk factor', max_length=20
-        ),
+        Field(description="List of chunk_ids supporting this risk factor", max_length=20),
     ]
 
 
@@ -349,7 +345,7 @@ class Limitation(RootModel[str]):
 
 class AnswerPayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     summary: Annotated[str, Field(max_length=10000)]
     risk_factors: Annotated[list[RiskFactor], Field(max_length=100)]
@@ -358,9 +354,9 @@ class AnswerPayload(BaseModel):
 
 class AskResponseEnvelope(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    api_version: Annotated[str, Field(examples=['1'])]
+    api_version: Annotated[str, Field(examples=["1"])]
     request_id: str
     effective_embedding_model_id: str
     effective_generator_model_id: str
@@ -370,5 +366,5 @@ class AskResponseEnvelope(BaseModel):
     citations: list[Citation]
     debug: Annotated[
         dict[str, Any] | None,
-        Field(description='Optional debug information, may be disabled in production'),
+        Field(description="Optional debug information, may be disabled in production"),
     ] = None

@@ -58,17 +58,23 @@ async def check_qdrant(client: httpx.AsyncClient, base_url: str) -> CheckStatus:
         log.warning("Readiness dependency timeout, dep=qdrant")
         return CheckStatus.error
     except httpx.RequestError as e:
-        log.warning("Readiness dependency request error, dep=qdrant, type=%s", type(e).__name__)
+        log.warning(
+            "Readiness dependency request error, dep=qdrant, type=%s", type(e).__name__
+        )
         return CheckStatus.error
 
     if 200 <= r.status_code < 300:
         return CheckStatus.ok
 
     if 400 <= r.status_code < 500:
-        log.warning("Readiness dependency degraded, dep=qdrant, status_code=%s", r.status_code)
+        log.warning(
+            "Readiness dependency degraded, dep=qdrant, status_code=%s", r.status_code
+        )
         return CheckStatus.degraded
 
-    log.warning("Readiness dependency unhealthy, dep=qdrant, status_code=%s", r.status_code)
+    log.warning(
+        "Readiness dependency unhealthy, dep=qdrant, status_code=%s", r.status_code
+    )
     return CheckStatus.unhealthy
 
 
@@ -83,15 +89,21 @@ async def check_ollama(client: httpx.AsyncClient, base_url: str) -> CheckStatus:
         log.warning("Readiness dependency timeout, dep=ollama")
         return CheckStatus.error
     except httpx.RequestError as e:
-        log.warning("Readiness dependency request error, dep=ollama, type=%s", type(e).__name__)
+        log.warning(
+            "Readiness dependency request error, dep=ollama, type=%s", type(e).__name__
+        )
         return CheckStatus.error
 
     if 200 <= r.status_code < 300:
         return CheckStatus.ok
 
     if 400 <= r.status_code < 500:
-        log.warning("Readiness dependency degraded, dep=ollama, status_code=%s", r.status_code)
+        log.warning(
+            "Readiness dependency degraded, dep=ollama, status_code=%s", r.status_code
+        )
         return CheckStatus.degraded
 
-    log.warning("Readiness dependency unhealthy, dep=ollama, status_code=%s", r.status_code)
+    log.warning(
+        "Readiness dependency unhealthy, dep=ollama, status_code=%s", r.status_code
+    )
     return CheckStatus.unhealthy

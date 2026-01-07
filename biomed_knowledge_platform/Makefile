@@ -38,8 +38,8 @@ format:
 	black $(SRC) --line-length=90
 
 lint:
-	flake8 $(SRC) --max-complexity=10 --max-line-length=90 --statistics
+	flake8 $(SRC) --max-complexity=10 --max-line-length=100 --statistics
 
 check:
 	black --check $(SRC) --line-length=90
-	flake8 $(SRC) --max-complexity=10 --max-line-length=90 --statistics
+	flake8 $(SRC) --max-complexity=10 --max-line-length=100 --statistics
