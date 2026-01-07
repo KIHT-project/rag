@@ -12,7 +12,6 @@ from biomed_platform.core.domains.readiness import (
     ReadinessResult,
     ReadinessStatus,
 )
-from biomed_platform.core.errors.errors import dependency_connection_failed
 from biomed_platform.core.services import readiness as readiness_mod
 
 
@@ -96,7 +95,9 @@ class TestReadinessService:
             (CheckStatus.ok, CheckStatus.missing_config),
         ],
     )
-    def test_evaluate_readiness_status_returns_not_ready_when_any_not_ok(self, qdrant: CheckStatus, llm: CheckStatus) -> None:
+    def test_evaluate_readiness_status_returns_not_ready_when_any_not_ok(
+        self, qdrant: CheckStatus, llm: CheckStatus
+    ) -> None:
         # Given
         checks = ReadinessChecks(qdrant=qdrant, llm=llm)
 
@@ -112,10 +113,11 @@ class TestReadinessService:
         client = _FakeAsyncClient(lambda _: _FakeResponse(status_code=200))
 
         # When
-        result = await readiness_mod.check_qdrant(client, "")
+        status, err = await readiness_mod.check_qdrant(client, "")
 
         # Then
-        assert result == CheckStatus.missing_config
+        assert status == CheckStatus.missing_config
+        assert err == {"reason": "Missing configuration"}
         assert client.requested_urls == []
 
     @pytest.mark.asyncio
@@ -124,10 +126,11 @@ class TestReadinessService:
         client = _FakeAsyncClient(lambda _: _FakeResponse(status_code=200))
 
         # When
-        result = await readiness_mod.check_ollama(client, "")
+        status, err = await readiness_mod.check_ollama(client, "")
 
         # Then
-        assert result == CheckStatus.missing_config
+        assert status == CheckStatus.missing_config
+        assert err == {"reason": "Missing configuration"}
         assert client.requested_urls == []
 
     @pytest.mark.asyncio
@@ -140,10 +143,11 @@ class TestReadinessService:
         client = _FakeAsyncClient(fake_get)
 
         # When
-        result = await readiness_mod.check_qdrant(client, "http://qdrant:6333")
+        status, err = await readiness_mod.check_qdrant(client, "http://qdrant:6333")
 
         # Then
-        assert result == CheckStatus.ok
+        assert status == CheckStatus.ok
+        assert err is None
 
     @pytest.mark.asyncio
     async def test_check_ollama_returns_ok_on_2xx(self) -> None:
@@ -155,10 +159,11 @@ class TestReadinessService:
         client = _FakeAsyncClient(fake_get)
 
         # When
-        result = await readiness_mod.check_ollama(client, "http://ollama:11434")
+        status, err = await readiness_mod.check_ollama(client, "http://ollama:11434")
 
         # Then
-        assert result == CheckStatus.ok
+        assert status == CheckStatus.ok
+        assert err is None
 
     @pytest.mark.asyncio
     async def test_check_qdrant_returns_degraded_on_4xx(self) -> None:
@@ -166,10 +171,11 @@ class TestReadinessService:
         client = _FakeAsyncClient(lambda _: _FakeResponse(status_code=404))
 
         # When
-        result = await readiness_mod.check_qdrant(client, "http://qdrant:6333")
+        status, err = await readiness_mod.check_qdrant(client, "http://qdrant:6333")
 
         # Then
-        assert result == CheckStatus.degraded
+        assert status == CheckStatus.degraded
+        assert err == {"reason": "http_4xx", "status_code": 404}
 
     @pytest.mark.asyncio
     async def test_check_ollama_returns_degraded_on_4xx(self) -> None:
@@ -177,10 +183,11 @@ class TestReadinessService:
         client = _FakeAsyncClient(lambda _: _FakeResponse(status_code=429))
 
         # When
-        result = await readiness_mod.check_ollama(client, "http://ollama:11434")
+        status, err = await readiness_mod.check_ollama(client, "http://ollama:11434")
 
         # Then
-        assert result == CheckStatus.degraded
+        assert status == CheckStatus.degraded
+        assert err == {"reason": "http_4xx", "status_code": 429}
 
     @pytest.mark.asyncio
     async def test_check_qdrant_returns_unhealthy_on_5xx(self) -> None:
@@ -188,10 +195,11 @@ class TestReadinessService:
         client = _FakeAsyncClient(lambda _: _FakeResponse(status_code=500))
 
         # When
-        result = await readiness_mod.check_qdrant(client, "http://qdrant:6333")
+        status, err = await readiness_mod.check_qdrant(client, "http://qdrant:6333")
 
         # Then
-        assert result == CheckStatus.unhealthy
+        assert status == CheckStatus.unhealthy
+        assert err == {"reason": "http_5xx", "status_code": 500}
 
     @pytest.mark.asyncio
     async def test_check_ollama_returns_unhealthy_on_5xx(self) -> None:
@@ -199,10 +207,11 @@ class TestReadinessService:
         client = _FakeAsyncClient(lambda _: _FakeResponse(status_code=503))
 
         # When
-        result = await readiness_mod.check_ollama(client, "http://ollama:11434")
+        status, err = await readiness_mod.check_ollama(client, "http://ollama:11434")
 
         # Then
-        assert result == CheckStatus.unhealthy
+        assert status == CheckStatus.unhealthy
+        assert err == {"reason": "http_5xx", "status_code": 503}
 
     @pytest.mark.asyncio
     async def test_check_qdrant_returns_error_on_timeout(self) -> None:
@@ -210,12 +219,23 @@ class TestReadinessService:
         client = _FakeAsyncClient(lambda _: httpx.TimeoutException("timeout"))
 
         # When
-        result = await readiness_mod.check_qdrant(client, "http://qdrant:6333")
+        status, err = await readiness_mod.check_qdrant(client, "http://qdrant:6333")
 
         # Then
-        assert result == CheckStatus.error
+        assert status == CheckStatus.error
+        assert err == {"reason": "timeout", "base_url": "http://qdrant:6333"}
 
+    @pytest.mark.asyncio
+    async def test_check_ollama_returns_error_on_timeout(self) -> None:
+        # Given
+        client = _FakeAsyncClient(lambda _: httpx.TimeoutException("timeout"))
 
+        # When
+        status, err = await readiness_mod.check_ollama(client, "http://ollama:11434")
+
+        # Then
+        assert status == CheckStatus.error
+        assert err == {"reason": "timeout", "base_url": "http://ollama:11434"}
 
     @pytest.mark.asyncio
     async def test_check_qdrant_returns_error_on_request_error(self) -> None:
@@ -223,43 +243,23 @@ class TestReadinessService:
         client = _FakeAsyncClient(lambda _: httpx.RequestError("boom"))
 
         # When
-        result = await readiness_mod.check_qdrant(client, "http://qdrant:6333")
+        status, err = await readiness_mod.check_qdrant(client, "http://qdrant:6333")
 
         # Then
-        assert result == CheckStatus.error
+        assert status == CheckStatus.error
+        assert err == {"reason": "RequestError", "base_url": "http://qdrant:6333"}
 
     @pytest.mark.asyncio
-    async def test_check_ollama_raises_dependency_connection_failed_on_timeout(self) -> None:
-        # Given
-        client = _FakeAsyncClient(lambda _: httpx.TimeoutException("timeout"))
-
-        # When
-        try:
-            await readiness_mod.check_ollama(client, "http://ollama:11434")
-            pytest.fail("Expected dependency_connection_failed to be raised")
-        except Exception as e:
-            # Then
-            expected = dependency_connection_failed(base_url="http://ollama:11434", reason="timeout", dependency="ollama")
-            assert type(e) is type(expected)
-            assert e == expected
-
-    @pytest.mark.asyncio
-    async def test_check_ollama_raises_dependency_connection_failed_on_request_error(self) -> None:
+    async def test_check_ollama_returns_error_on_request_error(self) -> None:
         # Given
         client = _FakeAsyncClient(lambda _: httpx.RequestError("boom"))
 
         # When
-        try:
-            await readiness_mod.check_ollama(client, "http://ollama:11434")
-            pytest.fail("Expected dependency_connection_failed to be raised")
-        except Exception as e:
-            # Then
-            expected = dependency_connection_failed(base_url="http://ollama:11434", reason="RequestError", dependency="ollama")
-            assert type(e) is type(expected)
-            assert e.code == expected.code
-            assert e.details == expected.details
-            assert e.retryable == expected.retryable
-            assert e.dependency == expected.dependency
+        status, err = await readiness_mod.check_ollama(client, "http://ollama:11434")
+
+        # Then
+        assert status == CheckStatus.error
+        assert err == {"reason": "RequestError", "base_url": "http://ollama:11434"}
 
     @pytest.mark.asyncio
     async def test_compute_readiness_returns_ready_when_both_dependencies_ok(self) -> None:
@@ -286,10 +286,12 @@ class TestReadinessService:
         assert isinstance(result, ReadinessResult)
         assert result.status == ReadinessStatus.ready
         assert result.checks == ReadinessChecks(qdrant=CheckStatus.ok, llm=CheckStatus.ok)
+        assert result.errors is None
         assert client.closed is False
 
     @pytest.mark.asyncio
     async def test_compute_readiness_returns_not_ready_when_qdrant_not_ok(self) -> None:
+        # Given
         def fake_get(url: str) -> Any:
             if url == "http://qdrant:6333/collections":
                 return _FakeResponse(status_code=500)
@@ -312,10 +314,12 @@ class TestReadinessService:
         assert result.status == ReadinessStatus.not_ready
         assert result.checks.qdrant == CheckStatus.unhealthy
         assert result.checks.llm == CheckStatus.ok
+        assert result.errors == {"qdrant": {"reason": "http_5xx", "status_code": 500}}
         assert client.closed is False
 
     @pytest.mark.asyncio
-    async def test_compute_readiness_propagates_ollama_connection_failed(self) -> None:
+    async def test_compute_readiness_returns_not_ready_when_ollama_errors(self) -> None:
+        # Given
         def fake_get(url: str) -> Any:
             if url == "http://qdrant:6333/collections":
                 return _FakeResponse(status_code=200)
@@ -326,14 +330,21 @@ class TestReadinessService:
         client = _FakeAsyncClient(fake_get)
         timeout = httpx.Timeout(connect=0.1, read=0.1, write=0.1, pool=0.1)
 
-        with pytest.raises(type(dependency_connection_failed(base_url="x", reason="timeout", dependency="ollama"))):
-            await readiness_mod.compute_readiness(
-                qdrant_url="http://qdrant:6333",
-                ollama_url="http://ollama:11434",
-                timeout=timeout,
-                client=client,
-            )
+        # When
+        result = await readiness_mod.compute_readiness(
+            qdrant_url="http://qdrant:6333",
+            ollama_url="http://ollama:11434",
+            timeout=timeout,
+            client=client,
+        )
 
+        # Then
+        assert result.status == ReadinessStatus.not_ready
+        assert result.checks.qdrant == CheckStatus.ok
+        assert result.checks.llm == CheckStatus.error
+        assert result.errors == {
+            "ollama": {"reason": "timeout", "base_url": "http://ollama:11434"}
+        }
         assert client.closed is False
 
     @pytest.mark.asyncio
@@ -366,5 +377,6 @@ class TestReadinessService:
 
         # Then
         assert result.status == ReadinessStatus.ready
+        assert result.errors is None
         assert created["client"].closed is True
         assert created["timeout"] == timeout

@@ -390,13 +390,20 @@ components:
 
     ReadinessResponse:
       type: object
-      additionalProperties: false
+      required:
+        - status
+        - checks
       properties:
         status:
           $ref: "#/components/schemas/ReadinessStatus"
         checks:
           $ref: "#/components/schemas/ReadinessChecks"
-      required: [status, checks]
+        errors:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: true
+          description: Dependency specific failure details, present when status is not_ready.
 
     Disease:
       type: string

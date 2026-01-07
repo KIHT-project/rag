@@ -11,7 +11,6 @@ from biomed_platform.core.domains.readiness import (
     ReadinessResult,
     ReadinessStatus,
 )
-from biomed_platform.core.errors.errors import dependency_connection_failed
 
 log = get_logger(__name__)
 
@@ -38,79 +37,93 @@ async def compute_readiness(
     if owns_client:
         client = httpx.AsyncClient(timeout=timeout)
 
+    errors: dict[str, dict[str, object]] = {}
+
     try:
-        qdrant = await check_qdrant(client, qdrant_url)
-        llm = await check_ollama(client, ollama_url)
-        checks = ReadinessChecks(qdrant=qdrant, llm=llm)
-        return ReadinessResult(status=evaluate_readiness_status(checks), checks=checks)
+        qdrant_status, qdrant_err = await check_qdrant(client, qdrant_url)
+        if qdrant_err is not None:
+            errors["qdrant"] = qdrant_err
+
+        llm_status, llm_err = await check_ollama(client, ollama_url)
+        if llm_err is not None:
+            errors["ollama"] = llm_err
+
+        checks = ReadinessChecks(qdrant=qdrant_status, llm=llm_status)
+        status = evaluate_readiness_status(checks)
+
+        return ReadinessResult(
+            status=status,
+            checks=checks,
+            errors=errors or None,
+        )
     finally:
         if owns_client:
             await client.aclose()
 
 
-async def check_qdrant(client: httpx.AsyncClient, base_url: str) -> CheckStatus:
+async def check_qdrant(
+    client: httpx.AsyncClient, base_url: str
+) -> tuple[CheckStatus, dict[str, object] | None]:
     if not base_url:
         log.warning("Readiness dependency missing config, dep=qdrant")
-        return CheckStatus.missing_config
+        return CheckStatus.missing_config, {"reason": "Missing configuration"}
 
     try:
         r = await client.get(f"{base_url}/collections")
     except httpx.TimeoutException:
         log.warning("Readiness dependency timeout, dep=qdrant")
-        return CheckStatus.error
+        return CheckStatus.error, {"reason": "timeout", "base_url": base_url}
     except httpx.RequestError as e:
         log.warning(
             "Readiness dependency request error, dep=qdrant, type=%s", type(e).__name__
         )
-        return CheckStatus.error
+        return CheckStatus.error, {"reason": type(e).__name__, "base_url": base_url}
 
     if 200 <= r.status_code < 300:
-        return CheckStatus.ok
+        return CheckStatus.ok, None
 
     if 400 <= r.status_code < 500:
         log.warning(
             "Readiness dependency degraded, dep=qdrant, status_code=%s", r.status_code
         )
-        return CheckStatus.degraded
+        return CheckStatus.degraded, {"reason": "http_4xx", "status_code": r.status_code}
 
     log.warning(
         "Readiness dependency unhealthy, dep=qdrant, status_code=%s", r.status_code
     )
-    return CheckStatus.unhealthy
+    return CheckStatus.unhealthy, {"reason": "http_5xx", "status_code": r.status_code}
 
 
-async def check_ollama(client: httpx.AsyncClient, base_url: str) -> CheckStatus:
+async def check_ollama(
+    client: httpx.AsyncClient, base_url: str
+) -> tuple[CheckStatus, dict[str, object] | None]:
     if not base_url:
         log.warning("Readiness dependency missing config, dep=ollama")
-        return CheckStatus.missing_config
+        return CheckStatus.missing_config, {"reason": "Missing configuration"}
 
     try:
         r = await client.get(f"{base_url}/api/version")
     except httpx.TimeoutException:
         log.warning("Readiness dependency timeout, dep=ollama, base_url=%s", base_url)
-        raise dependency_connection_failed(
-            base_url=base_url, reason="timeout", dependency="ollama"
-        )
+        return CheckStatus.error, {"reason": "timeout", "base_url": base_url}
     except httpx.RequestError as e:
         log.warning(
             "Readiness dependency request error, dep=ollama, type=%s, base_url=%s",
             type(e).__name__,
             base_url,
         )
-        raise dependency_connection_failed(
-            base_url=base_url, reason=type(e).__name__, dependency="ollama"
-        )
+        return CheckStatus.error, {"reason": type(e).__name__, "base_url": base_url}
 
     if 200 <= r.status_code < 300:
-        return CheckStatus.ok
+        return CheckStatus.ok, None
 
     if 400 <= r.status_code < 500:
         log.warning(
             "Readiness dependency degraded, dep=ollama, status_code=%s", r.status_code
         )
-        return CheckStatus.degraded
+        return CheckStatus.degraded, {"reason": "http_4xx", "status_code": r.status_code}
 
     log.warning(
         "Readiness dependency unhealthy, dep=ollama, status_code=%s", r.status_code
     )
-    return CheckStatus.unhealthy
+    return CheckStatus.unhealthy, {"reason": "http_5xx", "status_code": r.status_code}

@@ -52,10 +52,11 @@ async def readiness_check(request: Request, response: Response) -> ReadinessResp
     )
 
     (log.debug if is_ready else log.warning)(
-        "Readiness result, status=%s, qdrant=%s, llm=%s",
+        "Readiness result, status=%s, qdrant=%s, llm=%s, errors=%s",
         domain_result.status.value,
         domain_result.checks.qdrant.value,
         domain_result.checks.llm.value,
+        domain_result.errors,
     )
 
     return to_api_readiness_response(domain_result)

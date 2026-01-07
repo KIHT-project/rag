@@ -49,11 +49,14 @@ class ReadinessChecks(BaseModel):
 
 
 class ReadinessResponse(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
     status: ReadinessStatus
     checks: ReadinessChecks
+    errors: Annotated[
+        dict[str, dict[str, Any]] | None,
+        Field(
+            description="Dependency specific failure details, present when status is not_ready."
+        ),
+    ] = None
 
 
 class Disease(StrEnum):

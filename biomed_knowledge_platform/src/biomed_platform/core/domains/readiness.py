@@ -27,10 +27,4 @@ class ReadinessChecks:
 class ReadinessResult:
     status: ReadinessStatus
     checks: ReadinessChecks
-
-
-@dataclass(frozen=True, slots=True)
-class ReadinessHttpDecision:
-    is_ready: bool
-    log_message: str
-    log_args: tuple
+    errors: dict[str, dict[str, object]] | None = None
