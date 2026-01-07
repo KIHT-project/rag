@@ -1,9 +1,16 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, Response, status
 import httpx
+from fastapi import APIRouter, Request, Response, status
+
+from biomed_platform.api.mappers.readiness_mapper import to_api_readiness_response
+from biomed_platform.api.models.generated.schemas import ReadinessResponse
+from biomed_platform.common.logging import get_logger
+from biomed_platform.core.domains.readiness import ReadinessStatus as DomainReadinessStatus
+from biomed_platform.core.services.readiness import compute_readiness, normalize_ollama_base_url
 
 router = APIRouter(tags=["System"])
+log = get_logger(__name__)
 
 
 @router.get("/health", summary="Health check")
@@ -11,8 +18,8 @@ def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.get("/ready", summary="Readiness check")
-async def readiness_check(request: Request, response: Response) -> dict:
+@router.get("/ready", summary="Readiness check", response_model=ReadinessResponse)
+async def readiness_check(request: Request, response: Response) -> ReadinessResponse:
     settings = getattr(request.app.state, "settings", None)
 
     qdrant_url = ""
@@ -22,46 +29,24 @@ async def readiness_check(request: Request, response: Response) -> dict:
         qdrant_cfg = settings.require_qdrant()
         llm_cfg = settings.require_llm()
         qdrant_url = str(qdrant_cfg.get("url", "")).rstrip("/")
-        ollama_url = str(llm_cfg.get("ollama_base_url", "")).rstrip("/version")
+        ollama_url = normalize_ollama_base_url(str(llm_cfg.get("ollama_base_url", "")).rstrip("/"))
 
-    checks: dict[str, str] = {"qdrant": "unknown", "llm": "unknown"}
     timeout = httpx.Timeout(connect=2.0, read=2.0, write=2.0, pool=2.0)
 
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        checks["qdrant"] = await _check_qdrant(client, qdrant_url)
-        checks["llm"] = await _check_ollama(client, ollama_url)
+    domain_result = await compute_readiness(
+        qdrant_url=qdrant_url,
+        ollama_url=ollama_url,
+        timeout=timeout,
+    )
 
-    all_ok = all(v == "ok" for v in checks.values())
-    if not all_ok:
-        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return {"status": "not_ready", "checks": checks}
+    is_ready = domain_result.status == DomainReadinessStatus.ready
+    response.status_code = status.HTTP_200_OK if is_ready else status.HTTP_503_SERVICE_UNAVAILABLE
 
-    return {"status": "ready", "checks": checks}
+    (log.debug if is_ready else log.warning)(
+        "Readiness result, status=%s, qdrant=%s, llm=%s",
+        domain_result.status.value,
+        domain_result.checks.qdrant.value,
+        domain_result.checks.llm.value,
+    )
 
-
-async def _check_qdrant(client: httpx.AsyncClient, base_url: str) -> str:
-    if not base_url:
-        return "missing_config"
-    try:
-        r = await client.get(f"{base_url}/collections")
-        if 200 <= r.status_code < 300:
-            return "ok"
-        return f"http_{r.status_code}"
-    except httpx.TimeoutException:
-        return "timeout"
-    except httpx.RequestError:
-        return "unreachable"
-
-
-async def _check_ollama(client: httpx.AsyncClient, base_url: str) -> str:
-    if not base_url:
-        return "missing_config"
-    try:
-        r = await client.get(f"{base_url}/api/version")
-        if 200 <= r.status_code < 300:
-            return "ok"
-        return f"http_{r.status_code}"
-    except httpx.TimeoutException:
-        return "timeout"
-    except httpx.RequestError:
-        return "unreachable"
+    return to_api_readiness_response(domain_result)

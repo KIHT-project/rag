@@ -1,34 +1,13 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-from typing import Any, Callable
+from typing import Any
 
-import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from biomed_platform.api.endpoints import system as system_mod
-
-
-class _FakeAsyncClient:
-    def __init__(self, get_impl: Callable[[str], Any], *, timeout: Any = None) -> None:
-        self._get_impl = get_impl
-        self._timeout = timeout
-
-    async def __aenter__(self) -> "_FakeAsyncClient":
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb) -> None:
-        return None
-
-    async def get(self, url: str) -> httpx.Response:
-        result = self._get_impl(url)
-        if isinstance(result, Exception):
-            raise result
-        if isinstance(result, httpx.Response):
-            return result
-        raise TypeError(f"Fake client get_impl must return httpx.Response or Exception, got {type(result)}")
+from biomed_platform.core.domains.readiness import CheckStatus, ReadinessChecks, ReadinessResult, ReadinessStatus
 
 
 def _make_app(settings: Any | None = None) -> FastAPI:
@@ -39,40 +18,35 @@ def _make_app(settings: Any | None = None) -> FastAPI:
     return app
 
 
-class TestSystemEndpointsBDD:
+class _Settings:
+    def require_qdrant(self) -> dict[str, str]:
+        return {"url": "http://qdrant:6333"}
+
+    def require_llm(self) -> dict[str, str]:
+        return {"ollama_base_url": "http://ollama:11434"}
+
+
+class TestSystemEndpoints:
     def test_health_check_returns_ok(self) -> None:
-        # Given
         app = _make_app()
         client = TestClient(app)
 
-        # When
         r = client.get("/health")
 
-        # Then
         assert r.status_code == 200
         assert r.json() == {"status": "ok"}
 
-    def test_readiness_returns_ready_when_all_dependencies_ok(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_readiness_returns_ready_when_domain_result_ready(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # Given
-        settings = SimpleNamespace(
-            require_qdrant=lambda: {"url": "http://qdrant:6333"},
-            require_llm=lambda: {"ollama_base_url": "http://ollama:11434"},
-        )
-        app = _make_app(settings=settings)
+        app = _make_app(settings=_Settings())
 
-        def fake_get(url: str) -> httpx.Response:
-            if url == "http://qdrant:6333/collections":
-                return httpx.Response(status_code=200, json={"collections": []})
-            if url == "http://ollama:11434/api/version":
-                return httpx.Response(status_code=200, json={"version": "x"})
-            return httpx.Response(status_code=404)
+        async def fake_compute_readiness(*, qdrant_url: str, ollama_url: str, timeout) -> ReadinessResult:
+            return ReadinessResult(
+                status=ReadinessStatus.ready,
+                checks=ReadinessChecks(qdrant=CheckStatus.ok, llm=CheckStatus.ok),
+            )
 
-        monkeypatch.setattr(
-            system_mod.httpx,
-            "AsyncClient",
-            lambda timeout: _FakeAsyncClient(fake_get, timeout=timeout),
-        )
-
+        monkeypatch.setattr(system_mod, "compute_readiness", fake_compute_readiness)
         client = TestClient(app)
 
         # When
@@ -82,27 +56,17 @@ class TestSystemEndpointsBDD:
         assert r.status_code == 200
         assert r.json() == {"status": "ready", "checks": {"qdrant": "ok", "llm": "ok"}}
 
-    def test_readiness_returns_503_when_any_dependency_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_readiness_returns_503_when_domain_result_not_ready(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # Given
-        settings = SimpleNamespace(
-            require_qdrant=lambda: {"url": "http://qdrant:6333"},
-            require_llm=lambda: {"ollama_base_url": "http://ollama:11434"},
-        )
-        app = _make_app(settings=settings)
+        app = _make_app(settings=_Settings())
 
-        def fake_get(url: str) -> httpx.Response:
-            if url == "http://qdrant:6333/collections":
-                return httpx.Response(status_code=500)
-            if url == "http://ollama:11434/api/version":
-                return httpx.Response(status_code=200, json={"version": "x"})
-            return httpx.Response(status_code=404)
+        async def fake_compute_readiness(*, qdrant_url: str, ollama_url: str, timeout) -> ReadinessResult:
+            return ReadinessResult(
+                status=ReadinessStatus.not_ready,
+                checks=ReadinessChecks(qdrant=CheckStatus.unhealthy, llm=CheckStatus.ok),
+            )
 
-        monkeypatch.setattr(
-            system_mod.httpx,
-            "AsyncClient",
-            lambda timeout: _FakeAsyncClient(fake_get, timeout=timeout),
-        )
-
+        monkeypatch.setattr(system_mod, "compute_readiness", fake_compute_readiness)
         client = TestClient(app)
 
         # When
@@ -110,29 +74,55 @@ class TestSystemEndpointsBDD:
 
         # Then
         assert r.status_code == 503
-        assert r.json() == {"status": "not_ready", "checks": {"qdrant": "http_500", "llm": "ok"}}
+        assert r.json() == {"status": "not_ready", "checks": {"qdrant": "unhealthy", "llm": "ok"}}
 
     def test_readiness_returns_missing_config_when_settings_not_present(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        # Given
         app = _make_app(settings=None)
 
-        def fake_get(url: str) -> httpx.Response:
-            return httpx.Response(status_code=200)
+        async def fake_compute_readiness(*, qdrant_url: str, ollama_url: str, timeout) -> ReadinessResult:
+            assert qdrant_url == ""
+            assert ollama_url == ""
+            return ReadinessResult(
+                status=ReadinessStatus.not_ready,
+                checks=ReadinessChecks(qdrant=CheckStatus.missing_config, llm=CheckStatus.missing_config),
+            )
 
-        monkeypatch.setattr(
-            system_mod.httpx,
-            "AsyncClient",
-            lambda timeout: _FakeAsyncClient(fake_get, timeout=timeout),
-        )
-
+        monkeypatch.setattr(system_mod, "compute_readiness", fake_compute_readiness)
         client = TestClient(app)
 
-        # When
         r = client.get("/ready")
 
-        # Then
         assert r.status_code == 503
         assert r.json() == {
             "status": "not_ready",
             "checks": {"qdrant": "missing_config", "llm": "missing_config"},
         }
+
+    def test_readiness_normalizes_ollama_base_url_before_calling_service(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class _SettingsWithVersion:
+            def require_qdrant(self) -> dict[str, str]:
+                return {"url": "http://qdrant:6333"}
+
+            def require_llm(self) -> dict[str, str]:
+                return {"ollama_base_url": "http://ollama:11434/version"}
+
+        app = _make_app(settings=_SettingsWithVersion())
+        captured: dict[str, str] = {}
+
+        async def fake_compute_readiness(*, qdrant_url: str, ollama_url: str, timeout) -> ReadinessResult:
+            captured["qdrant_url"] = qdrant_url
+            captured["ollama_url"] = ollama_url
+            return ReadinessResult(
+                status=ReadinessStatus.ready,
+                checks=ReadinessChecks(qdrant=CheckStatus.ok, llm=CheckStatus.ok),
+            )
+
+        monkeypatch.setattr(system_mod, "compute_readiness", fake_compute_readiness)
+        client = TestClient(app)
+
+        r = client.get("/ready")
+
+        assert r.status_code == 200
+        assert r.json() == {"status": "ready", "checks": {"qdrant": "ok", "llm": "ok"}}
+        assert captured["qdrant_url"] == "http://qdrant:6333"
+        assert captured["ollama_url"] == "http://ollama:11434"

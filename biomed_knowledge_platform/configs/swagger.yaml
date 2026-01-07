@@ -1,0 +1,793 @@
+openapi: 3.1.0
+info:
+  title: Biomed Knowledge Platform API
+  version: "1.0.0"
+  description: >
+    High-performance API for thrombosis knowledge extraction.
+    Supports DOI-based ingestion, Qdrant vector retrieval, and RAG-based risk factor extraction.
+
+servers:
+  - url: http://localhost:8000
+    description: Root server, system endpoints and versioned API
+
+tags:
+  - name: System
+    description: Infrastructure and health monitoring.
+  - name: Ingestion
+    description: Operations related to DOI processing and vector storage.
+  - name: Retrieval
+    description: Search and RAG (Retrieval-Augmented Generation) operations.
+
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        "200":
+          description: OK
+          headers:
+            X-Request-Id:
+              description: Request id for tracing
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    examples: ["ok"]
+                required: [status]
+
+  /ready:
+    get:
+      tags: [System]
+      summary: Readiness check
+      operationId: readinessCheck
+      description: >
+        Readiness indicates whether the service is ready to receive traffic.
+        This may check downstream dependencies and configuration presence.
+      responses:
+        "200":
+          description: Ready
+          headers:
+            X-Request-Id:
+              description: Request id for tracing
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+              examples:
+                ready:
+                  value:
+                    status: ready
+                    checks:
+                      qdrant: ok
+                      llm: ok
+        "503":
+          description: Not ready
+          headers:
+            X-Request-Id:
+              description: Request id for tracing
+              schema:
+                type: string
+            Retry-After:
+              description: Optional backoff hint in seconds
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+              examples:
+                not_ready:
+                  value:
+                    status: not_ready
+                    checks:
+                      qdrant: missing_config
+                      llm: ok
+
+  /v1/ingest/items:
+    post:
+      tags: [Ingestion]
+      summary: Ingest documents (abstract now, full text later), DOI only
+      operationId: ingestItems
+      description: >
+        Ingests one or more paper documents. DOI is mandatory and must be unique per embedding model space.
+        Re-upload of an existing DOI is rejected.
+        Processing may run asynchronously; job state is best-effort in v1.
+      parameters:
+        - name: X-Request-Id
+          in: header
+          required: false
+          description: Optional request id for tracing
+          schema:
+            type: string
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Optional idempotency key for safe retries
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestBatchRequest"
+      responses:
+        "202":
+          description: Accepted
+          headers:
+            X-Request-Id:
+              description: Request id for tracing
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestJobAcceptedResponse"
+        "400":
+          description: Validation error or unsupported model id
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Duplicate DOI not allowed
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many requests
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/ingest/jobs/{job_id}:
+    get:
+      tags: [Ingestion]
+      summary: Get ingestion job status
+      operationId: getIngestJobStatus
+      description: >
+        Returns best-effort job status. In v1, job state may be lost after service restart.
+      parameters:
+        - name: X-Request-Id
+          in: header
+          required: false
+          description: Optional request id for tracing
+          schema:
+            type: string
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job status
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestJobStatusResponse"
+        "404":
+          description: Job not found
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/search:
+    post:
+      tags: [Retrieval]
+      summary: Vector search over stored chunks
+      operationId: searchChunks
+      description: >
+        Embeds the query and returns the most relevant chunks from Qdrant, applying metadata filters.
+        Model ids are optional and default to rag.yaml configuration.
+      parameters:
+        - name: X-Request-Id
+          in: header
+          required: false
+          description: Optional request id for tracing
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchRequest"
+      responses:
+        "200":
+          description: Search hits
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          description: Validation error or unsupported model id
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many requests
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/ask:
+    post:
+      tags: [Retrieval]
+      summary: Ask question with RAG
+      operationId: askQuestion
+      description: >
+        Runs retrieval (optional HyDE), LLM reranking, and structured risk factor extraction.
+        Returns an answer plus retrieval-grounded citations (chunk ids and snippets).
+        Model ids are optional and default to rag.yaml configuration.
+        If Prefer: respond-async is provided, the server may respond with 202 and a job id.
+      parameters:
+        - name: X-Request-Id
+          in: header
+          required: false
+          description: Optional request id for tracing
+          schema:
+            type: string
+        - name: Prefer
+          in: header
+          required: false
+          description: Use respond-async to request asynchronous processing
+          schema:
+            type: string
+            examples: ["respond-async"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AskRequest"
+      responses:
+        "200":
+          description: Answer with citations
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AskResponseEnvelope"
+        "202":
+          description: Accepted for async processing
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AskJobAcceptedResponse"
+        "400":
+          description: Validation error or unsupported model id
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many requests
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Optional, not enforced in v1
+
+  schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        request_id:
+          type: string
+          description: Request id for tracing
+        error:
+          type: string
+          description: Machine-readable error code
+          enum: [validation_error, invalid_model_id, duplicate_doi, not_found, too_many_requests]
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Optional structured details
+          additionalProperties: true
+      required: [request_id, error, message]
+
+    ReadinessStatus:
+      type: string
+      enum: [ready, not_ready]
+
+    CheckStatus:
+      type: string
+      enum: [ok, missing_config, unhealthy, degraded, error]
+      description: >
+        Status for a single readiness check. The service should pick the subset it uses.
+
+    ReadinessChecks:
+      type: object
+      additionalProperties: false
+      properties:
+        qdrant:
+          $ref: "#/components/schemas/CheckStatus"
+        llm:
+          $ref: "#/components/schemas/CheckStatus"
+      required: [qdrant, llm]
+
+    ReadinessResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        status:
+          $ref: "#/components/schemas/ReadinessStatus"
+        checks:
+          $ref: "#/components/schemas/ReadinessChecks"
+      required: [status, checks]
+
+    Disease:
+      type: string
+      enum: [thrombosis]
+      description: Disease scope for v1
+
+    SourceType:
+      type: string
+      enum: [pubmed_abstract, other_abstract, full_text]
+      description: >
+        Source type. v1 supports abstracts; full_text reserved for future pipeline expansion.
+
+    Section:
+      type: string
+      enum: [abstract, methods, results, discussion, conclusion, other]
+      description: >
+        Section identifier for chunk provenance. v1 uses abstract; other values reserved for full text.
+
+    IngestItem:
+      type: object
+      additionalProperties: false
+      properties:
+        doi:
+          type: string
+          description: DOI as provided by client, stored for end users as doi_original
+          minLength: 3
+          maxLength: 512
+        disease:
+          $ref: "#/components/schemas/Disease"
+        year:
+          type: integer
+          minimum: 1800
+          maximum: 2100
+        source_type:
+          $ref: "#/components/schemas/SourceType"
+        title:
+          type: string
+          maxLength: 2000
+        journal:
+          type: string
+          maxLength: 2000
+        authors:
+          type: array
+          items:
+            type: string
+            maxLength: 512
+          maxItems: 200
+        content_text:
+          type: string
+          minLength: 1
+          maxLength: 50000
+          description: >
+            Document text. In v1 this is typically the abstract. In future it may contain full text.
+      required: [doi, disease, source_type, content_text]
+
+    IngestBatchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        embedding_model_id:
+          type: string
+          description: Optional, defaults to rag.yaml default_embedding_model_id
+          examples: ["nomic-embed-text"]
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/IngestItem"
+      required: [items]
+
+    IngestJobAcceptedResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        job_id:
+          type: string
+        state:
+          type: string
+          enum: [queued]
+      required: [job_id, state]
+
+    JobState:
+      type: string
+      enum: [queued, running, succeeded, failed, partial]
+
+    IngestItemState:
+      type: string
+      enum: [queued, running, succeeded, failed, skipped_duplicate]
+
+    IngestItemStatus:
+      type: object
+      additionalProperties: false
+      properties:
+        doi:
+          type: string
+        state:
+          $ref: "#/components/schemas/IngestItemState"
+        message:
+          type: string
+          maxLength: 2000
+      required: [doi, state]
+
+    JobCounts:
+      type: object
+      additionalProperties: false
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        succeeded:
+          type: integer
+          minimum: 0
+        failed:
+          type: integer
+          minimum: 0
+        skipped_duplicate:
+          type: integer
+          minimum: 0
+      required: [total, succeeded, failed, skipped_duplicate]
+
+    IngestJobStatusResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        job_id:
+          type: string
+        state:
+          $ref: "#/components/schemas/JobState"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        effective_embedding_model_id:
+          type: string
+          description: Embedding model actually used
+        counts:
+          $ref: "#/components/schemas/JobCounts"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/IngestItemStatus"
+      required: [job_id, state, created_at, updated_at, effective_embedding_model_id, counts, items]
+
+    SearchFilters:
+      type: object
+      additionalProperties: false
+      properties:
+        disease:
+          $ref: "#/components/schemas/Disease"
+        year_min:
+          type: integer
+          minimum: 1800
+          maximum: 2100
+        year_max:
+          type: integer
+          minimum: 1800
+          maximum: 2100
+        source_type:
+          $ref: "#/components/schemas/SourceType"
+        section:
+          $ref: "#/components/schemas/Section"
+      required: [disease]
+
+    SearchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        embedding_model_id:
+          type: string
+          description: Optional, defaults to rag.yaml default_embedding_model_id
+          examples: ["nomic-embed-text"]
+        top_k:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        cursor:
+          type: string
+          description: Optional cursor for pagination (reserved for future use)
+        filters:
+          $ref: "#/components/schemas/SearchFilters"
+      required: [query, filters]
+
+    SearchHit:
+      type: object
+      additionalProperties: false
+      properties:
+        chunk_id:
+          type: string
+        doc_id:
+          type: string
+        doi:
+          type: string
+          description: Original DOI string for end users
+        section:
+          $ref: "#/components/schemas/Section"
+        score:
+          type: number
+        year:
+          type: integer
+        source_type:
+          $ref: "#/components/schemas/SourceType"
+        title:
+          type: string
+        chunk_text:
+          type: string
+          description: Returned chunk text. May be truncated by server.
+      required: [chunk_id, doc_id, doi, section, score, chunk_text]
+
+    SearchResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        effective_embedding_model_id:
+          type: string
+        next_cursor:
+          type: string
+          description: Optional cursor for next page (reserved for future use)
+        hits:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchHit"
+      required: [effective_embedding_model_id, hits]
+
+    RerankerMode:
+      type: string
+      enum: [llm, off]
+      description: Reranking mode
+
+    AskRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        question:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        embedding_model_id:
+          type: string
+          description: Optional, defaults to rag.yaml default_embedding_model_id
+          examples: ["nomic-embed-text"]
+        generator_model_id:
+          type: string
+          description: Optional, defaults to rag.yaml default_generator_model_id
+          examples: ["llama3.1:8b-instruct-q4_K_M"]
+        retrieval_top_k:
+          type: integer
+          minimum: 5
+          maximum: 100
+          default: 30
+        final_context_k:
+          type: integer
+          minimum: 3
+          maximum: 30
+          default: 10
+        hyde_enabled:
+          type: boolean
+          description: Optional, defaults to rag.yaml hyde_enabled_default
+        reranker_mode:
+          $ref: "#/components/schemas/RerankerMode"
+        filters:
+          $ref: "#/components/schemas/SearchFilters"
+      required: [question, filters]
+
+    AskJobAcceptedResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        job_id:
+          type: string
+        state:
+          type: string
+          enum: [queued]
+      required: [job_id, state]
+
+    Citation:
+      type: object
+      additionalProperties: false
+      properties:
+        chunk_id:
+          type: string
+        doi:
+          type: string
+          description: Original DOI string for end users
+        section:
+          $ref: "#/components/schemas/Section"
+        title:
+          type: string
+        year:
+          type: integer
+        snippet:
+          type: string
+          description: Excerpt of the chunk text used as evidence
+      required: [chunk_id, doi, section, snippet]
+
+    RiskFactor:
+      type: object
+      additionalProperties: false
+      properties:
+        rank:
+          type: integer
+          minimum: 1
+        normalized_name:
+          type: string
+          description: Normalized risk factor name (controlled vocabulary target)
+          maxLength: 512
+        aliases:
+          type: array
+          description: Free-text aliases as extracted or implied by the model
+          items:
+            type: string
+            maxLength: 512
+          maxItems: 50
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Relative confidence within this answer only
+        rationale:
+          type: string
+          description: Short explanation grounded in provided context
+          maxLength: 5000
+        citations:
+          type: array
+          description: List of chunk_ids supporting this risk factor
+          items:
+            type: string
+          maxItems: 20
+      required: [rank, normalized_name, aliases, confidence, rationale, citations]
+
+    AnswerPayload:
+      type: object
+      additionalProperties: false
+      properties:
+        summary:
+          type: string
+          maxLength: 10000
+        risk_factors:
+          type: array
+          items:
+            $ref: "#/components/schemas/RiskFactor"
+          maxItems: 100
+        limitations:
+          type: array
+          items:
+            type: string
+            maxLength: 2000
+          maxItems: 50
+      required: [summary, risk_factors, limitations]
+
+    AskResponseEnvelope:
+      type: object
+      additionalProperties: false
+      properties:
+        api_version:
+          type: string
+          examples: ["1"]
+        request_id:
+          type: string
+        effective_embedding_model_id:
+          type: string
+        effective_generator_model_id:
+          type: string
+        effective_hyde_enabled:
+          type: boolean
+        effective_reranker_mode:
+          $ref: "#/components/schemas/RerankerMode"
+        answer:
+          $ref: "#/components/schemas/AnswerPayload"
+        citations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Citation"
+        debug:
+          type: object
+          description: Optional debug information, may be disabled in production
+          additionalProperties: true
+      required:
+        - api_version
+        - request_id
+        - effective_embedding_model_id
+        - effective_generator_model_id
+        - effective_hyde_enabled
+        - effective_reranker_mode
+        - answer
+        - citations
+

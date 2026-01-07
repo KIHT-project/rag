@@ -1,29 +1,46 @@
 version: 1
 disable_existing_loggers: false
 
+filters:
+  request_id:
+    (): biomed_platform.common.logging.RequestIdFilter
+
 formatters:
-  standard:
-    format: "%(asctime)s.%(msecs)03d | %(levelname)s | %(name)s | %(message)s"
-    datefmt: "%Y-%m-%d %H:%M:%S"
+  app:
+    format: "%(asctime)s %(levelname)s request_id=%(request_id)s %(name)s %(message)s"
+  uvicorn:
+    format: "%(asctime)s %(levelname)s %(name)s %(message)s"
 
 handlers:
-  console:
+  console_app:
     class: logging.StreamHandler
     level: INFO
-    formatter: standard
+    formatter: app
+    filters: [request_id]
+    stream: ext://sys.stdout
+
+  console_uvicorn:
+    class: logging.StreamHandler
+    level: INFO
+    formatter: uvicorn
     stream: ext://sys.stdout
 
 root:
   level: INFO
-  handlers: [console]
+  handlers: [console_app]
 
 loggers:
   uvicorn:
     level: INFO
-    propagate: true
+    handlers: [console_uvicorn]
+    propagate: false
+
   uvicorn.error:
     level: INFO
-    propagate: true
+    handlers: [console_uvicorn]
+    propagate: false
+
   uvicorn.access:
     level: INFO
+    handlers: [console_uvicorn]
     propagate: false

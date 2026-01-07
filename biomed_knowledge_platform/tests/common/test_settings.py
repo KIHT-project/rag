@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from biomed_platform.core import settings as settings_mod
+from biomed_platform.common import settings as settings_mod
 
 
 class TestSettings:
@@ -193,3 +193,21 @@ class TestSettings:
 
         # Then
         assert "Missing required logging config" in str(exc.value)
+
+    def test_given_env_var_not_set_when_configs_dir_then_uses_project_root_configs_dir(
+            self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Given
+        monkeypatch.delenv("BIOMED_CONFIG_DIR", raising=False)
+
+        fake_root = Path("/tmp/fake-root")
+        fake_configs = fake_root / "configs"
+
+        monkeypatch.setattr(settings_mod, "project_root", lambda: fake_root)
+        monkeypatch.setattr(Path, "exists", lambda self: self == fake_configs)
+
+        # When
+        resolved = settings_mod.configs_dir()
+
+        # Then
+        assert resolved == fake_configs

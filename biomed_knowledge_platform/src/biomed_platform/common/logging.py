@@ -6,10 +6,17 @@ from pathlib import Path
 
 import yaml
 
+from biomed_platform.common.middleware.trace import request_id_ctx
+
+
+class RequestIdFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.request_id = request_id_ctx.get() or "none"
+        return True
+
 
 def configure_logging(logging_yaml_path: str | Path) -> None:
     path = Path(logging_yaml_path)
-
     if not path.exists():
         raise FileNotFoundError(f"Logging config not found: {path}")
 

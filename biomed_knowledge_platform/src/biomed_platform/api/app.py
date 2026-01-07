@@ -3,9 +3,10 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from biomed_platform.api.endpoints.system import router as system_router
+from biomed_platform.common.middleware.request_context import RequestContextMiddleware, AccessLogMiddleware
 from biomed_platform.api.router import router as v1_router
-from biomed_platform.core.logging import configure_logging, get_logger
-from biomed_platform.core.settings import load_settings
+from biomed_platform.common.logging import configure_logging, get_logger
+from biomed_platform.common.settings import load_settings
 
 
 def create_app() -> FastAPI:
@@ -31,6 +32,9 @@ def create_app() -> FastAPI:
         api_cfg.get("version"),
         api_cfg.get("description"),
     )
+
+    app.add_middleware(AccessLogMiddleware)
+    app.add_middleware(RequestContextMiddleware)
 
     return app
 
