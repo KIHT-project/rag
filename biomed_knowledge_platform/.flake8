@@ -2,3 +2,6 @@
 ignore = F541
 exclude =
     src/biomed_platform/api/models/generated/*
+
+per-file-ignores =
+    src/biomed_platform/core/services/*_ports.py:E704

@@ -35,11 +35,11 @@ clean:
 SRC = src
 
 format:
-	black $(SRC) --line-length=90
+	black $(SRC) --line-length=100
 
 lint:
 	flake8 $(SRC) --max-complexity=10 --max-line-length=100 --statistics
 
 check:
-	black --check $(SRC) --line-length=90
+	black --check $(SRC) --line-length=100
 	flake8 $(SRC) --max-complexity=10 --max-line-length=100 --statistics
