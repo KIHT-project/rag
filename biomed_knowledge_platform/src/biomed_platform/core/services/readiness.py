@@ -74,23 +74,17 @@ async def check_qdrant(
         log.warning("Readiness dependency timeout, dep=qdrant")
         return CheckStatus.error, {"reason": "timeout", "base_url": base_url}
     except httpx.RequestError as e:
-        log.warning(
-            "Readiness dependency request error, dep=qdrant, type=%s", type(e).__name__
-        )
+        log.warning("Readiness dependency request error, dep=qdrant, type=%s", type(e).__name__)
         return CheckStatus.error, {"reason": type(e).__name__, "base_url": base_url}
 
     if 200 <= r.status_code < 300:
         return CheckStatus.ok, None
 
     if 400 <= r.status_code < 500:
-        log.warning(
-            "Readiness dependency degraded, dep=qdrant, status_code=%s", r.status_code
-        )
+        log.warning("Readiness dependency degraded, dep=qdrant, status_code=%s", r.status_code)
         return CheckStatus.degraded, {"reason": "http_4xx", "status_code": r.status_code}
 
-    log.warning(
-        "Readiness dependency unhealthy, dep=qdrant, status_code=%s", r.status_code
-    )
+    log.warning("Readiness dependency unhealthy, dep=qdrant, status_code=%s", r.status_code)
     return CheckStatus.unhealthy, {"reason": "http_5xx", "status_code": r.status_code}
 
 
@@ -118,12 +112,8 @@ async def check_ollama(
         return CheckStatus.ok, None
 
     if 400 <= r.status_code < 500:
-        log.warning(
-            "Readiness dependency degraded, dep=ollama, status_code=%s", r.status_code
-        )
+        log.warning("Readiness dependency degraded, dep=ollama, status_code=%s", r.status_code)
         return CheckStatus.degraded, {"reason": "http_4xx", "status_code": r.status_code}
 
-    log.warning(
-        "Readiness dependency unhealthy, dep=ollama, status_code=%s", r.status_code
-    )
+    log.warning("Readiness dependency unhealthy, dep=ollama, status_code=%s", r.status_code)
     return CheckStatus.unhealthy, {"reason": "http_5xx", "status_code": r.status_code}

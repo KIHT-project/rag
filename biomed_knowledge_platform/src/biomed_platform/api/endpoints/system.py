@@ -34,9 +34,7 @@ async def readiness_check(request: Request, response: Response) -> ReadinessResp
         qdrant_cfg = settings.require_qdrant()
         llm_cfg = settings.require_llm()
         qdrant_url = str(qdrant_cfg.get("url", "")).rstrip("/")
-        ollama_url = normalize_ollama_base_url(
-            str(llm_cfg.get("ollama_base_url", "")).rstrip("/")
-        )
+        ollama_url = normalize_ollama_base_url(str(llm_cfg.get("ollama_base_url", "")).rstrip("/"))
 
     timeout = httpx.Timeout(connect=2.0, read=2.0, write=2.0, pool=2.0)
 
@@ -47,9 +45,7 @@ async def readiness_check(request: Request, response: Response) -> ReadinessResp
     )
 
     is_ready = domain_result.status == DomainReadinessStatus.ready
-    response.status_code = (
-        status.HTTP_200_OK if is_ready else status.HTTP_503_SERVICE_UNAVAILABLE
-    )
+    response.status_code = status.HTTP_200_OK if is_ready else status.HTTP_503_SERVICE_UNAVAILABLE
 
     (log.debug if is_ready else log.warning)(
         "Readiness result, status=%s, qdrant=%s, llm=%s, errors=%s",
