@@ -32,11 +32,10 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
         elapsed_ms = (time.perf_counter() - start) * 1000.0
 
         log.info(
-            "HTTP request, method=%s, path=%s, status=%s, duration_ms=%.2f, request_id=%s",
+            "HTTP request, method=%s, path=%s, status=%s, duration_ms=%.2f",
             request.method,
             request.url.path,
             response.status_code,
             elapsed_ms,
-            request_id_ctx.get() or "none",
         )
         return response

@@ -22,9 +22,9 @@ class ErrorResponse(BaseModel):
     request_id: Annotated[str, Field(description="Request id for tracing")]
     error: Annotated[Error, Field(description="Machine-readable error code")]
     message: Annotated[str, Field(description="Human-readable error message")]
-    details: Annotated[
-        dict[str, Any] | None, Field(description="Optional structured details")
-    ] = None
+    details: Annotated[dict[str, Any] | None, Field(description="Optional structured details")] = (
+        None
+    )
 
 
 class ReadinessStatus(StrEnum):
@@ -53,9 +53,7 @@ class ReadinessResponse(BaseModel):
     checks: ReadinessChecks
     errors: Annotated[
         dict[str, dict[str, Any]] | None,
-        Field(
-            description="Dependency specific failure details, present when status is not_ready."
-        ),
+        Field(description="Dependency specific failure details, present when status is not_ready."),
     ] = None
 
 
@@ -157,6 +155,7 @@ class IngestItemStatus(BaseModel):
         extra="forbid",
     )
     doi: str
+    doc_id: str | None = None
     state: IngestItemState
     message: Annotated[str | None, Field(max_length=2000)] = None
 
@@ -179,9 +178,7 @@ class IngestJobStatusResponse(BaseModel):
     state: JobState
     created_at: AwareDatetime
     updated_at: AwareDatetime
-    effective_embedding_model_id: Annotated[
-        str, Field(description="Embedding model actually used")
-    ]
+    effective_embedding_model_id: Annotated[str, Field(description="Embedding model actually used")]
     counts: JobCounts
     items: list[IngestItemStatus]
 
@@ -297,9 +294,7 @@ class Citation(BaseModel):
     section: Section
     title: str | None = None
     year: int | None = None
-    snippet: Annotated[
-        str, Field(description="Excerpt of the chunk text used as evidence")
-    ]
+    snippet: Annotated[str, Field(description="Excerpt of the chunk text used as evidence")]
 
 
 class Alias(RootModel[str]):

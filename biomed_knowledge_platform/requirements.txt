@@ -19,3 +19,6 @@ uvicorn==0.40.0
 
 # Network
 httpx==0.28.1
+
+# RAG
+qdrant-client==1.16.2
