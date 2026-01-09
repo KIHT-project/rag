@@ -117,6 +117,7 @@ async def ingest_items(
             request=body,
             effective_embedding_model_id=effective_embedding_model_id,
             idempotency_key=idempotency_key,
+            correlation_id=request_id,
         )
 
         accepted = await service.ingest_batch(cmd)

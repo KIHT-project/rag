@@ -20,6 +20,7 @@ def to_ingest_batch_command(
     request: schemas.IngestBatchRequest,
     effective_embedding_model_id: str,
     idempotency_key: str | None,
+    correlation_id: str | None,
 ) -> IngestBatchCommand:
     items: list[IngestItem] = []
     for it in request.items:
@@ -48,6 +49,7 @@ def to_ingest_batch_command(
         items=tuple(items),
         idempotency_key=idempotency_key,
         body_hash=body_hash,
+        correlation_id=correlation_id,
     )
 
 

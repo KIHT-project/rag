@@ -59,6 +59,7 @@ class IngestionJob:
     created_at: datetime
     updated_at: datetime
     effective_embedding_model_id: str
+    correlation_id: str | None = None
 
     items: list[IngestItemStatus] = field(default_factory=list)
     counts: JobCounts | None = None
@@ -70,6 +71,7 @@ class IngestBatchCommand:
     items: tuple[IngestItem, ...]
     idempotency_key: str | None
     body_hash: str
+    correlation_id: str | None
 
 
 @dataclass(frozen=True, slots=True)

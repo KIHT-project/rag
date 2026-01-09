@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime, timezone
 
 from biomed_platform.common.logging import get_logger
+from biomed_platform.common.middleware.trace import request_id_ctx
 from biomed_platform.core.domains.ingestion import (
     IngestItemState,
     IngestItemStatus,
@@ -59,44 +60,52 @@ class IngestionWorker:
             raise
 
     async def _process_job(self, job_id: str) -> None:
-        log.info("Processing job started, job_id=%s", job_id)
+        token = request_id_ctx.set(f"job,{job_id}")
+        try:
+            log.info("Processing job started, job_id=%s", job_id)
 
-        job = await self._load_job_or_skip(job_id)
-        if job is None:
-            return
+            job = await self._load_job_or_skip(job_id)
+            if job is None:
+                return
 
-        original_items = list(job.items)
-        doc_id_by_doi = self._build_doc_id_index(job_id=job_id, job_items=original_items)
+            if job.correlation_id:
+                request_id_ctx.reset(token)
+                token = request_id_ctx.set(job.correlation_id)
 
-        items = await self._load_payload_or_fail(job_id)
-        if items is None:
-            return
+            original_items = list(job.items)
+            doc_id_by_doi = self._build_doc_id_index(job_id=job_id, job_items=original_items)
 
-        await self._mark_job_running(job_id=job_id)
-        log.info("Job marked running, job_id=%s", job_id)
+            items = await self._load_payload_or_fail(job_id)
+            if items is None:
+                return
 
-        stats = JobStats()
-        processed_statuses = await self._process_items(
-            job_id=job_id,
-            embedding_model_id=job.effective_embedding_model_id,
-            items=items,
-            doc_id_by_doi=doc_id_by_doi,
-            stats=stats,
-        )
+            await self._mark_job_running(job_id=job_id)
+            log.info("Job marked running, job_id=%s", job_id)
 
-        await self._finalize_job(
-            job_id=job_id,
-            original_items=original_items,
-            processed_statuses=processed_statuses,
-        )
+            stats = JobStats()
+            processed_statuses = await self._process_items(
+                job_id=job_id,
+                embedding_model_id=job.effective_embedding_model_id,
+                items=items,
+                doc_id_by_doi=doc_id_by_doi,
+                stats=stats,
+            )
 
-        await self._safe_payload_delete(job_id)
+            await self._finalize_job(
+                job_id=job_id,
+                original_items=original_items,
+                processed_statuses=processed_statuses,
+            )
 
-        log.info(
-            "Job processing completed, job_id=%s, final_state=%s",
-            job_id,
-            JobState.succeeded.value,
-        )
+            await self._safe_payload_delete(job_id)
+
+            log.info(
+                "Job processing completed, job_id=%s, final_state=%s",
+                job_id,
+                JobState.succeeded.value,
+            )
+        finally:
+            request_id_ctx.reset(token)
 
     async def _load_job_or_skip(self, job_id: str):
         try:
@@ -110,11 +119,13 @@ class IngestionWorker:
             raise
 
         log.debug(
-            "Job loaded, job_id=%s, state=%s, item_count=%s, embedding_model_id=%s",
+            "Job loaded, job_id=%s, state=%s, item_count=%s,"
+            "embedding_model_id=%s, has_correlation_id=%s",
             job_id,
             job.state.value,
             len(job.items),
             job.effective_embedding_model_id,
+            bool(getattr(job, "correlation_id", None)),
         )
         return job
 

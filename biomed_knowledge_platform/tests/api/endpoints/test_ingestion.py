@@ -157,9 +157,16 @@ class TestIngestionEndpoints:
         request = _make_request(app)
         response = FastAPIResponse()
 
-        def fake_to_cmd(*, request: Any, effective_embedding_model_id: str, idempotency_key: str | None) -> Any:
+        def fake_to_cmd(
+            *,
+            request: Any,
+            effective_embedding_model_id: str,
+            idempotency_key: str | None,
+            correlation_id: str,
+        ) -> Any:
             captured["effective_embedding_model_id"] = effective_embedding_model_id
             captured["idempotency_key"] = idempotency_key
+            captured["correlation_id"] = correlation_id
             captured["body"] = request
             return SimpleNamespace(cmd="ok", effective_embedding_model_id=effective_embedding_model_id)
 
@@ -188,6 +195,7 @@ class TestIngestionEndpoints:
         assert got == {"job_id": "j1", "state": "queued"}
         assert captured["effective_embedding_model_id"] == "def_model"
         assert captured["idempotency_key"] == "idem1"
+        assert captured["correlation_id"] == "req1"
 
     async def test_ingest_items_returns_500_when_embedding_model_id_missing(
         self, monkeypatch: pytest.MonkeyPatch
@@ -199,7 +207,12 @@ class TestIngestionEndpoints:
         body = _make_ingest_body(embedding_model_id=None, items_count=1)
 
         def fake_error(*, request_id: str, err: AppError) -> Any:
-            return SimpleNamespace(request_id=request_id, code=err.code, message=err.message, details=err.details)
+            return SimpleNamespace(
+                request_id=request_id,
+                code=err.code,
+                message=err.message,
+                details=err.details,
+            )
 
         monkeypatch.setattr(ingestion_mod, "_to_error_response", fake_error)
 
@@ -228,7 +241,12 @@ class TestIngestionEndpoints:
         body = _make_ingest_body(embedding_model_id=None, items_count=1)
 
         def fake_error(*, request_id: str, err: AppError) -> Any:
-            return SimpleNamespace(request_id=request_id, code=err.code, message=err.message, details=err.details)
+            return SimpleNamespace(
+                request_id=request_id,
+                code=err.code,
+                message=err.message,
+                details=err.details,
+            )
 
         monkeypatch.setattr(ingestion_mod, "_to_error_response", fake_error)
 
@@ -273,7 +291,11 @@ class TestIngestionEndpoints:
         monkeypatch.setattr(
             ingestion_mod,
             "to_ingest_batch_command",
-            lambda *, request, effective_embedding_model_id, idempotency_key: SimpleNamespace(cmd="ok"),
+            lambda *,
+                request,
+                effective_embedding_model_id,
+                idempotency_key,
+                correlation_id: SimpleNamespace(cmd="ok"),
         )
 
         def fake_error(*, request_id: str, err: AppError) -> Any:
@@ -362,9 +384,13 @@ class TestIngestionEndpoints:
         assert got.code == "service_not_configured"
 
     async def test_get_job_status_returns_404_when_service_raises_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        # Given
         async def get_job_status_impl(job_id: str) -> Any:
-            raise AppError(code="not_found", message="missing", details={"job_id": job_id}, retryable=False)
+            raise AppError(
+                code="not_found",
+                message="missing",
+                details={"job_id": job_id},
+                retryable=False,
+            )
 
         service = _FakeIngestionService(get_job_status_impl=get_job_status_impl)
         app = _make_app(settings=None, ingestion_service=service)

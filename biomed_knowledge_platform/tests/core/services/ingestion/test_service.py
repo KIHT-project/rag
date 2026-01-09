@@ -9,6 +9,7 @@ from typing import Any, cast
 import pytest
 
 import biomed_platform.core.services.ingestion.service as service_mod
+from biomed_platform.common.utils import compute_doc_id
 from biomed_platform.core.domains.ingestion import (
     IngestBatchAccepted,
     IngestItemState,
@@ -224,16 +225,20 @@ def _cmd(
     embedding_model_id: str = "e1",
     idempotency_key: str | None = None,
     body_hash: str = "bh1",
+    correlation_id: str = "corr1",
     items: list[tuple[str, str]] | None = None,
 ) -> Any:
     if items is None:
         items = [("10.1/a", "10.1/A"), ("10.2/b", "10.2/B")]
+
     cmd_items = [SimpleNamespace(doi_normalized=n, doi_original=o) for (n, o) in items]
+
     return SimpleNamespace(
         effective_embedding_model_id=embedding_model_id,
         idempotency_key=idempotency_key,
         body_hash=body_hash,
         items=cmd_items,
+        correlation_id=correlation_id,
     )
 
 
@@ -281,7 +286,7 @@ class TestDefaultIngestionService:
         )
 
         # When
-        got = await svc.ingest_batch(_cmd(idempotency_key="k1", body_hash="bh1"))
+        got = await svc.ingest_batch(_cmd(idempotency_key="k1", body_hash="bh1", correlation_id="corr1"))
 
         # Then
         assert got == IngestBatchAccepted(job_id="existing_job", state=JobState.queued)
@@ -293,7 +298,7 @@ class TestDefaultIngestionService:
         assert payload.delete_calls == []
 
     async def test_ingest_batch_duplicate_doi_in_same_request_is_skipped_and_job_is_enqueued(
-            self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         # Given
         queue = _FakeQueue(max_size=10)
@@ -321,7 +326,10 @@ class TestDefaultIngestionService:
 
         monkeypatch.setattr(service_mod.uuid, "uuid4", lambda: _UUID)
 
-        cmd = _cmd(items=[("10.1/a", "10.1/A"), ("10.1/a", "10.1/A again")])
+        cmd = _cmd(
+            correlation_id="corr_dup",
+            items=[("10.1/a", "10.1/A"), ("10.1/a", "10.1/A again")],
+        )
 
         # When
         got = await svc.ingest_batch(cmd)
@@ -346,6 +354,7 @@ class TestDefaultIngestionService:
         assert created_job.counts.failed == 0
         assert created_job.counts.succeeded == 0
         assert created_job.counts.skipped_duplicate == 1
+        assert created_job.correlation_id == "corr_dup"
 
         assert len(created_job.items) == 2
         states = [it.state for it in created_job.items]
@@ -385,7 +394,7 @@ class TestDefaultIngestionService:
 
         # When
         with pytest.raises(AppError) as exc:
-            await svc.ingest_batch(_cmd(idempotency_key="k1", body_hash="bh1"))
+            await svc.ingest_batch(_cmd(idempotency_key="k1", body_hash="bh1", correlation_id="corr_conflict"))
 
         # Then
         assert exc.value.code == "validation_error"
@@ -428,7 +437,7 @@ class TestDefaultIngestionService:
 
         # When
         with pytest.raises(AppError) as exc:
-            await svc.ingest_batch(_cmd(idempotency_key=None))
+            await svc.ingest_batch(_cmd(idempotency_key=None, correlation_id="corr_qfull"))
 
         # Then
         assert exc.value.code == "too_many_requests"
@@ -470,7 +479,7 @@ class TestDefaultIngestionService:
         monkeypatch.setattr(service_mod.uuid, "uuid4", lambda: _UUID)
 
         # When
-        got = await svc.ingest_batch(_cmd(idempotency_key="k1", body_hash="bh1"))
+        got = await svc.ingest_batch(_cmd(idempotency_key="k1", body_hash="bh1", correlation_id="corr_ok"))
 
         # Then
         assert got == IngestBatchAccepted(job_id="job_ok", state=JobState.queued)
@@ -486,6 +495,7 @@ class TestDefaultIngestionService:
         assert created_job.job_id == "job_ok"
         assert created_job.state == JobState.queued
         assert created_job.counts.total == 2
+        assert created_job.correlation_id == "corr_ok"
         assert all(it.state == IngestItemState.queued for it in created_job.items)
 
     async def test_get_job_status_maps_missing_job_to_not_found_app_error(self) -> None:

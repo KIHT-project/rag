@@ -358,6 +358,7 @@ class DefaultIngestionService(IngestionService):
                 failed=failed_count,
                 skipped_duplicate=skipped_count,
             ),
+            correlation_id=cmd.correlation_id,
         )
 
     async def _enforce_idempotency_conflict_check(
