@@ -20,10 +20,10 @@ from biomed_platform.core.services.ingestion_ports import (
     BackpressurePolicy,
     DocumentRegistry,
     IdempotencyStore,
+    IngestPayloadStore,
     IngestionJobStore,
     IngestionQueue,
 )
-
 
 pytestmark = pytest.mark.asyncio
 
@@ -31,6 +31,7 @@ pytestmark = pytest.mark.asyncio
 @dataclass
 class _PeekRec:
     job_id: str
+
 
 class _ErrorJobStore:
     def __init__(self, err: AppError) -> None:
@@ -86,6 +87,17 @@ class _NoopRegistry:
 
 class _NoopBackpressure:
     def retry_after(self, *, queue_depth: int, queue_max_size: int, worker_count: int):
+        raise AssertionError("not used")
+
+
+class _NoopPayloadStore:
+    async def put(self, *, job_id: str, items: list[Any]) -> None:
+        raise AssertionError("not used")
+
+    async def get(self, job_id: str) -> list[Any]:
+        raise AssertionError("not used")
+
+    async def delete(self, job_id: str) -> None:
         raise AssertionError("not used")
 
 
@@ -179,6 +191,24 @@ class _FakeDocumentRegistry:
         self._rspace(embedding_model_id).discard(doc_id)
 
 
+class _FakePayloadStore:
+    def __init__(self) -> None:
+        self.data: dict[str, list[Any]] = {}
+        self.put_calls: list[tuple[str, int]] = []
+        self.delete_calls: list[str] = []
+
+    async def put(self, *, job_id: str, items: list[Any]) -> None:
+        self.data[job_id] = list(items)
+        self.put_calls.append((job_id, len(items)))
+
+    async def get(self, job_id: str) -> list[Any]:
+        return list(self.data[job_id])
+
+    async def delete(self, job_id: str) -> None:
+        self.data.pop(job_id, None)
+        self.delete_calls.append(job_id)
+
+
 class _FakeBackpressure:
     def __init__(self, *, seconds: int) -> None:
         self.seconds = seconds
@@ -215,6 +245,7 @@ def _svc(
     reg: _FakeDocumentRegistry,
     backpressure: _FakeBackpressure,
     worker_count: int,
+    payload: _FakePayloadStore,
 ) -> DefaultIngestionService:
     return DefaultIngestionService(
         queue=cast(IngestionQueue, queue),
@@ -223,15 +254,18 @@ def _svc(
         document_registry=cast(DocumentRegistry, reg),
         backpressure=cast(BackpressurePolicy, backpressure),
         worker_count=worker_count,
+        payload_store=cast(IngestPayloadStore, payload),
     )
 
 
 class TestDefaultIngestionService:
     async def test_ingest_batch_idempotency_fast_path_returns_existing(self) -> None:
+        # Given
         queue = _FakeQueue(max_size=10)
         store = _FakeJobStore()
         idem = _FakeIdempotencyStore()
         reg = _FakeDocumentRegistry()
+        payload = _FakePayloadStore()
         backpressure = _FakeBackpressure(seconds=7)
 
         idem.map[("k1", "bh1")] = "existing_job"
@@ -243,21 +277,30 @@ class TestDefaultIngestionService:
             reg=reg,
             backpressure=backpressure,
             worker_count=2,
+            payload=payload,
         )
 
+        # When
         got = await svc.ingest_batch(_cmd(idempotency_key="k1", body_hash="bh1"))
 
+        # Then
         assert got == IngestBatchAccepted(job_id="existing_job", state=JobState.queued)
         assert reg.reserve_calls == []
         assert store.created == []
         assert queue.size() == 0
         assert idem.put_calls == []
+        assert payload.put_calls == []
+        assert payload.delete_calls == []
 
-    async def test_ingest_batch_reserve_duplicate_releases_and_raises_duplicate_doi(self) -> None:
+    async def test_ingest_batch_duplicate_doi_in_same_request_is_skipped_and_job_is_enqueued(
+            self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Given
         queue = _FakeQueue(max_size=10)
         store = _FakeJobStore()
         idem = _FakeIdempotencyStore()
         reg = _FakeDocumentRegistry()
+        payload = _FakePayloadStore()
         backpressure = _FakeBackpressure(seconds=7)
 
         svc = _svc(
@@ -267,26 +310,57 @@ class TestDefaultIngestionService:
             reg=reg,
             backpressure=backpressure,
             worker_count=2,
+            payload=payload,
         )
+
+        fixed_now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        monkeypatch.setattr(svc, "_now", lambda: fixed_now)
+
+        class _UUID:
+            hex = "job_dup"
+
+        monkeypatch.setattr(service_mod.uuid, "uuid4", lambda: _UUID)
 
         cmd = _cmd(items=[("10.1/a", "10.1/A"), ("10.1/a", "10.1/A again")])
 
-        with pytest.raises(AppError) as exc:
-            await svc.ingest_batch(cmd)
+        # When
+        got = await svc.ingest_batch(cmd)
 
-        assert exc.value.code == "duplicate_doi"
-        assert store.created == []
-        assert queue.size() == 0
-        assert len(reg.reserve_calls) >= 1
-        assert len(reg.release_calls) >= 1
+        # Then
+        assert got == IngestBatchAccepted(job_id="job_dup", state=JobState.queued)
+
+        assert store.created == ["job_dup"]
+        assert store.deleted == []
+        assert queue._items == ["job_dup"]
+
+        assert len(reg.reserve_calls) == 1
+        assert reg.release_calls == []
+
+        assert payload.put_calls == [("job_dup", 1)]
+        assert payload.delete_calls == []
+
+        created_job = store.jobs["job_dup"]
+        assert created_job.job_id == "job_dup"
+        assert created_job.state == JobState.queued
+        assert created_job.counts.total == 2
+        assert created_job.counts.failed == 0
+        assert created_job.counts.succeeded == 0
+        assert created_job.counts.skipped_duplicate == 1
+
+        assert len(created_job.items) == 2
+        states = [it.state for it in created_job.items]
+        assert states.count(IngestItemState.queued) == 1
+        assert states.count(getattr(IngestItemState, "skipped_duplicate", IngestItemState.failed)) == 1
 
     async def test_ingest_batch_idempotency_conflict_rolls_back_and_raises(
-            self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        # Given
         queue = _FakeQueue(max_size=10)
         store = _FakeJobStore()
         idem = _FakeIdempotencyStore()
         reg = _FakeDocumentRegistry()
+        payload = _FakePayloadStore()
         backpressure = _FakeBackpressure(seconds=7)
 
         svc = DefaultIngestionService(
@@ -296,6 +370,7 @@ class TestDefaultIngestionService:
             document_registry=reg,
             backpressure=backpressure,
             worker_count=2,
+            payload_store=payload,
         )
 
         fixed_now = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -308,23 +383,29 @@ class TestDefaultIngestionService:
 
         idem.by_key["k1"] = _PeekRec(job_id="other_job")
 
+        # When
         with pytest.raises(AppError) as exc:
             await svc.ingest_batch(_cmd(idempotency_key="k1", body_hash="bh1"))
 
+        # Then
         assert exc.value.code == "validation_error"
         assert store.created == ["job_conflict"]
         assert store.deleted == ["job_conflict"]
+        assert payload.put_calls == [("job_conflict", 2)]
+        assert payload.delete_calls == ["job_conflict"]
         assert queue.size() == 0
         assert len(reg.release_calls) >= 1
         assert idem.put_calls == []
 
     async def test_ingest_batch_queue_full_rolls_back_and_raises_with_retry_after(
-            self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        # Given
         queue = _FakeQueue(max_size=1, fail_full=True)
         store = _FakeJobStore()
         idem = _FakeIdempotencyStore()
         reg = _FakeDocumentRegistry()
+        payload = _FakePayloadStore()
         backpressure = _FakeBackpressure(seconds=13)
 
         svc = DefaultIngestionService(
@@ -334,6 +415,7 @@ class TestDefaultIngestionService:
             document_registry=reg,
             backpressure=backpressure,
             worker_count=5,
+            payload_store=payload,
         )
 
         fixed_now = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -344,11 +426,15 @@ class TestDefaultIngestionService:
 
         monkeypatch.setattr(service_mod.uuid, "uuid4", lambda: _UUID)
 
+        # When
         with pytest.raises(AppError) as exc:
             await svc.ingest_batch(_cmd(idempotency_key=None))
 
+        # Then
         assert exc.value.code == "too_many_requests"
         assert store.deleted == ["job_qfull"]
+        assert payload.put_calls == [("job_qfull", 2)]
+        assert payload.delete_calls == ["job_qfull"]
         assert len(reg.release_calls) >= 1
         assert backpressure.calls
         assert exc.value.details and exc.value.details.get("retry_after_seconds") == 13
@@ -357,10 +443,12 @@ class TestDefaultIngestionService:
     async def test_ingest_batch_success_creates_job_enqueues_and_puts_idempotency_after_enqueue(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        # Given
         queue = _FakeQueue(max_size=10)
         store = _FakeJobStore()
         idem = _FakeIdempotencyStore()
         reg = _FakeDocumentRegistry()
+        payload = _FakePayloadStore()
         backpressure = _FakeBackpressure(seconds=7)
 
         svc = _svc(
@@ -370,6 +458,7 @@ class TestDefaultIngestionService:
             reg=reg,
             backpressure=backpressure,
             worker_count=2,
+            payload=payload,
         )
 
         fixed_now = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
@@ -380,14 +469,18 @@ class TestDefaultIngestionService:
 
         monkeypatch.setattr(service_mod.uuid, "uuid4", lambda: _UUID)
 
+        # When
         got = await svc.ingest_batch(_cmd(idempotency_key="k1", body_hash="bh1"))
 
+        # Then
         assert got == IngestBatchAccepted(job_id="job_ok", state=JobState.queued)
         assert store.created == ["job_ok"]
         assert store.deleted == []
         assert queue._items == ["job_ok"]
         assert len(reg.reserve_calls) == 2
         assert idem.put_calls == [("k1", "bh1", "job_ok", fixed_now)]
+        assert payload.put_calls == [("job_ok", 2)]
+        assert payload.delete_calls == []
 
         created_job = store.jobs["job_ok"]
         assert created_job.job_id == "job_ok"
@@ -396,10 +489,12 @@ class TestDefaultIngestionService:
         assert all(it.state == IngestItemState.queued for it in created_job.items)
 
     async def test_get_job_status_maps_missing_job_to_not_found_app_error(self) -> None:
+        # Given
         queue = _FakeQueue(max_size=10)
         store = _FakeJobStore()
         idem = _FakeIdempotencyStore()
         reg = _FakeDocumentRegistry()
+        payload = _FakePayloadStore()
         backpressure = _FakeBackpressure(seconds=7)
 
         svc = _svc(
@@ -409,16 +504,19 @@ class TestDefaultIngestionService:
             reg=reg,
             backpressure=backpressure,
             worker_count=2,
+            payload=payload,
         )
 
+        # When
         with pytest.raises(AppError) as exc:
             await svc.get_job_status(job_id="missing")
 
+        # Then
         assert exc.value.code == "not_found"
 
     async def test_get_job_status_reraises_app_error_unchanged(self) -> None:
+        # Given
         err = AppError(code="validation_error", message="boom", details={"x": 1}, retryable=False)
-
         store = _ErrorJobStore(err)
 
         svc = DefaultIngestionService(
@@ -428,10 +526,13 @@ class TestDefaultIngestionService:
             document_registry=cast(DocumentRegistry, _NoopRegistry()),
             backpressure=cast(BackpressurePolicy, _NoopBackpressure()),
             worker_count=1,
+            payload_store=cast(IngestPayloadStore, _NoopPayloadStore()),
         )
 
+        # When
         with pytest.raises(AppError) as exc:
             await svc.get_job_status(job_id="j1")
 
+        # Then
         assert exc.value is err
         assert store.calls == ["j1"]

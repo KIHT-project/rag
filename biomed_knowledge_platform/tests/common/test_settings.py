@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from biomed_platform.common import settings as settings_mod
+from biomed_platform.core.errors.errors import SystemError
 
 
 class TestSettings:
@@ -70,7 +71,7 @@ class TestSettings:
     def test_load_yaml_raises_when_yaml_is_not_mapping(self, tmp_path: Path) -> None:
         # Given
         p = tmp_path / "bad.yaml"
-        self._write(p, "- a\n- b\n")
+        self._write(p, "a\n")
 
         # When
         with pytest.raises(ValueError) as exc:
@@ -91,7 +92,7 @@ class TestSettings:
 
     def test_appsettings_require_returns_config_when_present(self) -> None:
         # Given
-        s = settings_mod.AppSettings(config_dir=Path("../../src"), by_name={"api": {"title": "x"}})
+        s = settings_mod.AppSettings(config_dir=Path("."), by_name={"api": {"title": "x"}})
 
         # When
         cfg = s.require("api")
@@ -101,7 +102,7 @@ class TestSettings:
 
     def test_appsettings_require_raises_when_missing(self) -> None:
         # Given
-        s = settings_mod.AppSettings(config_dir=Path("../../src"), by_name={})
+        s = settings_mod.AppSettings(config_dir=Path("."), by_name={})
 
         # When
         with pytest.raises(KeyError) as exc:
@@ -110,14 +111,68 @@ class TestSettings:
         # Then
         assert "Missing config: api.yaml" in str(exc.value)
 
-    def test_validate_required_configs_passes_when_all_present(self) -> None:
+    def test_require_rag_returns_inner_mapping_when_shape_is_valid(self) -> None:
         # Given
         s = settings_mod.AppSettings(
-            config_dir=Path("../../src"),
+            config_dir=Path("."),
+            by_name={"rag": {"rag": {"default_embedding_model_id": "e"}}},
+        )
+
+        # When
+        rag = s.require_rag()
+
+        # Then
+        assert rag == {"default_embedding_model_id": "e"}
+
+    def test_require_rag_raises_system_error_when_shape_is_invalid(self) -> None:
+        # Given
+        s = settings_mod.AppSettings(
+            config_dir=Path("."),
+            by_name={"rag": {"default_embedding_model_id": "e"}},
+        )
+
+        # When
+        with pytest.raises(SystemError) as exc:
+            s.require_rag()
+
+        # Then
+        assert getattr(exc.value, "code", "") == "rag_misconfiguration"
+
+    def test_require_qdrant_returns_inner_mapping_when_shape_is_valid(self) -> None:
+        # Given
+        s = settings_mod.AppSettings(
+            config_dir=Path("."),
+            by_name={"qdrant": {"qdrant": {"url": "http://localhost:6333"}}},
+        )
+
+        # When
+        qdrant = s.require_qdrant()
+
+        # Then
+        assert qdrant == {"url": "http://localhost:6333"}
+
+    def test_require_qdrant_raises_system_error_when_shape_is_invalid(self) -> None:
+        # Given
+        s = settings_mod.AppSettings(
+            config_dir=Path("."),
+            by_name={"qdrant": {"url": "http://localhost:6333"}},
+        )
+
+        # When
+        with pytest.raises(SystemError) as exc:
+            s.require_qdrant()
+
+        # Then
+        assert getattr(exc.value, "code", "") == "qdrant_misconfiguration"
+
+    def test_validate_required_configs_passes_when_all_present_and_shapes_valid(self) -> None:
+        # Given
+        s = settings_mod.AppSettings(
+            config_dir=Path("."),
             by_name={
                 "api": {"title": "x"},
-                "rag": {"default_embedding_model_id": "e"},
-                "qdrant": {"url": "http://localhost:6333"},
+                "rag": {"rag": {"default_embedding_model_id": "e"}},
+                "qdrant": {"qdrant": {"url": "http://localhost:6333"}},
                 "llm": {"ollama_base_url": "http://localhost:11434"},
             },
         )
@@ -131,11 +186,11 @@ class TestSettings:
     def test_validate_required_configs_raises_when_any_required_missing(self) -> None:
         # Given
         s = settings_mod.AppSettings(
-            config_dir=Path("../../src"),
+            config_dir=Path("."),
             by_name={
                 "api": {"title": "x"},
-                "rag": {"default_embedding_model_id": "e"},
-                "qdrant": {"url": "http://localhost:6333"},
+                "rag": {"rag": {"default_embedding_model_id": "e"}},
+                "qdrant": {"qdrant": {"url": "http://localhost:6333"}},
             },
         )
 
@@ -155,8 +210,8 @@ class TestSettings:
 
         self._write(cfg_dir / "logging.yaml", "version: 1\n")
         self._write(cfg_dir / "api.yaml", "title: test\n")
-        self._write(cfg_dir / "rag.yaml", "default_embedding_model_id: e\n")
-        self._write(cfg_dir / "qdrant.yaml", "url: http://localhost:6333\n")
+        self._write(cfg_dir / "rag.yaml", "rag:\n  default_embedding_model_id: e\n")
+        self._write(cfg_dir / "qdrant.yaml", "qdrant:\n  url: http://localhost:6333\n")
         self._write(cfg_dir / "llm.yaml", "ollama_base_url: http://localhost:11434\n")
         self._write(cfg_dir / "extra.yaml", "x: 1\n")
 
@@ -175,27 +230,29 @@ class TestSettings:
         assert "extra" in s.by_name
         assert "logging" not in s.by_name
 
-    def test_load_settings_raises_when_logging_yaml_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_load_settings_raises_system_error_when_logging_yaml_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # Given
         cfg_dir = tmp_path / "configs"
         cfg_dir.mkdir()
 
         self._write(cfg_dir / "api.yaml", "title: test\n")
-        self._write(cfg_dir / "rag.yaml", "default_embedding_model_id: e\n")
-        self._write(cfg_dir / "qdrant.yaml", "url: http://localhost:6333\n")
+        self._write(cfg_dir / "rag.yaml", "rag:\n  default_embedding_model_id: e\n")
+        self._write(cfg_dir / "qdrant.yaml", "qdrant:\n  url: http://localhost:6333\n")
         self._write(cfg_dir / "llm.yaml", "ollama_base_url: http://localhost:11434\n")
 
         monkeypatch.setenv("BIOMED_CONFIG_DIR", str(cfg_dir))
 
         # When
-        with pytest.raises(FileNotFoundError) as exc:
+        with pytest.raises(SystemError) as exc:
             settings_mod.load_settings()
 
         # Then
-        assert "Missing required logging config" in str(exc.value)
+        assert getattr(exc.value, "code", "") == "file_not_found"
 
     def test_given_env_var_not_set_when_configs_dir_then_uses_project_root_configs_dir(
-            self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         # Given
         monkeypatch.delenv("BIOMED_CONFIG_DIR", raising=False)

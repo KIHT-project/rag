@@ -1,3 +1,4 @@
+# src/biomed_platform/api/endpoints/ingestion.py
 from __future__ import annotations
 
 from fastapi import APIRouter, Header, Request, Response, status
@@ -8,9 +9,9 @@ from biomed_platform.api.mappers.ingestion_mapper import (
     to_ingest_job_status_response,
 )
 from biomed_platform.api.models.generated import schemas
-from biomed_platform.common.middleware.trace import get_request_id
-from biomed_platform.core.errors.errors import AppError
 from biomed_platform.common.logging import get_logger
+from biomed_platform.common.middleware.trace import get_request_id
+from biomed_platform.core.errors.errors import AppError, SystemError
 
 log = get_logger(__name__)
 
@@ -18,29 +19,35 @@ router = APIRouter(prefix="/v1/ingest", tags=["Ingestion"])
 
 
 def _resolve_effective_embedding_model_id(
-    *,
-    request: Request,
-    body: schemas.IngestBatchRequest,
+    *, request: Request, body: schemas.IngestBatchRequest
 ) -> str:
     cfg = getattr(request.app.state, "settings", None)
-    default_model_id = None
+    default_model_id: str | None = None
 
     if cfg is not None:
         rag_cfg = cfg.require_rag()
-        default_model_id = rag_cfg.get("default_embedding_model_id")
+        emb_cfg = rag_cfg.get("embedding", {})
+        if isinstance(emb_cfg, dict):
+            default_model_id = emb_cfg.get("provider")
 
-    effective = body.embedding_model_id or str(default_model_id or "").strip()
+    requested = getattr(body, "embedding_model_id", None)
+    effective = (requested or default_model_id or "").strip()
+    if not effective:
+        raise SystemError(
+            code="missing_embedding_model_id",
+            message="Missing embedding model id, set rag.embedding.provider"
+            "or pass embedding_model_id",
+            details=None,
+            retryable=False,
+        )
 
     log.debug(
-        "Resolved embedding model id, "
-        "provided_model_id=%r, "
-        "default_model_id=%r, "
-        "effective_model_id=%r",
-        body.embedding_model_id,
+        "Resolved embedding model id, provided_model_id=%r,"
+        "default_model_id=%r, effective_model_id=%r",
+        requested,
         default_model_id,
         effective,
     )
-
     return effective
 
 
@@ -94,15 +101,13 @@ async def ingest_items(
 
     try:
         effective_embedding_model_id = _resolve_effective_embedding_model_id(
-            request=request,
-            body=body,
+            request=request, body=body
         )
 
         service = getattr(request.app.state, "ingestion_service", None)
         if service is None:
-            log.error("Ingestion service not configured")
-            raise AppError(
-                code="validation_error",
+            raise SystemError(
+                code="service_not_configured",
                 message="Ingestion service not configured",
                 details=None,
                 retryable=False,
@@ -114,18 +119,7 @@ async def ingest_items(
             idempotency_key=idempotency_key,
         )
 
-        log.debug(
-            "Dispatching ingest batch command, effective_embedding_model_id=%s",
-            effective_embedding_model_id,
-        )
-
         accepted = await service.ingest_batch(cmd)
-
-        log.info(
-            "Ingest batch accepted, job_id=%s",
-            accepted.job_id,
-        )
-
         return to_ingest_job_accepted_response(accepted)
 
     except AppError as err:
@@ -137,17 +131,9 @@ async def ingest_items(
             retry_after = details.get("retry_after_seconds")
             if isinstance(retry_after, int):
                 response.headers["Retry-After"] = str(retry_after)
-
-            log.warning(
-                "Ingest request rate limited, retry_after_seconds=%r",
-                retry_after,
-            )
+            log.warning("Ingest request rate limited, retry_after_seconds=%r", retry_after)
         else:
-            log.warning(
-                "Ingest request failed, error_code=%s, message=%s",
-                err.code,
-                err.message,
-            )
+            log.warning("Ingest request failed, error_code=%s, message=%s", err.code, err.message)
 
         return _to_error_response(request_id=request_id, err=err)
 
@@ -167,40 +153,20 @@ async def get_job_status(
 ) -> schemas.IngestJobStatusResponse | schemas.ErrorResponse:
     request_id = get_request_id()
 
-    log.info(
-        "Job status request received,job_id=%s",
-        job_id,
-    )
-
     try:
         service = getattr(request.app.state, "ingestion_service", None)
         if service is None:
-            log.error("Ingestion service not configured")
-            raise AppError(
-                code="validation_error",
+            raise SystemError(
+                code="service_not_configured",
                 message="Ingestion service not configured",
                 details=None,
                 retryable=False,
             )
 
         job = await service.get_job_status(job_id=job_id)
-
-        log.debug(
-            "Job status retrieved, job_id=%s, job_state=%s",
-            job_id,
-            job.state,
-        )
-
         return to_ingest_job_status_response(job)
 
     except AppError as err:
         response.status_code = _status_for_error_code(err.code)
-
-        log.warning(
-            "Job status request failed, job_id=%s, error_code=%s, message=%s",
-            job_id,
-            err.code,
-            err.message,
-        )
-
+        log.warning("Job status request failed, job_id=%s,error_code=%s", job_id, err.code)
         return _to_error_response(request_id=request_id, err=err)

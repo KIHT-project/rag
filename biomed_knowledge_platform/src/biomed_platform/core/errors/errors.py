@@ -98,3 +98,11 @@ def queue_full_error(*, queue_max_size: int, retry_after_seconds: int) -> Busine
             "retry_after_seconds": retry_after_seconds,
         },
     )
+
+
+def no_valid_items_error(*, embedding_model_id: str) -> BusinessError:
+    return business_error(
+        code="validation_error",
+        message="All items have invalid doi",
+        details={"embedding_model_id": embedding_model_id},
+    )

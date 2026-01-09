@@ -1,1 +1,17 @@
-default_embedding_model_id: "sentence-transformers/all-MiniLM-L6-v2-TODO_FIX_TEST_ONLY"
+rag:
+  embedding:
+    provider: "sentence-transformers/all-MiniLM-L6-v2"
+    device: "cpu"
+    normalize_embeddings: false
+    batch_size: 32
+
+  chunking:
+    chunk_size: 1200
+    overlap: 150
+
+  vector_index:
+    backend: "qdrant"
+    qdrant_config_ref: "qdrant"
+
+  retrieval:
+    top_k: 10

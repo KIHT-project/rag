@@ -1,9 +1,11 @@
+# src/biomed_platform/common/settings.py
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from biomed_platform.core.errors.errors import SystemError
 
 import yaml
 
@@ -53,10 +55,28 @@ class AppSettings:
         return self.require("api")
 
     def require_rag(self) -> dict[str, Any]:
-        return self.require("rag")
+        raw = self.require("rag")
+        val = raw.get("rag")
+        if not isinstance(val, dict):
+            raise SystemError(
+                code="rag_misconfiguration",
+                message="rag.yaml must contain top level key rag",
+                details=None,
+                retryable=False,
+            )
+        return val
 
     def require_qdrant(self) -> dict[str, Any]:
-        return self.require("qdrant")
+        raw = self.require("qdrant")
+        val = raw.get("qdrant")
+        if not isinstance(val, dict):
+            raise SystemError(
+                code="qdrant_misconfiguration",
+                message="qdrant.yaml must contain top level key qdrant",
+                details=None,
+                retryable=False,
+            )
+        return val
 
     def require_llm(self) -> dict[str, Any]:
         return self.require("llm")
@@ -80,7 +100,12 @@ def load_settings() -> AppSettings:
         by_name[p.stem] = _load_yaml(p)
 
     if not (d / "logging.yaml").exists():
-        raise FileNotFoundError(f"Missing required logging config: {d / 'logging.yaml'}")
+        raise SystemError(
+            code="file_not_found",
+            message="File Not Found: logging.yaml",
+            details=None,
+            retryable=False,
+        )
 
     settings = AppSettings(config_dir=d, by_name=by_name)
     _validate_required_configs(settings)

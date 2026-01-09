@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import datetime
+from datetime import datetime
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Sequence
 
 
 class JobState(StrEnum):
@@ -80,3 +81,50 @@ class IngestBatchAccepted:
 @dataclass(frozen=True, slots=True)
 class RetryAfterHint:
     seconds: int
+
+
+@dataclass(frozen=True, slots=True)
+class TextChunk:
+    index: int
+    text: str
+    start: int
+    end: int
+
+
+@dataclass(frozen=True, slots=True)
+class VectorPoint:
+    point_id: str  # must be UUID or uint for Qdrant
+    vector: Sequence[float]
+    payload: dict[str, object]
+
+
+@dataclass(frozen=True)
+class ReservedDocs:
+    items_with_doc_id: list[tuple[IngestItem, str]]
+    reserved_doc_ids: list[str]
+
+
+@dataclass(frozen=True)
+class SplitItems:
+    valid: list[IngestItem]
+    invalid: list[IngestItem]
+
+
+@dataclass(frozen=True, slots=True)
+class SkippedDuplicate:
+    item: IngestItem
+    doc_id: str
+    message: str
+
+
+@dataclass(frozen=True)
+class ReserveResult:
+    reserved: ReservedDocs
+    skipped_duplicates: list[SkippedDuplicate]
+
+
+@dataclass(slots=True)
+class JobStats:
+    succeeded: int = 0
+    failed: int = 0
+    skipped: int = 0

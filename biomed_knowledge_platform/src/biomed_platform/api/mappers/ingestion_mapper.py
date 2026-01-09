@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import timezone
 
 from biomed_platform.api.models.generated import schemas
-from biomed_platform.common.utils import normalize_doi, compute_body_hash
+from biomed_platform.common.utils import normalize_doi, compute_body_hash_from_items
 from biomed_platform.core.domains.ingestion import (
     IngestBatchAccepted,
     IngestBatchCommand,
@@ -38,7 +38,10 @@ def to_ingest_batch_command(
             )
         )
 
-    body_hash = compute_body_hash(request)
+    body_hash = compute_body_hash_from_items(
+        effective_embedding_model_id=effective_embedding_model_id,
+        items=items,
+    )
 
     return IngestBatchCommand(
         effective_embedding_model_id=effective_embedding_model_id,

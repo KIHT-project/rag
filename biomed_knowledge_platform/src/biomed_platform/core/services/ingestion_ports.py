@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Protocol
+from typing import Protocol, Sequence
 
 from biomed_platform.core.domains.ingestion import (
     IngestBatchAccepted,
     IngestBatchCommand,
     IngestionJob,
     RetryAfterHint,
+    IngestItem,
+    TextChunk,
+    VectorPoint,
 )
 
 
@@ -70,3 +73,34 @@ class DocumentRegistry(Protocol):
     async def commit(self, *, embedding_model_id: str, doc_id: str) -> None: ...
 
     async def release(self, *, embedding_model_id: str, doc_id: str) -> None: ...
+
+
+class IngestPayloadStore(Protocol):
+    async def put(self, *, job_id: str, items: Sequence[IngestItem]) -> None: ...
+    async def get(self, *, job_id: str) -> list[IngestItem]: ...
+    async def delete(self, *, job_id: str) -> None: ...
+
+
+class Chunker(Protocol):
+    def chunk(self, *, text: str) -> list[TextChunk]: ...
+
+
+class EmbeddingProvider(Protocol):
+    async def embed_texts(self, *, model_id: str, texts: Sequence[str]) -> list[list[float]]: ...
+
+
+class VectorIndex(Protocol):
+    async def ensure_collection(self, *, embedding_model_id: str, vector_size: int) -> None: ...
+    async def upsert(self, *, embedding_model_id: str, points: Sequence[VectorPoint]) -> None: ...
+    async def exists(self, *, embedding_model_id: str, doc_id: str) -> bool: ...
+
+
+class IngestionPipeline(Protocol):
+    async def ingest_item(
+        self,
+        *,
+        job_id: str,
+        embedding_model_id: str,
+        doc_id: str,
+        item: IngestItem,
+    ) -> None: ...
