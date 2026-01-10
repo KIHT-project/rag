@@ -1,1 +1,2 @@
 -r biomed_knowledge_platform/requirements.txt
+-r tests/requirements.txt

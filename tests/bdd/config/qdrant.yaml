@@ -1,0 +1,14 @@
+qdrant:
+  url: "http://localhost:6335"
+  grpc_url: "http://localhost:6336"
+  api_key: null
+  timeout_seconds: 3.0
+
+  prefer_grpc: false
+
+  collection:
+    name_prefix: "docs_"
+    distance: "COSINE"
+
+  telemetry:
+    enabled: true
