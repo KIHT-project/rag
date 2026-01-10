@@ -1,0 +1,32 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.16.3
+    ports:
+      - "6335:6333" # the original is 6333 but is reserved by the host.
+      - "6336:6334" # the original is 6334 but is reserved by the host.
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+      - QDRANT__STORAGE__STORAGE_PATH=/qdrant/storage
+    volumes:
+      - qdrant_test_storage:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:6333/collections"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  ollama:
+    image: ollama/ollama:0.13.5
+    ports:
+      - "11435:11434" # the original is 11434 but is reserved by the host.
+    volumes:
+      - ollama_test_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:11434/api/version"]
+      interval: 2s
+      timeout: 2s
+      retries: 60
+
+volumes:
+  qdrant_test_storage:
+  ollama_test_models:
