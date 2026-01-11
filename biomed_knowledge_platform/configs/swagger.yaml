@@ -570,7 +570,6 @@ components:
           $ref: "#/components/schemas/SourceType"
         section:
           $ref: "#/components/schemas/Section"
-      required: [disease]
 
     SearchRequest:
       type: object
@@ -580,10 +579,6 @@ components:
           type: string
           minLength: 1
           maxLength: 2000
-        embedding_model_id:
-          type: string
-          description: Optional, defaults to rag.yaml default_embedding_model_id
-          examples: ["nomic-embed-text"]
         top_k:
           type: integer
           minimum: 1
@@ -591,10 +586,10 @@ components:
           default: 20
         cursor:
           type: string
-          description: Optional cursor for pagination (reserved for future use)
+          description: Optional cursor for pagination
         filters:
           $ref: "#/components/schemas/SearchFilters"
-      required: [query, filters]
+      required: [query]
 
     SearchHit:
       type: object
@@ -626,6 +621,8 @@ components:
       type: object
       additionalProperties: false
       properties:
+        request_id:
+          type: string
         effective_embedding_model_id:
           type: string
         next_cursor:
@@ -635,7 +632,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SearchHit"
-      required: [effective_embedding_model_id, hits]
+      required: [effective_embedding_model_id, hits, request_id]
 
     RerankerMode:
       type: string
@@ -650,14 +647,6 @@ components:
           type: string
           minLength: 1
           maxLength: 2000
-        embedding_model_id:
-          type: string
-          description: Optional, defaults to rag.yaml default_embedding_model_id
-          examples: ["nomic-embed-text"]
-        generator_model_id:
-          type: string
-          description: Optional, defaults to rag.yaml default_generator_model_id
-          examples: ["llama3.1:8b-instruct-q4_K_M"]
         retrieval_top_k:
           type: integer
           minimum: 5
@@ -767,9 +756,6 @@ components:
       type: object
       additionalProperties: false
       properties:
-        api_version:
-          type: string
-          examples: ["1"]
         request_id:
           type: string
         effective_embedding_model_id:
@@ -791,7 +777,6 @@ components:
           description: Optional debug information, may be disabled in production
           additionalProperties: true
       required:
-        - api_version
         - request_id
         - effective_embedding_model_id
         - effective_generator_model_id
