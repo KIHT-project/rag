@@ -187,7 +187,7 @@ class SearchFilters(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    disease: Disease
+    disease: Disease | None = None
     year_min: Annotated[int | None, Field(ge=1800, le=2100)] = None
     year_max: Annotated[int | None, Field(ge=1800, le=2100)] = None
     source_type: SourceType | None = None
@@ -199,19 +199,9 @@ class SearchRequest(BaseModel):
         extra="forbid",
     )
     query: Annotated[str, Field(max_length=2000, min_length=1)]
-    embedding_model_id: Annotated[
-        str | None,
-        Field(
-            description="Optional, defaults to rag.yaml default_embedding_model_id",
-            examples=["nomic-embed-text"],
-        ),
-    ] = None
     top_k: Annotated[int | None, Field(ge=1, le=100)] = 20
-    cursor: Annotated[
-        str | None,
-        Field(description="Optional cursor for pagination (reserved for future use)"),
-    ] = None
-    filters: SearchFilters
+    cursor: Annotated[str | None, Field(description="Optional cursor for pagination")] = None
+    filters: SearchFilters | None = None
 
 
 class SearchHit(BaseModel):
@@ -235,6 +225,7 @@ class SearchResponse(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
+    request_id: str
     effective_embedding_model_id: str
     next_cursor: Annotated[
         str | None,
@@ -253,20 +244,6 @@ class AskRequest(BaseModel):
         extra="forbid",
     )
     question: Annotated[str, Field(max_length=2000, min_length=1)]
-    embedding_model_id: Annotated[
-        str | None,
-        Field(
-            description="Optional, defaults to rag.yaml default_embedding_model_id",
-            examples=["nomic-embed-text"],
-        ),
-    ] = None
-    generator_model_id: Annotated[
-        str | None,
-        Field(
-            description="Optional, defaults to rag.yaml default_generator_model_id",
-            examples=["llama3.1:8b-instruct-q4_K_M"],
-        ),
-    ] = None
     retrieval_top_k: Annotated[int | None, Field(ge=5, le=100)] = 30
     final_context_k: Annotated[int | None, Field(ge=3, le=30)] = 10
     hyde_enabled: Annotated[
@@ -354,7 +331,6 @@ class AskResponseEnvelope(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    api_version: Annotated[str, Field(examples=["1"])]
     request_id: str
     effective_embedding_model_id: str
     effective_generator_model_id: str
