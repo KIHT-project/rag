@@ -358,7 +358,7 @@ components:
         error:
           type: string
           description: Machine-readable error code
-          enum: [validation_error, invalid_model_id, duplicate_doi, not_found, too_many_requests]
+          enum: [validation_error, invalid_model_id, duplicate_doi, not_found, too_many_requests, system_error]
         message:
           type: string
           description: Human-readable error message
@@ -415,12 +415,6 @@ components:
       enum: [pubmed_abstract, other_abstract, full_text]
       description: >
         Source type. v1 supports abstracts; full_text reserved for future pipeline expansion.
-
-    Section:
-      type: string
-      enum: [abstract, methods, results, discussion, conclusion, other]
-      description: >
-        Section identifier for chunk provenance. v1 uses abstract; other values reserved for full text.
 
     IngestItem:
       type: object
@@ -568,8 +562,6 @@ components:
           maximum: 2100
         source_type:
           $ref: "#/components/schemas/SourceType"
-        section:
-          $ref: "#/components/schemas/Section"
 
     SearchRequest:
       type: object
@@ -595,15 +587,21 @@ components:
       type: object
       additionalProperties: false
       properties:
-        chunk_id:
-          type: string
+        chunk_ids:
+          type: array
+          items:
+            type: string
         doc_id:
           type: string
         doi:
           type: string
           description: Original DOI string for end users
-        section:
-          $ref: "#/components/schemas/Section"
+        authors:
+          type: array
+          items:
+            type: string
+        journal:
+          type: string
         score:
           type: number
         year:
@@ -612,10 +610,10 @@ components:
           $ref: "#/components/schemas/SourceType"
         title:
           type: string
-        chunk_text:
+        content_text:
           type: string
-          description: Returned chunk text. May be truncated by server.
-      required: [chunk_id, doc_id, doi, section, score, chunk_text]
+          description: Returned full text from all the chunks that assembles a specific DOI. Basically is the full DOI.
+      required: [chunk_id, doc_id, doi, score, chunk_text]
 
     SearchResponse:
       type: object
@@ -686,8 +684,6 @@ components:
         doi:
           type: string
           description: Original DOI string for end users
-        section:
-          $ref: "#/components/schemas/Section"
         title:
           type: string
         year:
@@ -695,7 +691,7 @@ components:
         snippet:
           type: string
           description: Excerpt of the chunk text used as evidence
-      required: [chunk_id, doi, section, snippet]
+      required: [chunk_id, doi, snippet]
 
     RiskFactor:
       type: object
