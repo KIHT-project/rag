@@ -39,6 +39,9 @@ def ctx() -> dict:
 
 @pytest.fixture(autouse=True)
 def cleanup_qdrant_via_script() -> None:
+    script = Path(__file__).resolve().parent / "helpers" / "clear_qdrant.py"
+    assert script.exists(), f"Missing clear_qdrant script at {script}"
+    subprocess.run([sys.executable, str(script)], check=True)
     yield
-    script = Path(__file__).resolve().parents[1] / "helpers" / "clear_qdrant.py"
-    subprocess.run([sys.executable, str(script)], check=False)
+    subprocess.run([sys.executable, str(script)], check=True)
+
