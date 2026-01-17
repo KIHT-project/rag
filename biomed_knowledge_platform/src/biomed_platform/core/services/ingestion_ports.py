@@ -12,6 +12,7 @@ from biomed_platform.core.domains.ingestion import (
     TextChunk,
     VectorPoint,
 )
+from biomed_platform.core.domains.retrieval import VectorSearchHit
 
 
 class IngestionQueue(Protocol):
@@ -93,6 +94,15 @@ class VectorIndex(Protocol):
     async def ensure_collection(self, *, embedding_model_id: str, vector_size: int) -> None: ...
     async def upsert(self, *, embedding_model_id: str, points: Sequence[VectorPoint]) -> None: ...
     async def exists(self, *, embedding_model_id: str, doc_id: str) -> bool: ...
+
+    async def search(
+        self,
+        *,
+        embedding_model_id: str,
+        query_vector: Sequence[float],
+        top_k: int,
+        qfilter: object | None,
+    ) -> list[VectorSearchHit]: ...
 
 
 class IngestionPipeline(Protocol):

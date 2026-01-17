@@ -1,5 +1,6 @@
 # src/biomed_platform/api/app.py
 from __future__ import annotations
+from biomed_platform.api.endpoints.retrieval import router as retrieval_router
 
 import asyncio
 from contextlib import asynccontextmanager
@@ -190,10 +191,13 @@ def create_app() -> FastAPI:
 
     app.state.settings = settings
     app.state.ingestion_service = service
+    app.state.embedding_provider = embedder
+    app.state.vector_index = index
 
     app.include_router(system_router)
     app.include_router(v1_router)
     app.include_router(ingestion_router)
+    app.include_router(retrieval_router)
 
     app.add_middleware(AccessLogMiddleware)
     app.add_middleware(RequestContextMiddleware)

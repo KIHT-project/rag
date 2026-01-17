@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 from typing import Any
 
 import pytest
@@ -8,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import biomed_platform.api.app as app_mod
+from biomed_platform.core.errors.errors import SystemError
 
 
 class TestApiApp:
@@ -49,6 +51,40 @@ class TestApiApp:
 
         return _Settings()
 
+    def _settings_override(
+        self,
+        *,
+        rag_embedding: Any | None = None,
+        rag_chunking: Any | None = None,
+        qdrant_collection: Any | None = None,
+        qdrant_url: Any | None = None,
+    ) -> Any:
+        base = self._settings()
+
+        class _Settings:
+            logging_path = base.logging_path
+
+            def require_api(self) -> dict[str, str]:
+                return base.require_api()
+
+            def require_rag(self) -> dict[str, Any]:
+                cfg = deepcopy(base.require_rag())
+                if rag_embedding is not None:
+                    cfg["embedding"] = rag_embedding
+                if rag_chunking is not None:
+                    cfg["chunking"] = rag_chunking
+                return cfg
+
+            def require_qdrant(self) -> dict[str, Any]:
+                cfg = deepcopy(base.require_qdrant())
+                if qdrant_collection is not None:
+                    cfg["collection"] = qdrant_collection
+                if qdrant_url is not None:
+                    cfg["url"] = qdrant_url
+                return cfg
+
+        return _Settings()
+
     def _patch_runtime_deps(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(app_mod, "QdrantClient", lambda **kwargs: object())
         monkeypatch.setattr(app_mod, "parse_distance", lambda s: s)
@@ -81,6 +117,9 @@ class TestApiApp:
         monkeypatch.setattr(app_mod, "QdrantVectorIndex", _FakeIndex)
         monkeypatch.setattr(app_mod, "DefaultIngestionPipeline", _FakePipeline)
 
+        # silence log usage
+        monkeypatch.setattr(app_mod, "get_logger", lambda _: type("L", (), {"info": lambda *a, **k: None})())
+
     def test_given_settings_when_create_app_then_configures_logging_and_sets_app_metadata(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -88,8 +127,7 @@ class TestApiApp:
         configured: dict[str, Any] = {}
         installed: dict[str, Any] = {"error_handlers": False}
 
-        def fake_load_settings() -> Any:
-            return self._settings()
+        monkeypatch.setattr(app_mod, "load_settings", lambda: self._settings())
 
         def fake_configure_logging(path: str) -> None:
             configured["logging_path"] = path
@@ -97,10 +135,8 @@ class TestApiApp:
         def fake_install_error_handlers(app: FastAPI) -> None:
             installed["error_handlers"] = True
 
-        monkeypatch.setattr(app_mod, "load_settings", fake_load_settings)
         monkeypatch.setattr(app_mod, "configure_logging", fake_configure_logging)
         monkeypatch.setattr(app_mod, "install_error_handlers", fake_install_error_handlers)
-        monkeypatch.setattr(app_mod, "get_logger", lambda _: type("L", (), {"info": lambda *a, **k: None})())
         self._patch_runtime_deps(monkeypatch)
 
         app = app_mod.create_app()
@@ -115,6 +151,8 @@ class TestApiApp:
 
         assert getattr(app.state, "settings") is not None
         assert getattr(app.state, "ingestion_service") is not None
+        assert getattr(app.state, "embedding_provider") is not None
+        assert getattr(app.state, "vector_index") is not None
 
     def test_given_create_app_when_called_then_registers_expected_routers(
         self,
@@ -130,6 +168,7 @@ class TestApiApp:
         paths = {getattr(r, "path", None) for r in app.router.routes}
         assert "/health" in paths
         assert "/ready" in paths
+        assert "/v1/search" in paths
 
     def test_given_create_app_when_called_then_adds_middlewares_in_expected_chain_order(
         self,
@@ -158,6 +197,75 @@ class TestApiApp:
 
         with pytest.raises(RuntimeError, match="boom"):
             app_mod.create_app()
+
+    def test_given_invalid_rag_embedding_type_when_create_app_then_raises_system_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            app_mod,
+            "load_settings",
+            lambda: self._settings_override(rag_embedding=["not", "a", "dict"]),
+        )
+        monkeypatch.setattr(app_mod, "configure_logging", lambda _: None)
+        self._patch_runtime_deps(monkeypatch)
+
+        with pytest.raises(SystemError) as exc:
+            app_mod.create_app()
+
+        assert exc.value.code == "invalid_rag_config"
+
+    def test_given_invalid_rag_chunking_type_when_create_app_then_raises_system_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            app_mod,
+            "load_settings",
+            lambda: self._settings_override(rag_chunking="nope"),
+        )
+        monkeypatch.setattr(app_mod, "configure_logging", lambda _: None)
+        self._patch_runtime_deps(monkeypatch)
+
+        with pytest.raises(SystemError) as exc:
+            app_mod.create_app()
+
+        assert exc.value.code == "invalid_rag_config"
+
+    def test_given_invalid_qdrant_collection_type_when_create_app_then_raises_system_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            app_mod,
+            "load_settings",
+            lambda: self._settings_override(qdrant_collection=42),
+        )
+        monkeypatch.setattr(app_mod, "configure_logging", lambda _: None)
+        self._patch_runtime_deps(monkeypatch)
+
+        with pytest.raises(SystemError) as exc:
+            app_mod.create_app()
+
+        assert exc.value.code == "invalid_qdrant_config"
+
+    def test_given_missing_qdrant_url_when_create_app_then_raises_system_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            app_mod,
+            "load_settings",
+            lambda: self._settings_override(qdrant_url="   "),
+        )
+        monkeypatch.setattr(app_mod, "configure_logging", lambda _: None)
+        self._patch_runtime_deps(monkeypatch)
+
+        with pytest.raises(SystemError) as exc:
+            app_mod.create_app()
+
+        assert exc.value.code == "missing_qdrant_url"
+        assert exc.value.retryable is False
 
     def test_given_app_startup_when_testclient_enters_then_starts_workers_and_logs_startup(
             self,

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import Callable, Sequence, TypeVar
+from typing import Any, Callable, Sequence, TypeVar
 
 from qdrant_client import QdrantClient
 from qdrant_client.http.exceptions import UnexpectedResponse
@@ -18,6 +18,7 @@ from qdrant_client.http.models import (
 
 from biomed_platform.common.logging import get_logger
 from biomed_platform.core.domains.ingestion import VectorPoint
+from biomed_platform.core.domains.retrieval import VectorSearchHit
 from biomed_platform.core.errors.errors import SystemError
 from biomed_platform.core.services.ingestion_ports import VectorIndex
 
@@ -182,7 +183,7 @@ class QdrantVectorIndex(VectorIndex):
     async def upsert(self, *, embedding_model_id: str, points: Sequence[VectorPoint]) -> None:
         if not points:
             log.debug(
-                "Upsert skipped, no points provided," "embedding_model_id=%s", embedding_model_id
+                "Upsert skipped, no points provided, embedding_model_id=%s", embedding_model_id
             )
             return
 
@@ -269,3 +270,197 @@ class QdrantVectorIndex(VectorIndex):
                 details={"collection": name, "doc_id": doc_id},
                 retryable=True,
             ) from exc
+
+    async def search(
+        self,
+        *,
+        embedding_model_id: str,
+        query_vector: Sequence[float],
+        top_k: int,
+        qfilter: object | None,
+    ) -> list[VectorSearchHit]:
+        if top_k <= 0:
+            return []
+
+        name = self._collection_name(embedding_model_id=embedding_model_id)
+        filt: Filter | None = qfilter if isinstance(qfilter, Filter) else None
+
+        try:
+
+            def _search_any() -> Any:
+                if hasattr(self.client, "query_points"):
+                    return self.client.query_points(
+                        collection_name=name,
+                        query=list(query_vector),
+                        query_filter=filt,
+                        limit=int(top_k),
+                        with_payload=True,
+                        with_vectors=False,
+                    )
+
+                if hasattr(self.client, "search"):
+                    return self.client.search(
+                        collection_name=name,
+                        query_vector=list(query_vector),
+                        query_filter=filt,
+                        limit=int(top_k),
+                        with_payload=True,
+                        with_vectors=False,
+                    )
+
+                raise AttributeError("No compatible search method found on QdrantClient")
+
+            res = await self._call_blocking(_search_any)
+
+        except AttributeError as exc:
+            raise SystemError(
+                code="qdrant_client_incompatible",
+                message="Installed qdrant client is incompatible with this server code",
+                details={"missing": "query_points or search"},
+                retryable=False,
+            ) from exc
+
+        except UnexpectedResponse as exc:
+
+            status_code = getattr(exc, "status_code", None)
+
+            if status_code is None:
+                status_code = getattr(getattr(exc, "response", None), "status_code", None)
+
+            if status_code == 404:
+                log.debug("Qdrant collection missing during search, returning empty, name=%s", name)
+
+                return []
+
+            raise SystemError(
+                code="qdrant_search_failed",
+                message="Failed to search qdrant",
+                details={"collection": name, "status_code": status_code},
+                retryable=True,
+            ) from exc
+
+        except Exception as exc:
+            raise SystemError(
+                code="qdrant_search_failed",
+                message="Failed to search qdrant",
+                details={"collection": name},
+                retryable=True,
+            ) from exc
+
+        points = getattr(res, "points", None)
+        if points is None:
+            points = res or []
+
+        hits: list[VectorSearchHit] = []
+        for p in points:
+            pid = getattr(p, "id", None)
+            score = getattr(p, "score", None)
+            payload = getattr(p, "payload", None) or {}
+            hits.append(
+                VectorSearchHit(
+                    point_id=str(pid),
+                    score=float(score or 0.0),
+                    payload=dict(payload),
+                )
+            )
+
+        return hits
+
+    async def fetch_by_doc_ids(
+        self,
+        *,
+        embedding_model_id: str,
+        doc_ids: Sequence[str],
+        base_filter: object | None,
+        limit: int = 20000,
+    ) -> list[VectorSearchHit]:
+        doc_ids_clean = [d for d in doc_ids if d]
+        if not doc_ids_clean:
+            return []
+
+        name = self._collection_name(embedding_model_id=embedding_model_id)
+
+        base: Filter | None = base_filter if isinstance(base_filter, Filter) else None
+
+        should = [
+            FieldCondition(key="doc_id", match=MatchValue(value=did)) for did in doc_ids_clean
+        ]
+
+        if base is None:
+            scroll_filter = Filter(should=should)
+        else:
+            scroll_filter = Filter(
+                must=list(base.must or []),
+                should=should,
+                must_not=list(base.must_not or []),
+            )
+
+        try:
+
+            def _scroll_all() -> list[object]:
+                out: list[object] = []
+                offset = None
+                remaining = int(limit) if limit and limit > 0 else 20000
+
+                while remaining > 0:
+                    page_limit = min(256, remaining)
+
+                    page, next_offset = self.client.scroll(
+                        collection_name=name,
+                        scroll_filter=scroll_filter,
+                        limit=page_limit,
+                        offset=offset,
+                        with_payload=True,
+                        with_vectors=False,
+                    )
+
+                    if page:
+                        out.extend(page)
+                        remaining -= len(page)
+
+                    if next_offset is None or not page:
+                        break
+
+                    offset = next_offset
+
+                return out
+
+            points = await self._call_blocking(_scroll_all)
+
+        except UnexpectedResponse as exc:
+            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            if status_code == 404:
+                log.debug(
+                    "Qdrant collection missing during fetch_by_doc_ids, returning empty, name=%s",
+                    name,
+                )
+                return []
+
+            raise SystemError(
+                code="qdrant_fetch_failed",
+                message="Failed to fetch document chunks from qdrant",
+                details={"collection": name, "status_code": status_code},
+                retryable=True,
+            ) from exc
+
+        except Exception as exc:
+            raise SystemError(
+                code="qdrant_fetch_failed",
+                message="Failed to fetch document chunks from qdrant",
+                details={"collection": name},
+                retryable=True,
+            ) from exc
+
+        hits: list[VectorSearchHit] = []
+        for p in points or []:
+            pid = getattr(p, "id", None)
+            payload = getattr(p, "payload", None) or {}
+            hits.append(
+                VectorSearchHit(
+                    point_id=str(pid),
+                    score=0.0,
+                    payload=dict(payload),
+                )
+            )
+
+        return hits
