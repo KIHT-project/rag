@@ -21,13 +21,13 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-For deactivation of virtual profile run:
+For deactivation of the virtual profile, run:
 ```shell
 deactivate
 ```
 
 Application README:
-
+![README.md](biomed_knowledge_platform/README.md)
 
 BDD Test README:
-
+![README.md](tests/README.md)
