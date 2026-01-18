@@ -12,7 +12,6 @@ from biomed_platform.core.domains.ingestion import (
     TextChunk,
     VectorPoint,
 )
-from biomed_platform.core.domains.retrieval import VectorSearchHit
 
 
 class IngestionQueue(Protocol):
@@ -48,16 +47,6 @@ class IdempotencyStore(Protocol):
     ) -> None: ...
 
 
-class DocumentExistenceChecker(Protocol):
-    async def exists(self, *, embedding_model_id: str, doc_id: str) -> bool: ...
-
-
-class IngestionService(Protocol):
-    async def ingest_batch(self, cmd: IngestBatchCommand) -> IngestBatchAccepted: ...
-
-    async def get_job_status(self, *, job_id: str) -> IngestionJob: ...
-
-
 class BackpressurePolicy(Protocol):
     def retry_after(
         self,
@@ -78,7 +67,9 @@ class DocumentRegistry(Protocol):
 
 class IngestPayloadStore(Protocol):
     async def put(self, *, job_id: str, items: Sequence[IngestItem]) -> None: ...
+
     async def get(self, *, job_id: str) -> list[IngestItem]: ...
+
     async def delete(self, *, job_id: str) -> None: ...
 
 
@@ -90,19 +81,12 @@ class EmbeddingProvider(Protocol):
     async def embed_texts(self, *, model_id: str, texts: Sequence[str]) -> list[list[float]]: ...
 
 
-class VectorIndex(Protocol):
+class VectorWriter(Protocol):
     async def ensure_collection(self, *, embedding_model_id: str, vector_size: int) -> None: ...
-    async def upsert(self, *, embedding_model_id: str, points: Sequence[VectorPoint]) -> None: ...
-    async def exists(self, *, embedding_model_id: str, doc_id: str) -> bool: ...
 
-    async def search(
-        self,
-        *,
-        embedding_model_id: str,
-        query_vector: Sequence[float],
-        top_k: int,
-        qfilter: object | None,
-    ) -> list[VectorSearchHit]: ...
+    async def upsert(self, *, embedding_model_id: str, points: Sequence[VectorPoint]) -> None: ...
+
+    async def exists(self, *, embedding_model_id: str, doc_id: str) -> bool: ...
 
 
 class IngestionPipeline(Protocol):
@@ -114,3 +98,9 @@ class IngestionPipeline(Protocol):
         doc_id: str,
         item: IngestItem,
     ) -> None: ...
+
+
+class IngestionService(Protocol):
+    async def ingest_batch(self, cmd: IngestBatchCommand) -> IngestBatchAccepted: ...
+
+    async def get_job_status(self, *, job_id: str) -> IngestionJob: ...

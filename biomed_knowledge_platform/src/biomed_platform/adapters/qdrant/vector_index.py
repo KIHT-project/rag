@@ -1,4 +1,3 @@
-# src/biomed_platform/core/services/ingestion/qdrant_vector_index.py
 from __future__ import annotations
 
 import asyncio
@@ -14,13 +13,14 @@ from qdrant_client.http.models import (
     MatchValue,
     PointStruct,
     VectorParams,
+    Range,
 )
 
 from biomed_platform.common.logging import get_logger
 from biomed_platform.core.domains.ingestion import VectorPoint
 from biomed_platform.core.domains.retrieval import VectorSearchHit
 from biomed_platform.core.errors.errors import SystemError
-from biomed_platform.core.services.ingestion_ports import VectorIndex
+from biomed_platform.core.ports.ingestion import VectorWriter
 
 log = get_logger(__name__)
 
@@ -48,7 +48,7 @@ def parse_distance(value: str) -> Distance:
 
 
 @dataclass(slots=True)
-class QdrantVectorIndex(VectorIndex):
+class QdrantVectorIndex(VectorWriter):
     client: QdrantClient
     collection_name_prefix: str
     distance: Distance
@@ -108,6 +108,7 @@ class QdrantVectorIndex(VectorIndex):
                 return self.client.get_collections().collections
 
             return await self._call_blocking(_get)
+
         except Exception as exc:
             log.exception("Qdrant get_collections failed, name=%s", name)
             raise SystemError(
@@ -118,10 +119,7 @@ class QdrantVectorIndex(VectorIndex):
             ) from exc
 
     def _collection_exists(self, *, existing: Sequence[object], name: str) -> bool:
-        for c in existing:
-            if getattr(c, "name", None) == name:
-                return True
-        return False
+        return any(getattr(c, "name", None) == name for c in existing)
 
     async def _create_collection(self, *, name: str, vector_size: int) -> None:
         log.info(
@@ -140,6 +138,7 @@ class QdrantVectorIndex(VectorIndex):
                 )
 
             await self._call_blocking(_create)
+
         except UnexpectedResponse as exc:
             status_code = getattr(getattr(exc, "response", None), "status_code", None)
             if status_code == 409:
@@ -153,6 +152,7 @@ class QdrantVectorIndex(VectorIndex):
                 details={"collection": name, "status_code": status_code},
                 retryable=True,
             ) from exc
+
         except Exception as exc:
             log.exception("Qdrant create_collection failed, name=%s", name)
             raise SystemError(
@@ -183,7 +183,8 @@ class QdrantVectorIndex(VectorIndex):
     async def upsert(self, *, embedding_model_id: str, points: Sequence[VectorPoint]) -> None:
         if not points:
             log.debug(
-                "Upsert skipped, no points provided, embedding_model_id=%s", embedding_model_id
+                "Upsert skipped, no points provided, embedding_model_id=%s",
+                embedding_model_id,
             )
             return
 
@@ -191,7 +192,7 @@ class QdrantVectorIndex(VectorIndex):
 
         log.debug("Preparing qdrant upsert, name=%s, point_count=%s", name, len(points))
 
-        qpoints: list[PointStruct] = [
+        qpoints = [
             PointStruct(
                 id=p.point_id,
                 vector=list(p.vector),
@@ -210,6 +211,7 @@ class QdrantVectorIndex(VectorIndex):
                 )
 
             await self._call_blocking(_upsert)
+
         except Exception as exc:
             log.exception("Qdrant upsert failed, name=%s, points=%s", name, len(qpoints))
             raise SystemError(
@@ -244,8 +246,7 @@ class QdrantVectorIndex(VectorIndex):
                 )
                 return int(getattr(res, "count", 0))
 
-            cnt = await self._call_blocking(_count)
-            return cnt > 0
+            return (await self._call_blocking(_count)) > 0
 
         except UnexpectedResponse as exc:
             status_code = getattr(getattr(exc, "response", None), "status_code", None)
@@ -271,6 +272,55 @@ class QdrantVectorIndex(VectorIndex):
                 retryable=True,
             ) from exc
 
+    def _resolve_filter(self, raw: object | None) -> Filter | None:
+        if isinstance(raw, Filter):
+            return raw
+        if isinstance(raw, dict):
+            return self._to_filter(raw)
+        return None
+
+    def _search_any(
+        self,
+        *,
+        name: str,
+        query_vector: Sequence[float],
+        filt: Filter | None,
+        top_k: int,
+    ) -> Any:
+        if hasattr(self.client, "query_points"):
+            return self.client.query_points(
+                collection_name=name,
+                query=list(query_vector),
+                query_filter=filt,
+                limit=int(top_k),
+                with_payload=True,
+                with_vectors=False,
+            )
+
+        if hasattr(self.client, "search"):
+            return self.client.search(
+                collection_name=name,
+                query_vector=list(query_vector),
+                query_filter=filt,
+                limit=int(top_k),
+                with_payload=True,
+                with_vectors=False,
+            )
+
+        raise AttributeError("No compatible search method found on QdrantClient")
+
+    def _map_hits_with_score(self, points: Sequence[object]) -> list[VectorSearchHit]:
+        hits: list[VectorSearchHit] = []
+        for p in points:
+            hits.append(
+                VectorSearchHit(
+                    point_id=str(getattr(p, "id", None)),
+                    score=float(getattr(p, "score", None) or 0.0),
+                    payload=dict(getattr(p, "payload", None) or {}),
+                )
+            )
+        return hits
+
     async def search(
         self,
         *,
@@ -283,34 +333,17 @@ class QdrantVectorIndex(VectorIndex):
             return []
 
         name = self._collection_name(embedding_model_id=embedding_model_id)
-        filt: Filter | None = qfilter if isinstance(qfilter, Filter) else None
+        filt = self._resolve_filter(qfilter)
 
         try:
-
-            def _search_any() -> Any:
-                if hasattr(self.client, "query_points"):
-                    return self.client.query_points(
-                        collection_name=name,
-                        query=list(query_vector),
-                        query_filter=filt,
-                        limit=int(top_k),
-                        with_payload=True,
-                        with_vectors=False,
-                    )
-
-                if hasattr(self.client, "search"):
-                    return self.client.search(
-                        collection_name=name,
-                        query_vector=list(query_vector),
-                        query_filter=filt,
-                        limit=int(top_k),
-                        with_payload=True,
-                        with_vectors=False,
-                    )
-
-                raise AttributeError("No compatible search method found on QdrantClient")
-
-            res = await self._call_blocking(_search_any)
+            res = await self._call_blocking(
+                lambda: self._search_any(
+                    name=name,
+                    query_vector=query_vector,
+                    filt=filt,
+                    top_k=top_k,
+                )
+            )
 
         except AttributeError as exc:
             raise SystemError(
@@ -328,7 +361,10 @@ class QdrantVectorIndex(VectorIndex):
                 status_code = getattr(getattr(exc, "response", None), "status_code", None)
 
             if status_code == 404:
-                log.debug("Qdrant collection missing during search, returning empty, name=%s", name)
+                log.debug(
+                    "Qdrant collection missing during search, returning empty, name=%s",
+                    name,
+                )
 
                 return []
 
@@ -347,23 +383,53 @@ class QdrantVectorIndex(VectorIndex):
                 retryable=True,
             ) from exc
 
-        points = getattr(res, "points", None)
-        if points is None:
-            points = res or []
+        points = getattr(res, "points", None) or res or []
+        return self._map_hits_with_score(points)
 
-        hits: list[VectorSearchHit] = []
-        for p in points:
-            pid = getattr(p, "id", None)
-            score = getattr(p, "score", None)
-            payload = getattr(p, "payload", None) or {}
-            hits.append(
-                VectorSearchHit(
-                    point_id=str(pid),
-                    score=float(score or 0.0),
-                    payload=dict(payload),
-                )
+    def _scroll_all(
+        self,
+        *,
+        name: str,
+        scroll_filter: Filter,
+        limit: int,
+    ) -> list[object]:
+        out: list[object] = []
+        offset = None
+        remaining = int(limit) if limit and limit > 0 else 20000
+
+        while remaining > 0:
+            page_limit = min(256, remaining)
+
+            page, next_offset = self.client.scroll(
+                collection_name=name,
+                scroll_filter=scroll_filter,
+                limit=page_limit,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
             )
 
+            if page:
+                out.extend(page)
+                remaining -= len(page)
+
+            if next_offset is None or not page:
+                break
+
+            offset = next_offset
+
+        return out
+
+    def _map_hits_without_score(self, points: Sequence[object]) -> list[VectorSearchHit]:
+        hits: list[VectorSearchHit] = []
+        for p in points:
+            hits.append(
+                VectorSearchHit(
+                    point_id=str(getattr(p, "id", None)),
+                    score=0.0,
+                    payload=dict(getattr(p, "payload", None) or {}),
+                )
+            )
         return hits
 
     async def fetch_by_doc_ids(
@@ -379,53 +445,28 @@ class QdrantVectorIndex(VectorIndex):
             return []
 
         name = self._collection_name(embedding_model_id=embedding_model_id)
+        base = self._resolve_filter(base_filter)
 
-        base: Filter | None = base_filter if isinstance(base_filter, Filter) else None
+        should = [FieldCondition(key="doc_id", match=MatchValue(value=d)) for d in doc_ids_clean]
 
-        should = [
-            FieldCondition(key="doc_id", match=MatchValue(value=did)) for did in doc_ids_clean
-        ]
-
-        if base is None:
-            scroll_filter = Filter(should=should)
-        else:
-            scroll_filter = Filter(
+        scroll_filter = (
+            Filter(should=should)
+            if base is None
+            else Filter(
                 must=list(base.must or []),
                 should=should,
                 must_not=list(base.must_not or []),
             )
+        )
 
         try:
-
-            def _scroll_all() -> list[object]:
-                out: list[object] = []
-                offset = None
-                remaining = int(limit) if limit and limit > 0 else 20000
-
-                while remaining > 0:
-                    page_limit = min(256, remaining)
-
-                    page, next_offset = self.client.scroll(
-                        collection_name=name,
-                        scroll_filter=scroll_filter,
-                        limit=page_limit,
-                        offset=offset,
-                        with_payload=True,
-                        with_vectors=False,
-                    )
-
-                    if page:
-                        out.extend(page)
-                        remaining -= len(page)
-
-                    if next_offset is None or not page:
-                        break
-
-                    offset = next_offset
-
-                return out
-
-            points = await self._call_blocking(_scroll_all)
+            points = await self._call_blocking(
+                lambda: self._scroll_all(
+                    name=name,
+                    scroll_filter=scroll_filter,
+                    limit=limit,
+                )
+            )
 
         except UnexpectedResponse as exc:
             status_code = getattr(getattr(exc, "response", None), "status_code", None)
@@ -451,16 +492,30 @@ class QdrantVectorIndex(VectorIndex):
                 retryable=True,
             ) from exc
 
-        hits: list[VectorSearchHit] = []
-        for p in points or []:
-            pid = getattr(p, "id", None)
-            payload = getattr(p, "payload", None) or {}
-            hits.append(
-                VectorSearchHit(
-                    point_id=str(pid),
-                    score=0.0,
-                    payload=dict(payload),
+        return self._map_hits_without_score(points)
+
+    def _to_filter(self, raw: dict[str, object]) -> Filter | None:
+        must: list[Any] = []
+
+        disease = raw.get("disease")
+        if isinstance(disease, str) and disease:
+            must.append(FieldCondition(key="disease", match=MatchValue(value=disease)))
+
+        source_type = raw.get("source_type")
+        if isinstance(source_type, str) and source_type:
+            must.append(FieldCondition(key="source_type", match=MatchValue(value=source_type)))
+
+        year_min = raw.get("year_min")
+        year_max = raw.get("year_max")
+        if year_min is not None or year_max is not None:
+            must.append(
+                FieldCondition(
+                    key="year",
+                    range=Range(
+                        gte=int(year_min) if isinstance(year_min, int) else None,
+                        lte=int(year_max) if isinstance(year_max, int) else None,
+                    ),
                 )
             )
 
-        return hits
+        return Filter(must=must) if must else None

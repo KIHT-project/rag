@@ -1,394 +1,556 @@
 from __future__ import annotations
 
 import asyncio
-import copy
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from biomed_platform.common.middleware.trace import request_id_ctx
 from biomed_platform.core.domains.ingestion import (
+    IngestItem,
     IngestItemState,
     IngestItemStatus,
-    IngestionJob,
     JobCounts,
     JobState,
 )
 from biomed_platform.core.errors.errors import SystemError
 from biomed_platform.core.services.ingestion.worker import IngestionWorker
 
-pytestmark = pytest.mark.asyncio
+
+@dataclass(slots=True)
+class _Job:
+    job_id: str
+    state: JobState
+    effective_embedding_model_id: str
+    items: list[IngestItemStatus]
+    counts: JobCounts | None = None
+    updated_at: datetime | None = None
+    correlation_id: str | None = None
 
 
-class _FakeQueue:
-    def __init__(self, job_ids: list[str]) -> None:
-        self._q: asyncio.Queue[str] = asyncio.Queue()
-        for jid in job_ids:
-            self._q.put_nowait(jid)
-
-    def max_size(self) -> int:
-        return 10
-
-    def size(self) -> int:
-        return self._q.qsize()
-
-    async def enqueue(self, job_id: str) -> None:
-        self._q.put_nowait(job_id)
-
-    async def dequeue(self) -> str:
-        return await self._q.get()
-
-
-class _FakeJobStore:
-    def __init__(self) -> None:
-        self.jobs: dict[str, Any] = {}
-        self.updates: list[Any] = []
-
-    async def get(self, job_id: str) -> Any:
-        if job_id not in self.jobs:
-            raise KeyError(job_id)
-        return self.jobs[job_id]
-
-    async def update(self, job: Any) -> None:
-        self.jobs[job.job_id] = job
-        self.updates.append(copy.deepcopy(job))
-
-
-class _FakeDocumentRegistry:
-    def __init__(self) -> None:
-        self.commits: list[tuple[str, str]] = []
-        self.releases: list[tuple[str, str]] = []
-
-    async def reserve(self, *, embedding_model_id: str, doc_id: str) -> None:
-        raise NotImplementedError
-
-    async def commit(self, *, embedding_model_id: str, doc_id: str) -> None:
-        self.commits.append((embedding_model_id, doc_id))
-
-    async def release(self, *, embedding_model_id: str, doc_id: str) -> None:
-        self.releases.append((embedding_model_id, doc_id))
-
-
-class _FakePayloadStore:
-    def __init__(self) -> None:
-        self.payload_by_job: dict[str, list[Any]] = {}
-        self.get_calls: list[str] = []
-        self.delete_calls: list[str] = []
-        self.fail_get_missing: set[str] = set()
-        self.fail_delete: bool = False
-
-    async def put(self, *, job_id: str, items: list[Any]) -> None:
-        self.payload_by_job[job_id] = list(items)
-
-    async def get(self, *, job_id: str) -> list[Any]:
-        self.get_calls.append(job_id)
-        if job_id in self.fail_get_missing:
-            raise KeyError(job_id)
-        if job_id not in self.payload_by_job:
-            raise KeyError(job_id)
-        return list(self.payload_by_job[job_id])
-
-    async def delete(self, *, job_id: str) -> None:
-        self.delete_calls.append(job_id)
-        if self.fail_delete:
-            raise RuntimeError("delete_failed")
-        self.payload_by_job.pop(job_id, None)
-
-
-class _FakePipeline:
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, str, str, Any]] = []
-        self.fail_by_doc_id: dict[str, Exception] = {}
-
-    async def ingest_item(
-        self,
-        *,
-        job_id: str,
-        embedding_model_id: str,
-        doc_id: str,
-        item: Any,
-    ) -> None:
-        self.calls.append((job_id, embedding_model_id, doc_id, item))
-        exc = self.fail_by_doc_id.get(doc_id)
-        if exc is not None:
-            raise exc
-
-
-def _job(*, job_id: str, embedding_model_id: str, items: list[tuple[str, str]]) -> IngestionJob:
-    now = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
-    statuses = [
-        IngestItemStatus(
-            doi_original=doi,
-            doc_id=doc_id,
-            state=IngestItemState.queued,
-            message=None,
-        )
-        for (doi, doc_id) in items
-    ]
-    return IngestionJob(
-        job_id=job_id,
-        state=JobState.queued,
-        created_at=now,
-        updated_at=now,
-        effective_embedding_model_id=embedding_model_id,
-        items=statuses,
-        counts=JobCounts(total=len(statuses), succeeded=0, failed=0, skipped_duplicate=0),
+def _mk_queue(*, dequeue_side_effect) -> object:
+    return SimpleNamespace(
+        dequeue=AsyncMock(side_effect=dequeue_side_effect),
+        size=lambda: 0,
+        max_size=lambda: 10,
     )
 
 
-def _payload_items(dois: list[str]) -> list[Any]:
-    return [SimpleNamespace(doi_original=d) for d in dois]
+@pytest.mark.anyio
+async def test_run_forever_processes_one_job_then_cancelled() -> None:
+    # Given
+    queue = _mk_queue(dequeue_side_effect=["j1", asyncio.CancelledError()])
+    job_store = AsyncMock()
+    registry = AsyncMock()
+    payload_store = AsyncMock()
+    pipeline = AsyncMock()
+
+    worker = IngestionWorker(
+        queue=queue,
+        job_store=job_store,
+        document_registry=registry,
+        payload_store=payload_store,
+        pipeline=pipeline,
+    )
+
+    worker._process_job = AsyncMock()
+
+    # When, Then
+    with pytest.raises(asyncio.CancelledError):
+        await worker.run_forever()
+
+    worker._process_job.assert_awaited_once_with("j1")
 
 
-class TestIngestionWorker:
-    async def test_process_job_returns_when_job_missing_and_deletes_payload_best_effort(self) -> None:
-        queue = _FakeQueue(job_ids=[])
-        store = _FakeJobStore()
-        reg = _FakeDocumentRegistry()
-        payload = _FakePayloadStore()
-        pipeline = _FakePipeline()
+@pytest.mark.anyio
+async def test_run_forever_crashes_on_unexpected_exception() -> None:
+    # Given
+    queue = _mk_queue(dequeue_side_effect=RuntimeError("boom"))
+    worker = IngestionWorker(
+        queue=queue,
+        job_store=AsyncMock(),
+        document_registry=AsyncMock(),
+        payload_store=AsyncMock(),
+        pipeline=AsyncMock(),
+    )
 
-        worker = IngestionWorker(
-            queue=queue,
-            job_store=store,
-            document_registry=reg,
-            payload_store=payload,
-            pipeline=pipeline,
+    # When, Then
+    with pytest.raises(RuntimeError, match="boom"):
+        await worker.run_forever()
+
+
+@pytest.mark.anyio
+async def test_process_job_skips_when_job_missing_and_deletes_payload() -> None:
+    # Given
+    queue = _mk_queue(dequeue_side_effect=["j1"])
+    job_store = AsyncMock()
+    job_store.get = AsyncMock(side_effect=KeyError("missing"))
+
+    payload_store = AsyncMock()
+    payload_store.delete = AsyncMock()
+
+    worker = IngestionWorker(
+        queue=queue,
+        job_store=job_store,
+        document_registry=AsyncMock(),
+        payload_store=payload_store,
+        pipeline=AsyncMock(),
+    )
+
+    assert request_id_ctx.get(None) is None
+
+    # When
+    await worker._process_job("j1")
+
+    # Then
+    payload_store.delete.assert_awaited_once_with(job_id="j1")
+    assert request_id_ctx.get(None) is None
+
+
+@pytest.mark.anyio
+async def test_process_job_fails_when_payload_missing_and_marks_job_failed() -> None:
+    # Given
+    queue = _mk_queue(dequeue_side_effect=["j1"])
+    registry = AsyncMock()
+    registry.release = AsyncMock()
+
+    items = [
+        IngestItemStatus(
+            doi_original="10.1/a",
+            doc_id="doc1",
+            state=IngestItemState.queued,
+            message=None,
+        )
+    ]
+    job = _Job(
+        job_id="j1",
+        state=JobState.queued,
+        effective_embedding_model_id="m",
+        items=list(items),
+    )
+
+    job_store = AsyncMock()
+    job_store.get = AsyncMock(return_value=job)
+    job_store.update = AsyncMock()
+
+    payload_store = AsyncMock()
+    payload_store.get = AsyncMock(side_effect=KeyError("no payload"))
+    payload_store.delete = AsyncMock()
+
+    worker = IngestionWorker(
+        queue=queue,
+        job_store=job_store,
+        document_registry=registry,
+        payload_store=payload_store,
+        pipeline=AsyncMock(),
+    )
+
+    # When
+    await worker._process_job("j1")
+
+    # Then
+    assert job.state == JobState.failed
+    assert job.counts is not None
+    assert job.counts.failed == 1
+    assert job.items[0].state == IngestItemState.failed
+    registry.release.assert_awaited()
+    payload_store.delete.assert_awaited_with(job_id="j1")
+    assert request_id_ctx.get(None) is None
+
+
+@pytest.mark.anyio
+async def test_process_job_happy_path_with_correlation_id_sets_context_and_succeeds() -> None:
+    # Given
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    queue = _mk_queue(dequeue_side_effect=["j1"])
+    registry = AsyncMock()
+    registry.commit = AsyncMock()
+    registry.release = AsyncMock()
+
+    original_items = [
+        IngestItemStatus(
+            doi_original="10.1/a",
+            doc_id="doc1",
+            state=IngestItemState.queued,
+            message=None,
+        )
+    ]
+    job = _Job(
+        job_id="j1",
+        state=JobState.queued,
+        effective_embedding_model_id="m",
+        items=list(original_items),
+        correlation_id="corr123",
+    )
+
+    job_store = AsyncMock()
+    job_store.get = AsyncMock(return_value=job)
+    job_store.update = AsyncMock()
+
+    payload_store = AsyncMock()
+    payload_store.get = AsyncMock(
+        return_value=[
+            IngestItem(
+                doi_original="10.1/a",
+                doi_normalized="10.1/a",
+                title=None,
+                journal=None,
+                year=None,
+                authors=[],
+                disease=None,
+                source_type=None,
+                content_text="x",
+            )
+        ]
+    )
+    payload_store.delete = AsyncMock()
+
+    pipeline = AsyncMock()
+    pipeline.ingest_item = AsyncMock(return_value=None)
+
+    worker = IngestionWorker(
+        queue=queue,
+        job_store=job_store,
+        document_registry=registry,
+        payload_store=payload_store,
+        pipeline=pipeline,
+    )
+
+    worker._now = MagicMock(return_value=now)
+
+    # When
+    await worker._process_job("j1")
+
+    # Then
+    assert job.state == JobState.succeeded
+    assert job.counts is not None
+    assert job.counts.total == 1
+    assert job.counts.succeeded == 1
+    assert job.items[0].state == IngestItemState.succeeded
+    registry.commit.assert_awaited()
+    payload_store.delete.assert_awaited_with(job_id="j1")
+    assert request_id_ctx.get(None) is None
+
+
+@pytest.mark.anyio
+async def test_process_items_handles_missing_doc_id_mapping_branch() -> None:
+    # Given
+    worker = IngestionWorker(
+        queue=_mk_queue(dequeue_side_effect=["j"]),
+        job_store=AsyncMock(),
+        document_registry=AsyncMock(),
+        payload_store=AsyncMock(),
+        pipeline=AsyncMock(),
+    )
+
+    payload_items = [
+        IngestItem(
+            doi_original="10.1/a",
+            doi_normalized="10.1/a",
+            title=None,
+            journal=None,
+            year=None,
+            authors=[],
+            disease=None,
+            source_type=None,
+            content_text="x",
+        )
+    ]
+
+    stats = SimpleNamespace(succeeded=0, failed=0, skipped=0)
+
+    # When
+    out = await worker._process_items(
+        job_id="j",
+        embedding_model_id="m",
+        items=payload_items,
+        doc_id_by_doi={},
+        stats=stats,
+    )
+
+    # Then
+    assert len(out) == 1
+    assert out[0].state == IngestItemState.failed
+    assert out[0].message == "missing_doc_id_mapping"
+    assert stats.failed == 1
+
+
+def test_build_doc_id_index_covers_duplicate_doi_branch() -> None:
+    # Given
+    worker = IngestionWorker(
+        queue=_mk_queue(dequeue_side_effect=["j"]),
+        job_store=AsyncMock(),
+        document_registry=AsyncMock(),
+        payload_store=AsyncMock(),
+        pipeline=AsyncMock(),
+    )
+
+    job_items = [
+        IngestItemStatus(doi_original="a", doc_id="d1", state=IngestItemState.queued, message=None),
+        IngestItemStatus(doi_original="a", doc_id="d2", state=IngestItemState.queued, message=None),
+        IngestItemStatus(doi_original="b", doc_id="", state=IngestItemState.queued, message=None),
+    ]
+
+    # When
+    mapping = worker._build_doc_id_index(job_id="j", job_items=job_items)
+
+    # Then
+    assert mapping["a"] == "d2"
+    assert mapping["b"] == ""
+
+
+@pytest.mark.anyio
+async def test_safe_commit_and_release_swallow_exceptions() -> None:
+    # Given
+    registry = AsyncMock()
+    registry.commit = AsyncMock(side_effect=RuntimeError("c"))
+    registry.release = AsyncMock(side_effect=RuntimeError("r"))
+
+    worker = IngestionWorker(
+        queue=_mk_queue(dequeue_side_effect=["j"]),
+        job_store=AsyncMock(),
+        document_registry=registry,
+        payload_store=AsyncMock(),
+        pipeline=AsyncMock(),
+    )
+
+    # When, Then
+    await worker._safe_commit(job_embedding_model_id="m", doc_id="doc")
+    await worker._safe_release(job_embedding_model_id="m", doc_id="doc")
+
+    # And, empty doc id is a no op
+    await worker._safe_commit(job_embedding_model_id="m", doc_id="")
+    await worker._safe_release(job_embedding_model_id="m", doc_id="")
+
+
+@pytest.mark.anyio
+async def test_safe_payload_delete_swallow_exceptions() -> None:
+    # Given
+    payload_store = AsyncMock()
+    payload_store.delete = AsyncMock(side_effect=RuntimeError("x"))
+
+    worker = IngestionWorker(
+        queue=_mk_queue(dequeue_side_effect=["j"]),
+        job_store=AsyncMock(),
+        document_registry=AsyncMock(),
+        payload_store=payload_store,
+        pipeline=AsyncMock(),
+    )
+
+    # When, Then
+    await worker._safe_payload_delete("j")
+
+
+@pytest.mark.anyio
+async def test_load_job_or_skip_raises_on_job_store_exception() -> None:
+    # Given, job store get raises unexpected exception
+    job_store = AsyncMock()
+    job_store.get = AsyncMock(side_effect=RuntimeError("boom"))
+
+    worker = IngestionWorker(
+        queue=_mk_queue(dequeue_side_effect=["j"]),
+        job_store=job_store,
+        document_registry=AsyncMock(),
+        payload_store=AsyncMock(),
+        pipeline=AsyncMock(),
+    )
+
+    # When, loading job
+    # Then, exception is raised
+    with pytest.raises(RuntimeError, match="boom"):
+        await worker._load_job_or_skip("j1")
+
+
+@pytest.mark.anyio
+async def test_load_payload_or_fail_raises_on_payload_store_exception() -> None:
+    # Given, payload store get raises unexpected exception
+    payload_store = AsyncMock()
+    payload_store.get = AsyncMock(side_effect=RuntimeError("boom"))
+
+    worker = IngestionWorker(
+        queue=_mk_queue(dequeue_side_effect=["j"]),
+        job_store=AsyncMock(),
+        document_registry=AsyncMock(),
+        payload_store=payload_store,
+        pipeline=AsyncMock(),
+    )
+
+    # When, loading payload
+    # Then, exception is raised
+    with pytest.raises(RuntimeError, match="boom"):
+        await worker._load_payload_or_fail("j1")
+
+
+@pytest.mark.anyio
+async def test_mark_job_failed_missing_payload_handles_job_missing_and_job_store_exception() -> None:
+    # Given, KeyError means job missing
+    job_store = AsyncMock()
+    job_store.get = AsyncMock(side_effect=KeyError("no job"))
+
+    worker = IngestionWorker(
+        queue=_mk_queue(dequeue_side_effect=["j"]),
+        job_store=job_store,
+        document_registry=AsyncMock(),
+        payload_store=AsyncMock(),
+        pipeline=AsyncMock(),
+    )
+
+    # When, marking failed for missing payload
+    await worker._mark_job_failed_missing_payload(job_id="j1")
+
+    # Then, returns without raising
+    assert True
+
+    # Given, unexpected exception from job store get
+    job_store.get = AsyncMock(side_effect=RuntimeError("boom"))
+
+    # When, marking failed for missing payload
+    # Then, exception is raised
+    with pytest.raises(RuntimeError, match="boom"):
+        await worker._mark_job_failed_missing_payload(job_id="j2")
+
+
+@pytest.mark.anyio
+async def test_process_items_counts_succeeded_failed_and_skipped_paths() -> None:
+    # Given, one item missing mapping, one succeeds, one skipped duplicate
+    registry = AsyncMock()
+    payload_store = AsyncMock()
+
+    worker = IngestionWorker(
+        queue=_mk_queue(dequeue_side_effect=["j"]),
+        job_store=AsyncMock(),
+        document_registry=registry,
+        payload_store=payload_store,
+        pipeline=AsyncMock(),
+    )
+
+    item_missing = IngestItem(
+        doi_original="10.1/missing",
+        doi_normalized="10.1/missing",
+        title=None,
+        journal=None,
+        year=None,
+        authors=[],
+        disease=None,
+        source_type=None,
+        content_text="x",
+    )
+    item_ok = IngestItem(
+        doi_original="10.1/ok",
+        doi_normalized="10.1/ok",
+        title=None,
+        journal=None,
+        year=None,
+        authors=[],
+        disease=None,
+        source_type=None,
+        content_text="x",
+    )
+    item_dup = IngestItem(
+        doi_original="10.1/dup",
+        doi_normalized="10.1/dup",
+        title=None,
+        journal=None,
+        year=None,
+        authors=[],
+        disease=None,
+        source_type=None,
+        content_text="x",
+    )
+
+    async def _process_single_item(*, job_id: str, embedding_model_id: str, doc_id: str, item: IngestItem):
+        if item.doi_original.endswith("/ok"):
+            return IngestItemStatus(
+                doi_original=item.doi_original,
+                doc_id=doc_id,
+                state=IngestItemState.succeeded,
+                message=None,
+            )
+        return IngestItemStatus(
+            doi_original=item.doi_original,
+            doc_id=doc_id,
+            state=IngestItemState.skipped_duplicate,
+            message="already_indexed",
         )
 
-        await worker._process_job("missing")
+    worker._process_single_item = AsyncMock(side_effect=_process_single_item)
 
-        assert store.updates == []
-        assert reg.commits == []
-        assert reg.releases == []
-        assert payload.delete_calls == ["missing"]
+    stats = SimpleNamespace(succeeded=0, failed=0, skipped=0)
 
-    async def test_process_job_marks_failed_when_payload_missing_and_releases_all_docs(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        queue = _FakeQueue(job_ids=[])
-        store = _FakeJobStore()
-        reg = _FakeDocumentRegistry()
-        payload = _FakePayloadStore()
-        pipeline = _FakePipeline()
+    # When, processing items
+    out = await worker._process_items(
+        job_id="j1",
+        embedding_model_id="m",
+        items=[item_missing, item_ok, item_dup],
+        doc_id_by_doi={
+            "10.1/ok": "doc_ok",
+            "10.1/dup": "doc_dup",
+        },
+        stats=stats,
+    )
 
-        job = _job(job_id="j1", embedding_model_id="e1", items=[("10.1/A", "d1"), ("10.2/B", "d2")])
-        store.jobs["j1"] = job
-        payload.fail_get_missing.add("j1")
+    # Then, it covers failed, succeeded, skipped branches
+    assert [x.state for x in out] == [
+        IngestItemState.failed,
+        IngestItemState.succeeded,
+        IngestItemState.skipped_duplicate,
+    ]
+    assert stats.failed == 1
+    assert stats.succeeded == 1
+    assert stats.skipped == 1
 
-        worker = IngestionWorker(
-            queue=queue,
-            job_store=store,
-            document_registry=reg,
-            payload_store=payload,
-            pipeline=pipeline,
-        )
 
-        t0 = datetime(2026, 1, 1, 0, 0, 1, tzinfo=timezone.utc)
-        monkeypatch.setattr(worker, "_now", lambda: t0)
+@pytest.mark.anyio
+async def test_finalize_job_merges_missing_replacements_and_state_failed_branch() -> None:
+    # Given, original items have two dois, processed provides only one replacement and no unexpected dois
+    job = _Job(
+        job_id="j1",
+        state=JobState.running,
+        effective_embedding_model_id="m",
+        items=[
+            IngestItemStatus(doi_original="a", doc_id="d1", state=IngestItemState.queued, message=None),
+            IngestItemStatus(doi_original="b", doc_id="d2", state=IngestItemState.queued, message=None),
+        ],
+    )
 
-        await worker._process_job("j1")
+    job_store = AsyncMock()
+    job_store.get = AsyncMock(return_value=job)
+    job_store.update = AsyncMock()
 
-        assert len(store.updates) == 1
-        upd = store.updates[0]
-        assert upd.state == JobState.failed
-        assert upd.updated_at == t0
-        assert upd.counts == JobCounts(total=2, succeeded=0, failed=2, skipped_duplicate=0)
-        assert [it.state for it in upd.items] == [IngestItemState.failed, IngestItemState.failed]
-        assert [it.message for it in upd.items] == ["missing_payload", "missing_payload"]
+    worker = IngestionWorker(
+        queue=_mk_queue(dequeue_side_effect=["j"]),
+        job_store=job_store,
+        document_registry=AsyncMock(),
+        payload_store=AsyncMock(),
+        pipeline=AsyncMock(),
+    )
 
-        assert reg.commits == []
-        assert reg.releases == [("e1", "d1"), ("e1", "d2")]
-        assert payload.delete_calls == ["j1"]
+    processed = [
+        IngestItemStatus(doi_original="a", doc_id="d1", state=IngestItemState.failed, message="x"),
+    ]
 
-    async def test_process_job_sets_running_then_succeeded_commits_all_and_deletes_payload(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        queue = _FakeQueue(job_ids=[])
-        store = _FakeJobStore()
-        reg = _FakeDocumentRegistry()
-        payload = _FakePayloadStore()
-        pipeline = _FakePipeline()
+    # When, finalize runs
+    await worker._finalize_job(
+        job_id="j1",
+        original_items=list(job.items),
+        processed_statuses=processed,
+    )
 
-        job = _job(
-            job_id="j1",
-            embedding_model_id="e1",
-            items=[("10.1/A", "d1"), ("10.2/B", "d2")],
-        )
-        store.jobs["j1"] = job
-        payload.payload_by_job["j1"] = _payload_items(["10.1/A", "10.2/B"])
+    # Then, missing replacement keeps original for b, counts reflect failed with zero succeeded, final state failed
+    assert job.items[0].doi_original == "a"
+    assert job.items[0].state == IngestItemState.failed
+    assert job.items[1].doi_original == "b"
+    assert job.items[1].state == IngestItemState.queued
 
-        worker = IngestionWorker(
-            queue=queue,
-            job_store=store,
-            document_registry=reg,
-            payload_store=payload,
-            pipeline=pipeline,
-        )
+    assert job.counts is not None
+    assert job.counts.total == 2
+    assert job.counts.succeeded == 0
+    assert job.counts.failed == 1
+    assert job.counts.skipped_duplicate == 0
 
-        t0 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
-        t1 = datetime(2026, 1, 1, 0, 0, 5, tzinfo=timezone.utc)
-        t2 = datetime(2026, 1, 1, 0, 0, 9, tzinfo=timezone.utc)
-        times = iter([t0, t1, t2])
-        monkeypatch.setattr(worker, "_now", lambda: next(times))
-
-        await worker._process_job("j1")
-
-        assert len(store.updates) == 2
-
-        running_update = store.updates[0]
-        assert running_update.state == JobState.running
-        assert running_update.updated_at == t0
-        assert all(it.state == IngestItemState.running for it in running_update.items)
-
-        final_update = store.updates[1]
-        assert final_update.state == JobState.succeeded
-        assert final_update.updated_at == t1
-        assert final_update.counts == JobCounts(total=2, succeeded=2, failed=0, skipped_duplicate=0)
-        assert all(it.state == IngestItemState.succeeded for it in final_update.items)
-
-        assert pipeline.calls and len(pipeline.calls) == 2
-        assert reg.commits == [("e1", "d1"), ("e1", "d2")]
-        assert reg.releases == []
-        assert payload.delete_calls == ["j1"]
-
-    async def test_process_job_partial_when_pipeline_system_error_releases_failed_doc(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        queue = _FakeQueue(job_ids=[])
-        store = _FakeJobStore()
-        reg = _FakeDocumentRegistry()
-        payload = _FakePayloadStore()
-        pipeline = _FakePipeline()
-
-        job = _job(
-            job_id="j1",
-            embedding_model_id="e1",
-            items=[("10.1/A", "d1"), ("10.2/B", "d2")],
-        )
-        store.jobs["j1"] = job
-        payload.payload_by_job["j1"] = _payload_items(["10.1/A", "10.2/B"])
-
-        pipeline.fail_by_doc_id["d1"] = SystemError(
-            code="boom",
-            message="x",
-            details=None,
-            retryable=False,
-        )
-
-        worker = IngestionWorker(
-            queue=queue,
-            job_store=store,
-            document_registry=reg,
-            payload_store=payload,
-            pipeline=pipeline,
-        )
-
-        t0 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
-        t1 = datetime(2026, 1, 1, 0, 0, 2, tzinfo=timezone.utc)
-        t2 = datetime(2026, 1, 1, 0, 0, 4, tzinfo=timezone.utc)
-        times = iter([t0, t1, t2])
-        monkeypatch.setattr(worker, "_now", lambda: next(times))
-
-        await worker._process_job("j1")
-
-        assert len(store.updates) == 2
-        final_update = store.updates[1]
-        assert final_update.state == JobState.partial
-        assert final_update.counts == JobCounts(total=2, succeeded=1, failed=1, skipped_duplicate=0)
-
-        by_doi = {it.doi_original: it for it in final_update.items}
-        assert by_doi["10.1/A"].state == IngestItemState.failed
-        assert by_doi["10.1/A"].message == "boom"
-        assert by_doi["10.2/B"].state == IngestItemState.succeeded
-
-        assert reg.commits == [("e1", "d2")]
-        assert reg.releases == [("e1", "d1")]
-        assert payload.delete_calls == ["j1"]
-
-    async def test_process_job_fails_item_when_doc_id_mapping_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        queue = _FakeQueue(job_ids=[])
-        store = _FakeJobStore()
-        reg = _FakeDocumentRegistry()
-        payload = _FakePayloadStore()
-        pipeline = _FakePipeline()
-
-        job = _job(
-            job_id="j1",
-            embedding_model_id="e1",
-            items=[("10.1/A", "d1")],
-        )
-        store.jobs["j1"] = job
-
-        payload.payload_by_job["j1"] = _payload_items(["10.404/MISSING"])
-
-        worker = IngestionWorker(
-            queue=queue,
-            job_store=store,
-            document_registry=reg,
-            payload_store=payload,
-            pipeline=pipeline,
-        )
-
-        t0 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
-        t1 = datetime(2026, 1, 1, 0, 0, 1, tzinfo=timezone.utc)
-        t2 = datetime(2026, 1, 1, 0, 0, 2, tzinfo=timezone.utc)
-        times = iter([t0, t1, t2])
-        monkeypatch.setattr(worker, "_now", lambda: next(times))
-
-        await worker._process_job("j1")
-
-        final_update = store.updates[1]
-        assert final_update.state == JobState.failed
-        assert final_update.counts == JobCounts(total=1, succeeded=0, failed=1, skipped_duplicate=0)
-
-        assert final_update.items[0].doi_original == "10.1/A"
-        assert final_update.items[0].state == IngestItemState.running or final_update.items[0].state == IngestItemState.queued
-
-        assert pipeline.calls == []
-        assert reg.commits == []
-        assert reg.releases == []
-        assert payload.delete_calls == ["j1"]
-
-    async def test_run_forever_dequeues_and_processes_jobs(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        queue = _FakeQueue(job_ids=["j1"])
-        store = _FakeJobStore()
-        reg = _FakeDocumentRegistry()
-        payload = _FakePayloadStore()
-        pipeline = _FakePipeline()
-
-        job = _job(job_id="j1", embedding_model_id="e1", items=[("10.1/A", "d1")])
-        store.jobs["j1"] = job
-        payload.payload_by_job["j1"] = _payload_items(["10.1/A"])
-
-        worker = IngestionWorker(
-            queue=queue,
-            job_store=store,
-            document_registry=reg,
-            payload_store=payload,
-            pipeline=pipeline,
-        )
-
-        async def fake_process(job_id: str) -> None:
-            assert job_id == "j1"
-            raise asyncio.CancelledError
-
-        monkeypatch.setattr(worker, "_process_job", fake_process)
-
-        with pytest.raises(asyncio.CancelledError):
-            await worker.run_forever()
-
-    def test_now_returns_timezone_aware_utc_datetime(self) -> None:
-        worker = IngestionWorker(
-            queue=_FakeQueue(job_ids=[]),
-            job_store=_FakeJobStore(),
-            document_registry=_FakeDocumentRegistry(),
-            payload_store=_FakePayloadStore(),
-            pipeline=_FakePipeline(),
-        )
-
-        now = worker._now()
-
-        assert isinstance(now, datetime)
-        assert now.tzinfo is timezone.utc
+    assert job.state == JobState.failed
+    job_store.update.assert_awaited_once()

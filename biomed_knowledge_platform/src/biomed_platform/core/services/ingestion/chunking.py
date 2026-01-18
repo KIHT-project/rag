@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from biomed_platform.common.logging import get_logger
-from biomed_platform.core.services.ingestion_ports import Chunker, TextChunk
+from biomed_platform.core.domains.ingestion import TextChunk
+from biomed_platform.core.ports.ingestion import Chunker
 
 log = get_logger(__name__)
 

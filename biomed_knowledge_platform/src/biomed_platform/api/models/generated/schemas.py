@@ -27,6 +27,9 @@ class ErrorResponse(BaseModel):
         None
     )
 
+    status_code: Annotated[int, Field(description="HTTP status code")]
+    timestamp: Annotated[str, Field(description="UTC timestamp in ISO 8601 format")]
+
 
 class ReadinessStatus(StrEnum):
     ready = "ready"

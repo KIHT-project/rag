@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import dataclass, field
 
 from biomed_platform.common.logging import get_logger
-from biomed_platform.core.services.ingestion_ports import DocumentRegistry
+from biomed_platform.core.ports.ingestion import DocumentRegistry
 
 log = get_logger(__name__)
 
