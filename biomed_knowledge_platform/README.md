@@ -1,10 +1,13 @@
 # Service X
 
-Intro . . . 
-
 ## Table of Contents
 1. [Architecture Overview](#architecture-overview)
-2. [Local Run](#local-run)
+2. [Project Structure](#project-structure)
+3. [API Schema Generation](#api-schema-generation)
+4. [Exception Handling](#exception-handling)
+5. [Core Business/Domain Concepts](#core-businessdomain-concepts)
+6. [Retrieval Semantics](#retrieval-semantics)
+7. [Local Run](#local-run)
 
 ## Architecture Overview
 The system follows Clean Architecture with the addition of Ports and Adapters.
