@@ -1,5 +1,6 @@
 # src/biomed_platform/api/app.py
 from __future__ import annotations
+from biomed_platform.api.endpoints.retrieval import router as retrieval_router
 
 import asyncio
 from contextlib import asynccontextmanager
@@ -19,24 +20,22 @@ from biomed_platform.common.middleware.request_context import (
 )
 from biomed_platform.common.settings import load_settings
 from biomed_platform.core.errors.errors import SystemError
-from biomed_platform.core.services.ingestion import (
-    DefaultIngestionService,
+from biomed_platform.core.services.ingestion.backpressure import SimpleBackpressurePolicy
+from biomed_platform.core.services.ingestion.in_memory_document_registry import (
     InMemoryDocumentRegistry,
-    InMemoryIdempotencyStore,
-    InMemoryIngestionJobStore,
-    InMemoryIngestionQueue,
-    SimpleBackpressurePolicy,
 )
+from biomed_platform.core.services.ingestion.in_memory_idempotency import InMemoryIdempotencyStore
+from biomed_platform.core.services.ingestion.in_memory_job_store import InMemoryIngestionJobStore
+from biomed_platform.core.services.ingestion.in_memory_queue import InMemoryIngestionQueue
+from biomed_platform.core.use_cases.ingestion import IngestionUseCase
 from biomed_platform.core.services.ingestion.chunking import SimpleCharChunker
 from biomed_platform.core.services.ingestion.in_memory_payload_store import (
     InMemoryIngestPayloadStore,
 )
 
 from biomed_platform.core.services.ingestion.pipeline import DefaultIngestionPipeline
-from biomed_platform.core.services.ingestion.qdrant_vector_index import (
-    QdrantVectorIndex,
-    parse_distance,
-)
+from biomed_platform.adapters.qdrant.vector_index import QdrantVectorIndex, parse_distance
+from biomed_platform.core.use_cases.search import SearchUseCase
 from biomed_platform.core.services.ingestion.sentence_transformers_embedder import (
     SentenceTransformersEmbeddingProvider,
 )
@@ -76,7 +75,7 @@ def create_app() -> FastAPI:
     payload_store = InMemoryIngestPayloadStore(ttl_seconds=PAYLOAD_TTL_SECONDS, max_jobs=MAX_JOBS)
     backpressure = SimpleBackpressurePolicy(worker_count=WORKER_COUNT)
 
-    service = DefaultIngestionService(
+    service = IngestionUseCase(
         queue=queue,
         job_store=job_store,
         idempotency_store=idempotency,
@@ -146,6 +145,12 @@ def create_app() -> FastAPI:
         index=index,
     )
 
+    search_use_case = SearchUseCase(
+        embedder=embedder,
+        searcher=index,
+        chunks=index,
+    )
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         worker_tasks: list[asyncio.Task[None]] = []
@@ -190,10 +195,14 @@ def create_app() -> FastAPI:
 
     app.state.settings = settings
     app.state.ingestion_service = service
+    app.state.search_use_case = search_use_case
+    app.state.embedding_provider = embedder
+    app.state.vector_index = index
 
     app.include_router(system_router)
     app.include_router(v1_router)
     app.include_router(ingestion_router)
+    app.include_router(retrieval_router)
 
     app.add_middleware(AccessLogMiddleware)
     app.add_middleware(RequestContextMiddleware)

@@ -5,14 +5,6 @@ import pytest
 from biomed_platform.common.middleware.trace import get_request_id, request_id_ctx
 
 
-@pytest.fixture(autouse=True)
-def _clear_request_id_ctx() -> None:
-    token = request_id_ctx.set(None)
-    try:
-        yield
-    finally:
-        request_id_ctx.reset(token)
-
 
 class TestRequestIdContextVar:
     def test_default_value_is_none(self) -> None:

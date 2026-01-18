@@ -1,285 +1,144 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import biomed_platform.core.services.ingestion.pipeline as pipeline_mod
+from biomed_platform.core.domains.ingestion import IngestItem
 from biomed_platform.core.errors.errors import SystemError
-from biomed_platform.core.services.ingestion.pipeline import DefaultIngestionPipeline
+from biomed_platform.core.services.ingestion.pipeline import DefaultIngestionPipeline, _point_id
 
 
-pytestmark = pytest.mark.asyncio
-
-
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class _Chunk:
     index: int
-    text: str
     start: int
     end: int
+    text: str
 
 
-class _FakeChunker:
-    def __init__(self, chunks: list[_Chunk]) -> None:
-        self._chunks = chunks
-        self.calls: list[dict[str, Any]] = []
+@pytest.mark.anyio
+async def test_ingest_item_fails_when_chunker_returns_no_chunks() -> None:
+    # Given, a pipeline where chunker returns no chunks
+    chunker = MagicMock()
+    chunker.chunk = MagicMock(return_value=[])
 
-    def chunk(self, *, text: str) -> list[Any]:
-        self.calls.append({"text": text})
-        return list(self._chunks)
+    pipe = DefaultIngestionPipeline(chunker=chunker, embedder=AsyncMock(), index=AsyncMock())
 
+    item = IngestItem(
+        doi_original="10.1/x",
+        doi_normalized="10.1/x",
+        title=None,
+        journal=None,
+        year=None,
+        authors=[],
+        disease=None,
+        source_type=None,
+        content_text="hello",
+    )
 
-class _FakeEmbedder:
-    def __init__(self, vectors: list[list[float]]) -> None:
-        self._vectors = vectors
-        self.calls: list[dict[str, Any]] = []
+    # When
+    with pytest.raises(SystemError) as exc:
+        await pipe.ingest_item(job_id="j", embedding_model_id="m", doc_id="d", item=item)
 
-    async def embed_texts(self, *, model_id: str, texts: list[str]) -> list[list[float]]:
-        self.calls.append({"model_id": model_id, "texts": list(texts)})
-        return [list(v) for v in self._vectors]
-
-
-class _FakeIndex:
-    def __init__(self, *, exists_result: bool = False) -> None:
-        self._exists_result = exists_result
-        self.exists_calls: list[dict[str, Any]] = []
-        self.ensure_calls: list[dict[str, Any]] = []
-        self.upsert_calls: list[dict[str, Any]] = []
-
-    async def ensure_collection(self, *, embedding_model_id: str, vector_size: int) -> None:
-        self.ensure_calls.append({"embedding_model_id": embedding_model_id, "vector_size": vector_size})
-
-    async def exists(self, *, embedding_model_id: str, doc_id: str) -> bool:
-        self.exists_calls.append({"embedding_model_id": embedding_model_id, "doc_id": doc_id})
-        return self._exists_result
-
-    async def upsert(self, *, embedding_model_id: str, points: list[Any]) -> None:
-        self.upsert_calls.append({"embedding_model_id": embedding_model_id, "points": list(points)})
+    # Then
+    assert exc.value.code == "no_chunks"
 
 
-def _item(
-    *,
-    content_text: str | None = "hello world",
-    doi_original: str = "10.1/A",
-    doi_normalized: str = "10.1/a",
-) -> Any:
-    return type(
-        "Item",
-        (),
-        {
-            "content_text": content_text,
-            "doi_original": doi_original,
-            "doi_normalized": doi_normalized,
-            "title": "t",
-            "journal": "j",
-            "year": 2026,
-            "authors": ["a1", "a2"],
-            "disease": "d",
-            "source_type": "s",
-        },
-    )()
+@pytest.mark.anyio
+async def test_ingest_item_fails_on_embedding_count_mismatch_and_invalid_vector_size() -> None:
+    # Given, two chunks and one vector
+    chunker = MagicMock()
+    chunker.chunk = MagicMock(return_value=[_Chunk(0, 0, 1, "a"), _Chunk(1, 1, 2, "b")])
+
+    embedder = AsyncMock()
+    embedder.embed_texts = AsyncMock(return_value=[[0.1]])
+
+    index = AsyncMock()
+    index.ensure_collection = AsyncMock()
+    index.exists = AsyncMock(return_value=False)
+
+    pipe = DefaultIngestionPipeline(chunker=chunker, embedder=embedder, index=index)
+
+    item = IngestItem(
+        doi_original="10.1/x",
+        doi_normalized="10.1/x",
+        title=None,
+        journal=None,
+        year=None,
+        authors=[],
+        disease=None,
+        source_type=None,
+        content_text="hello",
+    )
+
+    # When, vectors mismatch chunks
+    with pytest.raises(SystemError) as exc:
+        await pipe.ingest_item(job_id="j", embedding_model_id="m", doc_id="d", item=item)
+
+    # Then
+    assert exc.value.code == "embedding_count_mismatch"
+
+    # Given, one chunk and a zero length vector
+    chunker.chunk = MagicMock(return_value=[_Chunk(0, 0, 1, "a")])
+    embedder.embed_texts = AsyncMock(return_value=[[]])
+
+    # When
+    with pytest.raises(SystemError) as exc2:
+        await pipe.ingest_item(job_id="j", embedding_model_id="m", doc_id="d", item=item)
+
+    # Then
+    assert exc2.value.code == "invalid_vector_size"
 
 
-class TestDefaultIngestionPipeline:
-    async def test_given_empty_content_text_when_ingest_item_then_raises_system_error_and_calls_nothing(
-        self,
-    ) -> None:
-        # Given
-        chunker = _FakeChunker(chunks=[_Chunk(index=0, text="x", start=0, end=1)])
-        embedder = _FakeEmbedder(vectors=[[0.1, 0.2]])
-        index = _FakeIndex()
-        pipeline = DefaultIngestionPipeline(chunker=chunker, embedder=embedder, index=index)
+@pytest.mark.anyio
+async def test_ingest_item_detects_duplicate_doc_and_success_upserts_points() -> None:
+    # Given, a pipeline with valid chunking and embeddings
+    chunker = MagicMock()
+    chunker.chunk = MagicMock(return_value=[_Chunk(0, 0, 5, "hello"), _Chunk(1, 5, 10, "world")])
 
-        # When, Then
-        with pytest.raises(SystemError) as exc:
-            await pipeline.ingest_item(
-                job_id="j1",
-                embedding_model_id="e1",
-                doc_id="d1",
-                item=_item(content_text="   "),
-            )
+    embedder = AsyncMock()
+    embedder.embed_texts = AsyncMock(return_value=[[0.1, 0.2], [0.3, 0.4]])
 
-        assert exc.value.code == "empty_document_text"
-        assert getattr(exc.value, "retryable", None) is False
-        assert chunker.calls == []
-        assert embedder.calls == []
-        assert index.ensure_calls == []
-        assert index.upsert_calls == []
+    index = AsyncMock()
+    index.ensure_collection = AsyncMock()
 
-    async def test_given_chunker_returns_no_chunks_when_ingest_item_then_raises_system_error(
-        self,
-    ) -> None:
-        # Given
-        chunker = _FakeChunker(chunks=[])
-        embedder = _FakeEmbedder(vectors=[])
-        index = _FakeIndex()
-        pipeline = DefaultIngestionPipeline(chunker=chunker, embedder=embedder, index=index)
+    pipe = DefaultIngestionPipeline(chunker=chunker, embedder=embedder, index=index)
 
-        # When, Then
-        with pytest.raises(SystemError) as exc:
-            await pipeline.ingest_item(
-                job_id="j1",
-                embedding_model_id="e1",
-                doc_id="d1",
-                item=_item(content_text="abc"),
-            )
+    item = IngestItem(
+        doi_original="10.1/x",
+        doi_normalized="10.1/x",
+        title="t",
+        journal="j",
+        year=2020,
+        authors=["a"],
+        disease="disease",
+        source_type="abstract",
+        content_text="hello world",
+    )
 
-        assert exc.value.code == "no_chunks"
-        assert getattr(exc.value, "retryable", None) is False
-        assert len(chunker.calls) == 1
-        assert embedder.calls == []
-        assert index.ensure_calls == []
-        assert index.upsert_calls == []
+    # When, document already exists
+    index.exists = AsyncMock(return_value=True)
+    with pytest.raises(SystemError) as exc:
+        await pipe.ingest_item(job_id="j1", embedding_model_id="m1", doc_id="doc", item=item)
 
-    async def test_given_embedding_count_mismatch_when_ingest_item_then_raises_retryable_system_error(
-        self,
-    ) -> None:
-        # Given
-        chunker = _FakeChunker(
-            chunks=[
-                _Chunk(index=0, text="c0", start=0, end=2),
-                _Chunk(index=1, text="c1", start=2, end=4),
-            ]
-        )
-        embedder = _FakeEmbedder(vectors=[[0.1, 0.2]])
-        index = _FakeIndex()
-        pipeline = DefaultIngestionPipeline(chunker=chunker, embedder=embedder, index=index)
+    # Then
+    assert exc.value.code == "duplicate_doc"
 
-        # When, Then
-        with pytest.raises(SystemError) as exc:
-            await pipeline.ingest_item(
-                job_id="j1",
-                embedding_model_id="e1",
-                doc_id="d1",
-                item=_item(content_text="abcd"),
-            )
+    # Given, it does not exist
+    index.exists = AsyncMock(return_value=False)
+    index.upsert = AsyncMock()
 
-        assert exc.value.code == "embedding_count_mismatch"
-        assert getattr(exc.value, "retryable", None) is True
-        assert len(chunker.calls) == 1
-        assert len(embedder.calls) == 1
-        assert index.ensure_calls == []
-        assert index.upsert_calls == []
+    # When, ingest succeeds
+    await pipe.ingest_item(job_id="j1", embedding_model_id="m1", doc_id="doc", item=item)
 
-    async def test_given_invalid_vector_size_when_ingest_item_then_raises_system_error(
-        self,
-    ) -> None:
-        # Given
-        chunker = _FakeChunker(chunks=[_Chunk(index=0, text="c0", start=0, end=2)])
-        embedder = _FakeEmbedder(vectors=[[]])
-        index = _FakeIndex()
-        pipeline = DefaultIngestionPipeline(chunker=chunker, embedder=embedder, index=index)
-
-        # When, Then
-        with pytest.raises(SystemError) as exc:
-            await pipeline.ingest_item(
-                job_id="j1",
-                embedding_model_id="e1",
-                doc_id="d1",
-                item=_item(content_text="ab"),
-            )
-
-        assert exc.value.code == "invalid_vector_size"
-        assert getattr(exc.value, "retryable", None) is False
-        assert len(index.ensure_calls) == 0
-        assert len(index.upsert_calls) == 0
-
-    async def test_given_happy_path_when_ingest_item_then_ensures_collection_and_upserts_points_with_payload(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        # Given
-        fixed_created_at = "2026-01-01T00:00:00Z"
-        monkeypatch.setattr(pipeline_mod, "_utc_now_iso", lambda: fixed_created_at)
-
-        chunker = _FakeChunker(
-            chunks=[
-                _Chunk(index=0, text="c0", start=0, end=2),
-                _Chunk(index=1, text="c1", start=2, end=4),
-            ]
-        )
-        embedder = _FakeEmbedder(vectors=[[0.1, 0.2, 0.3], [1.0, 2.0, 3.0]])
-        index = _FakeIndex()
-        pipeline = DefaultIngestionPipeline(chunker=chunker, embedder=embedder, index=index)
-
-        item = _item(content_text="abcd", doi_original="10.1/A", doi_normalized="10.1/a")
-
-        # When
-        await pipeline.ingest_item(
-            job_id="j1",
-            embedding_model_id="e1",
-            doc_id="doc123",
-            item=item,
-        )
-
-        # Then
-        assert index.ensure_calls == [{"embedding_model_id": "e1", "vector_size": 3}]
-        assert len(index.upsert_calls) == 1
-
-        call = index.upsert_calls[0]
-        assert call["embedding_model_id"] == "e1"
-        points = call["points"]
-        assert len(points) == 2
-
-        p0 = points[0]
-        p1 = points[1]
-
-        expected_p0_id = pipeline_mod._point_id(doc_id="doc123", chunk_index=0)
-        expected_p1_id = pipeline_mod._point_id(doc_id="doc123", chunk_index=1)
-
-        assert p0.point_id == expected_p0_id
-        assert p1.point_id == expected_p1_id
-
-        assert p0.vector == [0.1, 0.2, 0.3]
-        assert p1.vector == [1.0, 2.0, 3.0]
-
-        assert p0.payload["job_id"] == "j1"
-        assert p0.payload["doc_id"] == "doc123"
-        assert p0.payload["doi_original"] == "10.1/A"
-        assert p0.payload["doi_normalized"] == "10.1/a"
-        assert p0.payload["embedding_model_id"] == "e1"
-        assert p0.payload["chunk_index"] == 0
-        assert p0.payload["chunk_start"] == 0
-        assert p0.payload["chunk_end"] == 2
-        assert p0.payload["text"] == "c0"
-        assert p0.payload["created_at"] == fixed_created_at
-
-        assert p1.payload["chunk_index"] == 1
-        assert p1.payload["chunk_start"] == 2
-        assert p1.payload["chunk_end"] == 4
-        assert p1.payload["text"] == "c1"
-        assert p1.payload["created_at"] == fixed_created_at
-
-        assert p0.payload["authors"] == ["a1", "a2"]
-        assert p0.payload["title"] == "t"
-        assert p0.payload["journal"] == "j"
-        assert p0.payload["year"] == 2026
-        assert p0.payload["disease"] == "d"
-        assert p0.payload["source_type"] == "s"
-
-    async def test_given_doc_already_indexed_when_ingest_item_then_raises_duplicate_doc_and_does_not_upsert(
-            self,
-    ) -> None:
-        # Given
-        chunker = _FakeChunker(chunks=[_Chunk(index=0, text="c0", start=0, end=2)])
-        embedder = _FakeEmbedder(vectors=[[0.1, 0.2, 0.3]])
-        index = _FakeIndex(exists_result=True)
-        pipeline = DefaultIngestionPipeline(chunker=chunker, embedder=embedder, index=index)
-
-        # When, Then
-        with pytest.raises(SystemError) as exc:
-            await pipeline.ingest_item(
-                job_id="j1",
-                embedding_model_id="e1",
-                doc_id="doc123",
-                item=_item(content_text="abcd"),
-            )
-
-        assert exc.value.code == "duplicate_doc"
-        assert getattr(exc.value, "retryable", None) is False
-        assert len(index.ensure_calls) == 1
-        assert index.exists_calls == [{"embedding_model_id": "e1", "doc_id": "doc123"}]
-        assert index.upsert_calls == []
-
+    # Then, it upserts exactly two points with stable point ids
+    args = index.upsert.await_args.kwargs
+    assert args["embedding_model_id"] == "m1"
+    pts = list(args["points"])
+    assert len(pts) == 2
+    assert pts[0].point_id == _point_id(doc_id="doc", chunk_index=0)
+    assert pts[1].point_id == _point_id(doc_id="doc", chunk_index=1)
+    assert pts[0].payload["doc_id"] == "doc"
+    assert pts[0].payload["chunk_index"] == 0

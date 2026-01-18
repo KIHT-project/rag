@@ -1,6 +1,6 @@
 # Root README 
 
-## Local Run
+## Python setup
 Set up a virtual environment and install the required dependencies:
 
 ```shell
@@ -20,13 +20,14 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
-The main to run file is:
-``/src/app/python/main.py``
-
-To run the tests, open a terminal in the project root and execute:
-``pytest``
 
 For deactivation of virtual profile run:
 ```shell
 deactivate
 ```
+
+Application README:
+
+
+BDD Test README:
+

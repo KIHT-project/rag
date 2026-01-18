@@ -13,12 +13,12 @@ from biomed_platform.core.domains.ingestion import (
     JobStats,
 )
 from biomed_platform.core.errors.errors import SystemError
-from biomed_platform.core.services.ingestion_ports import (
+from biomed_platform.core.ports.ingestion import (
+    IngestionQueue,
     DocumentRegistry,
     IngestPayloadStore,
-    IngestionJobStore,
-    IngestionQueue,
     IngestionPipeline,
+    IngestionJobStore,
 )
 
 log = get_logger(__name__)

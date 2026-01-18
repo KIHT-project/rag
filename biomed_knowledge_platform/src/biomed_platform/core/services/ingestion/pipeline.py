@@ -7,11 +7,11 @@ from datetime import datetime, timezone
 from biomed_platform.common.logging import get_logger
 from biomed_platform.core.domains.ingestion import IngestItem, VectorPoint
 from biomed_platform.core.errors.errors import SystemError
-from biomed_platform.core.services.ingestion_ports import (
+from biomed_platform.core.ports.ingestion import (
+    IngestionPipeline,
     Chunker,
     EmbeddingProvider,
-    IngestionPipeline,
-    VectorIndex,
+    VectorWriter,
 )
 
 log = get_logger(__name__)
@@ -32,7 +32,7 @@ def _point_id(*, doc_id: str, chunk_index: int) -> str:
 class DefaultIngestionPipeline(IngestionPipeline):
     chunker: Chunker
     embedder: EmbeddingProvider
-    index: VectorIndex
+    index: VectorWriter
 
     async def ingest_item(
         self,

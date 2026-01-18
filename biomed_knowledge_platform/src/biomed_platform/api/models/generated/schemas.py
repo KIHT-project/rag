@@ -13,6 +13,7 @@ class Error(StrEnum):
     duplicate_doi = "duplicate_doi"
     not_found = "not_found"
     too_many_requests = "too_many_requests"
+    system_error = "system_error"
 
 
 class ErrorResponse(BaseModel):
@@ -25,6 +26,9 @@ class ErrorResponse(BaseModel):
     details: Annotated[dict[str, Any] | None, Field(description="Optional structured details")] = (
         None
     )
+
+    status_code: Annotated[int, Field(description="HTTP status code")]
+    timestamp: Annotated[str, Field(description="UTC timestamp in ISO 8601 format")]
 
 
 class ReadinessStatus(StrEnum):
@@ -65,15 +69,6 @@ class SourceType(StrEnum):
     pubmed_abstract = "pubmed_abstract"
     other_abstract = "other_abstract"
     full_text = "full_text"
-
-
-class Section(StrEnum):
-    abstract = "abstract"
-    methods = "methods"
-    results = "results"
-    discussion = "discussion"
-    conclusion = "conclusion"
-    other = "other"
 
 
 class Author(RootModel[str]):
@@ -191,7 +186,6 @@ class SearchFilters(BaseModel):
     year_min: Annotated[int | None, Field(ge=1800, le=2100)] = None
     year_max: Annotated[int | None, Field(ge=1800, le=2100)] = None
     source_type: SourceType | None = None
-    section: Section | None = None
 
 
 class SearchRequest(BaseModel):
@@ -208,17 +202,21 @@ class SearchHit(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    chunk_id: str
+    chunk_ids: list[str] | None = None
     doc_id: str
     doi: Annotated[str, Field(description="Original DOI string for end users")]
-    section: Section
+    authors: list[str] | None = None
+    journal: str | None = None
     score: float
     year: int | None = None
     source_type: SourceType | None = None
     title: str | None = None
-    chunk_text: Annotated[
-        str, Field(description="Returned chunk text. May be truncated by server.")
-    ]
+    content_text: Annotated[
+        str | None,
+        Field(
+            description="Returned full text from all the chunks that assembles a specific DOI. Basically is the full DOI."
+        ),
+    ] = None
 
 
 class SearchResponse(BaseModel):
@@ -268,7 +266,6 @@ class Citation(BaseModel):
     )
     chunk_id: str
     doi: Annotated[str, Field(description="Original DOI string for end users")]
-    section: Section
     title: str | None = None
     year: int | None = None
     snippet: Annotated[str, Field(description="Excerpt of the chunk text used as evidence")]

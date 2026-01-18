@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from biomed_platform.common.logging import get_logger
-from biomed_platform.core.services.ingestion_ports import IdempotencyStore
+from biomed_platform.core.ports.ingestion import IdempotencyStore
 
 log = get_logger(__name__)
 

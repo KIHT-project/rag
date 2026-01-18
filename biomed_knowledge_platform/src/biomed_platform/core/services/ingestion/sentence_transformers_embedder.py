@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from biomed_platform.common.logging import get_logger
-from biomed_platform.core.services.ingestion_ports import EmbeddingProvider
+from biomed_platform.core.ports.ingestion import EmbeddingProvider
 
 log = get_logger(__name__)
 

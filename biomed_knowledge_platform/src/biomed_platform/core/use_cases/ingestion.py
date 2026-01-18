@@ -29,13 +29,12 @@ from biomed_platform.core.errors.errors import (
     no_valid_items_error,
     queue_full_error,
 )
-from biomed_platform.core.services.ingestion_ports import (
+from biomed_platform.core.ports.ingestion import (
     BackpressurePolicy,
     DocumentRegistry,
     IdempotencyStore,
     IngestionJobStore,
     IngestionQueue,
-    IngestionService,
     IngestPayloadStore,
 )
 
@@ -53,7 +52,7 @@ def _skipped_state() -> IngestItemState:
     return IngestItemState.failed
 
 
-class DefaultIngestionService(IngestionService):
+class IngestionUseCase:
     def __init__(
         self,
         *,
@@ -74,7 +73,7 @@ class DefaultIngestionService(IngestionService):
         self._payload_store = payload_store
 
         log.debug(
-            "DefaultIngestionService initialized, worker_count=%d, queue_max_size=%d",
+            "IngestionUseCase initialized, worker_count=%d, queue_max_size=%d",
             worker_count,
             queue.max_size(),
         )

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from biomed_platform.common.logging import get_logger
-from biomed_platform.core.services.ingestion_ports import IngestionQueue
+from biomed_platform.core.ports.ingestion import IngestionQueue
 
 log = get_logger(__name__)
 
