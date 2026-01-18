@@ -26,9 +26,14 @@ class ErrorResponse(BaseModel):
     details: Annotated[dict[str, Any] | None, Field(description="Optional structured details")] = (
         None
     )
-
-    status_code: Annotated[int, Field(description="HTTP status code")]
-    timestamp: Annotated[str, Field(description="UTC timestamp in ISO 8601 format")]
+    status_code: Annotated[int, Field(description="HTTP status code", examples=[400])]
+    timestamp: Annotated[
+        AwareDatetime,
+        Field(
+            description="UTC timestamp in ISO 8601 format",
+            examples=["2026-01-18T14:32:05Z"],
+        ),
+    ]
 
 
 class ReadinessStatus(StrEnum):
@@ -103,6 +108,176 @@ class IngestItem(BaseModel):
     ]
 
 
+class DocumentPatchRequest1(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    year: Annotated[int, Field(ge=1800, le=2100)]
+    source_type: SourceType | None = None
+    title: Annotated[str | None, Field(max_length=2000)] = None
+    journal: Annotated[str | None, Field(max_length=2000)] = None
+    authors: Annotated[list[Author] | None, Field(max_length=200)] = None
+    content_text: Annotated[
+        str | None,
+        Field(
+            description="Updated document text, typically abstract in v1",
+            max_length=50000,
+            min_length=1,
+        ),
+    ] = None
+
+
+class DocumentPatchRequest2(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    year: Annotated[int | None, Field(ge=1800, le=2100)] = None
+    source_type: SourceType
+    title: Annotated[str | None, Field(max_length=2000)] = None
+    journal: Annotated[str | None, Field(max_length=2000)] = None
+    authors: Annotated[list[Author] | None, Field(max_length=200)] = None
+    content_text: Annotated[
+        str | None,
+        Field(
+            description="Updated document text, typically abstract in v1",
+            max_length=50000,
+            min_length=1,
+        ),
+    ] = None
+
+
+class DocumentPatchRequest3(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    year: Annotated[int | None, Field(ge=1800, le=2100)] = None
+    source_type: SourceType | None = None
+    title: Annotated[str, Field(max_length=2000)]
+    journal: Annotated[str | None, Field(max_length=2000)] = None
+    authors: Annotated[list[Author] | None, Field(max_length=200)] = None
+    content_text: Annotated[
+        str | None,
+        Field(
+            description="Updated document text, typically abstract in v1",
+            max_length=50000,
+            min_length=1,
+        ),
+    ] = None
+
+
+class DocumentPatchRequest4(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    year: Annotated[int | None, Field(ge=1800, le=2100)] = None
+    source_type: SourceType | None = None
+    title: Annotated[str | None, Field(max_length=2000)] = None
+    journal: Annotated[str, Field(max_length=2000)]
+    authors: Annotated[list[Author] | None, Field(max_length=200)] = None
+    content_text: Annotated[
+        str | None,
+        Field(
+            description="Updated document text, typically abstract in v1",
+            max_length=50000,
+            min_length=1,
+        ),
+    ] = None
+
+
+class DocumentPatchRequest5(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    year: Annotated[int | None, Field(ge=1800, le=2100)] = None
+    source_type: SourceType | None = None
+    title: Annotated[str | None, Field(max_length=2000)] = None
+    journal: Annotated[str | None, Field(max_length=2000)] = None
+    authors: Annotated[list[Author], Field(max_length=200)]
+    content_text: Annotated[
+        str | None,
+        Field(
+            description="Updated document text, typically abstract in v1",
+            max_length=50000,
+            min_length=1,
+        ),
+    ] = None
+
+
+class DocumentPatchRequest6(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    year: Annotated[int | None, Field(ge=1800, le=2100)] = None
+    source_type: SourceType | None = None
+    title: Annotated[str | None, Field(max_length=2000)] = None
+    journal: Annotated[str | None, Field(max_length=2000)] = None
+    authors: Annotated[list[Author] | None, Field(max_length=200)] = None
+    content_text: Annotated[
+        str,
+        Field(
+            description="Updated document text, typically abstract in v1",
+            max_length=50000,
+            min_length=1,
+        ),
+    ]
+
+
+class DocumentPatchRequest(
+    RootModel[
+        DocumentPatchRequest1
+        | DocumentPatchRequest2
+        | DocumentPatchRequest3
+        | DocumentPatchRequest4
+        | DocumentPatchRequest5
+        | DocumentPatchRequest6
+    ]
+):
+    root: Annotated[
+        DocumentPatchRequest1
+        | DocumentPatchRequest2
+        | DocumentPatchRequest3
+        | DocumentPatchRequest4
+        | DocumentPatchRequest5
+        | DocumentPatchRequest6,
+        Field(
+            description="Patch payload for a DOI. Provide at least one field. If content_text is provided, the server will re-chunk and re-embed the document.\n"
+        ),
+    ]
+
+
+class State(StrEnum):
+    queued = "queued"
+
+
+class DocumentPatchAcceptedResponse(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    job_id: str
+    state: State
+
+
+class DocumentResponse(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    request_id: str
+    doc_id: str
+    doi: Annotated[str, Field(description="Original DOI string for end users")]
+    chunk_ids: list[str] | None = None
+    chunk_total: Annotated[int, Field(ge=1)]
+    authors: list[str] | None = None
+    journal: str | None = None
+    year: int | None = None
+    source_type: SourceType | None = None
+    title: str | None = None
+    content_text: Annotated[
+        str | None,
+        Field(description="Current stored document text assembled from all chunks"),
+    ] = None
+    updated_at: Annotated[AwareDatetime, Field(description="UTC timestamp in ISO 8601 format")]
+
+
 class IngestBatchRequest(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -115,10 +290,6 @@ class IngestBatchRequest(BaseModel):
         ),
     ] = None
     items: Annotated[list[IngestItem], Field(max_length=100, min_length=1)]
-
-
-class State(StrEnum):
-    queued = "queued"
 
 
 class IngestJobAcceptedResponse(BaseModel):
@@ -202,7 +373,7 @@ class SearchHit(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    chunk_ids: list[str] | None = None
+    chunk_ids: list[str]
     doc_id: str
     doi: Annotated[str, Field(description="Original DOI string for end users")]
     authors: list[str] | None = None
@@ -212,11 +383,11 @@ class SearchHit(BaseModel):
     source_type: SourceType | None = None
     title: str | None = None
     content_text: Annotated[
-        str | None,
+        str,
         Field(
             description="Returned full text from all the chunks that assembles a specific DOI. Basically is the full DOI."
         ),
-    ] = None
+    ]
 
 
 class SearchResponse(BaseModel):

@@ -208,6 +208,167 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /v1/documents/{doi}:
+    patch:
+      tags: [Ingestion]
+      summary: Patch a document by DOI
+      operationId: patchDocumentByDoi
+      description: >
+        Updates stored document metadata and, if content_text is provided, re-chunks and re-embeds the document
+        under the same embedding model space. DOI and internal ids are immutable.
+        If content_text is included, the server may process asynchronously and return 202.
+      parameters:
+        - name: X-Request-Id
+          in: header
+          required: false
+          description: Optional request id for tracing
+          schema:
+            type: string
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Optional idempotency key for safe retries
+          schema:
+            type: string
+        - name: doi
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 512
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentPatchRequest"
+      responses:
+        "200":
+          description: Patched document
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentResponse"
+        "202":
+          description: Accepted for async reindexing
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentPatchAcceptedResponse"
+        "400":
+          description: Validation error or unsupported model id
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: DOI not found
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflict, for example concurrent update
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many requests
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags: [Ingestion]
+      summary: Delete a document by DOI
+      operationId: deleteDocumentByDoi
+      description: >
+        Deletes all stored chunks and metadata for the given DOI in the configured embedding model space.
+      parameters:
+        - name: X-Request-Id
+          in: header
+          required: false
+          description: Optional request id for tracing
+          schema:
+            type: string
+        - name: doi
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 512
+      responses:
+        "204":
+          description: Deleted
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+        "404":
+          description: DOI not found
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflict, for example delete blocked by in-flight job
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many requests
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /v1/search:
     post:
       tags: [Retrieval]
@@ -366,7 +527,16 @@ components:
           type: object
           description: Optional structured details
           additionalProperties: true
-      required: [request_id, error, message]
+        status_code:
+          type: integer
+          description: HTTP status code
+          examples: [400]
+        timestamp:
+          type: string
+          format: date-time
+          description: UTC timestamp in ISO 8601 format
+          examples: ["2026-01-18T14:32:05Z"]
+      required: [request_id, error, message, status_code, timestamp]
 
     ReadinessStatus:
       type: string
@@ -452,6 +622,94 @@ components:
           description: >
             Document text. In v1 this is typically the abstract. In future it may contain full text.
       required: [doi, disease, source_type, content_text]
+
+    DocumentPatchRequest:
+      type: object
+      additionalProperties: false
+      description: >
+        Patch payload for a DOI. Provide at least one field.
+        If content_text is provided, the server will re-chunk and re-embed the document.
+      properties:
+        year:
+          type: integer
+          minimum: 1800
+          maximum: 2100
+        source_type:
+          $ref: "#/components/schemas/SourceType"
+        title:
+          type: string
+          maxLength: 2000
+        journal:
+          type: string
+          maxLength: 2000
+        authors:
+          type: array
+          items:
+            type: string
+            maxLength: 512
+          maxItems: 200
+        content_text:
+          type: string
+          minLength: 1
+          maxLength: 50000
+          description: Updated document text, typically abstract in v1
+      anyOf:
+        - required: [year]
+        - required: [source_type]
+        - required: [title]
+        - required: [journal]
+        - required: [authors]
+        - required: [content_text]
+
+    DocumentPatchAcceptedResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        job_id:
+          type: string
+        state:
+          type: string
+          enum: [queued]
+      required: [job_id, state]
+
+    DocumentResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        request_id:
+          type: string
+        doc_id:
+          type: string
+        doi:
+          type: string
+          description: Original DOI string for end users
+        chunk_ids:
+          type: array
+          items:
+            type: string
+        chunk_total:
+          type: integer
+          minimum: 1
+        authors:
+          type: array
+          items:
+            type: string
+        journal:
+          type: string
+        year:
+          type: integer
+        source_type:
+          $ref: "#/components/schemas/SourceType"
+        title:
+          type: string
+        content_text:
+          type: string
+          description: Current stored document text assembled from all chunks
+        updated_at:
+          type: string
+          format: date-time
+          description: UTC timestamp in ISO 8601 format
+      required: [request_id, doc_id, doi, chunk_total, updated_at]
 
     IngestBatchRequest:
       type: object
@@ -613,7 +871,7 @@ components:
         content_text:
           type: string
           description: Returned full text from all the chunks that assembles a specific DOI. Basically is the full DOI.
-      required: [chunk_id, doc_id, doi, score, chunk_text]
+      required: [chunk_ids, doc_id, doi, score, content_text]
 
     SearchResponse:
       type: object
