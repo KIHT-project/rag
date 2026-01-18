@@ -264,7 +264,7 @@ class DocumentResponse(BaseModel):
     request_id: str
     doc_id: str
     doi: Annotated[str, Field(description="Original DOI string for end users")]
-    chunk_ids: list[str] | None = None
+    chunk_ids: list[str]
     chunk_total: Annotated[int, Field(ge=1)]
     authors: list[str] | None = None
     journal: str | None = None
@@ -272,9 +272,8 @@ class DocumentResponse(BaseModel):
     source_type: SourceType | None = None
     title: str | None = None
     content_text: Annotated[
-        str | None,
-        Field(description="Current stored document text assembled from all chunks"),
-    ] = None
+        str, Field(description="Current stored document text assembled from all chunks")
+    ]
     updated_at: Annotated[AwareDatetime, Field(description="UTC timestamp in ISO 8601 format")]
 
 

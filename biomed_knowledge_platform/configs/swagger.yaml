@@ -530,12 +530,12 @@ components:
         status_code:
           type: integer
           description: HTTP status code
-          examples: [400]
+          example: 400
         timestamp:
           type: string
           format: date-time
           description: UTC timestamp in ISO 8601 format
-          examples: ["2026-01-18T14:32:05Z"]
+          example: "2026-01-18T14:32:05Z"
       required: [request_id, error, message, status_code, timestamp]
 
     ReadinessStatus:
@@ -709,7 +709,7 @@ components:
           type: string
           format: date-time
           description: UTC timestamp in ISO 8601 format
-      required: [request_id, doc_id, doi, chunk_total, updated_at]
+      required: [request_id, doc_id, doi, chunk_ids, chunk_total, content_text, updated_at]
 
     IngestBatchRequest:
       type: object
