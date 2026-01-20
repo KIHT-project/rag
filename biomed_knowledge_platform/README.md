@@ -65,6 +65,9 @@ Responsibilities:
 ## Project Structure:
 ```
 biomed_knowledge_platform/
+├──alembic
+│  ├──versions/...
+│  ├──env.py
 ├── Dockerfile
 ├── docker-compose.yaml
 ├── Makefile
@@ -96,6 +99,7 @@ biomed_knowledge_platform/
 │       ├── adapters/
 │       │   └── qdrant/                # Infrastructure adapters
 │       └── common/                    # Logging, middleware, utils
+│       └── db/                        # DB configuration and models
 ├── tests/
 │   ├── api/
 │   ├── core/
@@ -170,6 +174,59 @@ This allows:
 * All chunks for each document are fetched
 * Content is assembled in order
 * One response object per document is returned
+
+## Database migrations
+This project uses SQLAlchemy 2.x for models and Alembic for schema migrations.
+The database is Postgres, migrations are applied via Alembic.
+The Alembic env is configured to add `src/` to `sys.path`.
+We should run Alembic commands from the repo root, the folder that contains `alembic.ini`.
+
+### Verify Alembic can talk to the DB:
+```shell
+alembic current
+```
+If the DB is empty, it will show no current revision until we run the upgrade.
+
+### Bring DB to latest schema:
+```shell
+alembic upgrade head
+```
+### Add a new table, the standard workflow
+
+Step 1, create a SQLAlchemy model add a new file under:
+`src/biomed_platform/db/models/`
+
+Example:
+`src/biomed_platform/db/models/document.py`
+
+Step 2, register the model in the models package:
+`src/biomed_platform/db/models/__init__.py`
+Import the new model, and keep existing imports.
+
+Step 3, generate an Alembic migration
+Make sure the database is at head first from Step 1. 
+
+Generate the migration:
+```shell
+alembic revision --autogenerate -m "<YOUR MESSAGE>"
+```
+for example:
+```shell
+alembic revision --autogenerate -m "add documents table"
+```
+This creates a file like:
+`alembic/versions/<revision_id>_add_documents_table.py`
+
+Step 4, apply the migration
+```shell
+alembic upgrade head
+```
+
+Step 5, verify DB version:
+```shell
+alembic current
+alembic heads
+```
 
 ## Local Run
 Start dependencies:

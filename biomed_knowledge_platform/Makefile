@@ -17,6 +17,7 @@ test: clean $(REPORT_DIR)
 	$(PYTEST) \
 		--cov=$(COV_MODULE) \
 		--cov-report=term \
+		--cov-config=coverage.ini \
 		--cov-report=html:$(COV_HTML) \
 		--cov-report=xml:$(COV_XML) \
 		--cov-fail-under=80 \

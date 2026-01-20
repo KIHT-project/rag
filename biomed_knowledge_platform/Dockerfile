@@ -18,6 +18,8 @@ RUN pip install --no-cache-dir -r /service/requirements.txt
 
 COPY src /service/src
 COPY configs /service/configs
+COPY alembic /service/alembic
+COPY alembic.ini /service/alembic.ini
 
 # Needed so "import biomed_platform" works
 ENV PYTHONPATH=/service/src
