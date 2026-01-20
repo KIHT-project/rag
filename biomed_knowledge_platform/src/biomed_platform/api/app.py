@@ -40,6 +40,8 @@ from biomed_platform.core.services.ingestion.sentence_transformers_embedder impo
     SentenceTransformersEmbeddingProvider,
 )
 from biomed_platform.core.services.ingestion.worker import IngestionWorker
+from biomed_platform.db.engine import create_engine_and_sessionmaker
+from biomed_platform.db.migrate import run_migrations
 
 WORKER_COUNT = 5
 QUEUE_MAX_SIZE = 3
@@ -153,6 +155,13 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        pg_cfg = settings.require_postgres()
+        db_engine, db_sessionmaker = create_engine_and_sessionmaker(pg_cfg=pg_cfg)
+        app.state.db_engine = db_engine
+        app.state.db_sessionmaker = db_sessionmaker
+
+        await run_migrations(pg_cfg=pg_cfg)
+
         worker_tasks: list[asyncio.Task[None]] = []
 
         for _ in range(WORKER_COUNT):
@@ -183,6 +192,8 @@ def create_app() -> FastAPI:
             for task in worker_tasks:
                 task.cancel()
             await asyncio.gather(*worker_tasks, return_exceptions=True)
+
+            await db_engine.dispose()
 
     app = FastAPI(
         title=api_cfg.get("title"),

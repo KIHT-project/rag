@@ -1,0 +1,6 @@
+postgres:
+  host: "localhost"
+  postgres_port: 5433
+  postgres_user: user
+  postgres_password: password
+  postgres_db: test_biomed_knowledge_platform

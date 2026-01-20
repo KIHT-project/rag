@@ -78,6 +78,18 @@ class AppSettings:
             )
         return val
 
+    def require_postgres(self) -> dict[str, Any]:
+        raw = self.require("postgres")
+        val = raw.get("postgres")
+        if not isinstance(val, dict):
+            raise SystemError(
+                code="postgres_misconfiguration",
+                message="postgres.yaml must contain top level key postgres",
+                details=None,
+                retryable=False,
+            )
+        return val
+
     def require_llm(self) -> dict[str, Any]:
         return self.require("llm")
 

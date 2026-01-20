@@ -22,3 +22,9 @@ httpx==0.28.1
 
 # RAG
 qdrant-client==1.16.2
+
+# Postgres
+greenlet==3.3.0
+alembic==1.18.1
+SQLAlchemy==2.0.45
+asyncpg==0.31.0

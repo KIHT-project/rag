@@ -17,6 +17,24 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  postgres:
+    image: postgres:17.7
+    hostname: rdbms
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: test_biomed_knowledge_platform
+    ports:
+      - "5433:5432"
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U user -d test_biomed_knowledge_platform" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   ollama:
     image: ollama/ollama:0.13.5
     ports:
@@ -33,3 +51,4 @@ services:
 volumes:
   qdrant_test_storage:
   ollama_test_models:
+  postgres_data:

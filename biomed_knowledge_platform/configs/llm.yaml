@@ -1,1 +1,16 @@
-ollama_base_url: http://ollama.lan:7000/ollama
+ollama_base_url: "http://ollama.lan:7000/ollama"
+generator_model_id: "llama3.1:8b-instruct-q4_K_M"
+
+hyde_enabled: false
+hyde_model_id: "mistral:7b-instruct-q4_K_M"
+
+reranker_mode: "off"
+reranker_model_id: "llama3.1:8b-instruct-q4_K_M"
+
+ask_max_question_chars: 2000
+ask_max_context_chars: 24000
+ask_max_chunks_candidate: 60
+ask_max_chunks_final: 12
+
+llm_max_concurrency: 3
+ask_llm_max_retries: 1
