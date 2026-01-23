@@ -53,6 +53,70 @@ def _install_qdrant_client_stub() -> None:
 
 _install_qdrant_client_stub()
 
+
+def _install_sqlalchemy_stub() -> None:
+    if "sqlalchemy" in sys.modules:
+        return
+
+    # Minimal stubs to allow importing the FastAPI app in environments
+    # where SQLAlchemy is not installed. Tests in this suite do not
+    # exercise database integration.
+    sqlalchemy = type(sys)("sqlalchemy")
+
+    orm = type(sys)("sqlalchemy.orm")
+
+    class DeclarativeBase:  # pragma: no cover
+        pass
+
+    orm.DeclarativeBase = DeclarativeBase
+
+    ext = type(sys)("sqlalchemy.ext")
+    ext_asyncio = type(sys)("sqlalchemy.ext.asyncio")
+
+    class AsyncEngine:  # pragma: no cover
+        async def dispose(self) -> None:
+            return
+
+    class AsyncSession:  # pragma: no cover
+        pass
+
+    def create_async_engine(*args, **kwargs):  # pragma: no cover
+        return AsyncEngine()
+
+    def async_sessionmaker(*args, **kwargs):  # pragma: no cover
+        return object()
+
+    ext_asyncio.AsyncEngine = AsyncEngine
+    ext_asyncio.AsyncSession = AsyncSession
+    ext_asyncio.create_async_engine = create_async_engine
+    ext_asyncio.async_sessionmaker = async_sessionmaker
+
+    sys.modules["sqlalchemy"] = sqlalchemy
+    sys.modules["sqlalchemy.orm"] = orm
+    sys.modules["sqlalchemy.ext"] = ext
+    sys.modules["sqlalchemy.ext.asyncio"] = ext_asyncio
+
+
+def _install_asyncpg_stub() -> None:
+    if "asyncpg" in sys.modules:
+        return
+
+    asyncpg = type(sys)("asyncpg")
+
+    async def connect(*args, **kwargs):  # pragma: no cover
+        class _Conn:
+            async def close(self) -> None:
+                return
+
+        return _Conn()
+
+    asyncpg.connect = connect
+    sys.modules["asyncpg"] = asyncpg
+
+
+_install_sqlalchemy_stub()
+_install_asyncpg_stub()
+
 from fastapi import FastAPI
 
 from biomed_platform.api import app as api_app

@@ -1,11 +1,13 @@
 # src/biomed_platform/api/app.py
 from __future__ import annotations
+from biomed_platform.api.endpoints.ask import router as ask_router
 from biomed_platform.api.endpoints.retrieval import router as retrieval_router
 
 import asyncio
 from contextlib import asynccontextmanager
 from typing import Any
 
+import httpx
 from fastapi import FastAPI
 from qdrant_client import QdrantClient
 
@@ -35,6 +37,7 @@ from biomed_platform.core.services.ingestion.in_memory_payload_store import (
 
 from biomed_platform.core.services.ingestion.pipeline import DefaultIngestionPipeline
 from biomed_platform.adapters.qdrant.vector_index import QdrantVectorIndex, parse_distance
+from biomed_platform.adapters.ollama.ollama_client import OllamaLlmClient
 from biomed_platform.core.use_cases.search import SearchUseCase
 from biomed_platform.core.services.ingestion.sentence_transformers_embedder import (
     SentenceTransformersEmbeddingProvider,
@@ -153,6 +156,19 @@ def create_app() -> FastAPI:
         chunks=index,
     )
 
+    llm_cfg = settings.require_llm()
+    ollama_base_url = str(llm_cfg.get("ollama_base_url", "")).strip()
+    if not ollama_base_url:
+        raise SystemError(
+            code="missing_ollama_base_url",
+            message="Missing ollama_base_url in llm.yaml",
+            details=None,
+            retryable=False,
+        )
+    llm_timeout_seconds = float(llm_cfg.get("timeout_seconds", 30.0))
+    llm_max_concurrency = int(llm_cfg.get("llm_max_concurrency", 3))
+    ask_llm_max_retries = int(llm_cfg.get("ask_llm_max_retries", 1))
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         pg_cfg = settings.require_postgres()
@@ -161,6 +177,17 @@ def create_app() -> FastAPI:
         app.state.db_sessionmaker = db_sessionmaker
 
         await run_migrations(pg_cfg=pg_cfg)
+
+        llm_http_client = httpx.AsyncClient(timeout=httpx.Timeout(llm_timeout_seconds))
+        llm_semaphore = asyncio.Semaphore(max(1, llm_max_concurrency))
+        llm_client = OllamaLlmClient(
+            base_url=ollama_base_url,
+            client=llm_http_client,
+            max_retries=ask_llm_max_retries,
+            semaphore=llm_semaphore,
+        )
+        app.state.llm_http_client = llm_http_client
+        app.state.llm_client = llm_client
 
         worker_tasks: list[asyncio.Task[None]] = []
 
@@ -193,6 +220,8 @@ def create_app() -> FastAPI:
                 task.cancel()
             await asyncio.gather(*worker_tasks, return_exceptions=True)
 
+            await llm_http_client.aclose()
+
             await db_engine.dispose()
 
     app = FastAPI(
@@ -214,6 +243,7 @@ def create_app() -> FastAPI:
     app.include_router(v1_router)
     app.include_router(ingestion_router)
     app.include_router(retrieval_router)
+    app.include_router(ask_router)
 
     app.add_middleware(AccessLogMiddleware)
     app.add_middleware(RequestContextMiddleware)
