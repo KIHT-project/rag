@@ -30,3 +30,16 @@ class ChunkPart:
     start: int
     end: int
     text: str
+
+
+@dataclass(slots=True)
+class ChunkCandidate:
+    chunk_id: str
+    doc_id: str
+    doi: str
+    title: str | None
+    year: int | None
+    section: str | None
+    source_type: schemas.SourceType | None
+    score: float
+    chunk_text: str | None

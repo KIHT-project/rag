@@ -16,9 +16,10 @@ from qdrant_client.http.models import (
     Range,
 )
 
+from biomed_platform.api.models.generated import schemas
 from biomed_platform.common.logging import get_logger
 from biomed_platform.core.domains.ingestion import VectorPoint
-from biomed_platform.core.domains.retrieval import VectorSearchHit
+from biomed_platform.core.domains.retrieval import ChunkCandidate, VectorSearchHit
 from biomed_platform.core.errors.errors import SystemError
 from biomed_platform.core.ports.ingestion import VectorWriter
 
@@ -497,6 +498,16 @@ class QdrantVectorIndex(VectorWriter):
     def _to_filter(self, raw: dict[str, object]) -> Filter | None:
         must: list[Any] = []
 
+        doi = raw.get("doi")
+        if isinstance(doi, str) and doi.strip():
+            must.append(FieldCondition(key="doi_original", match=MatchValue(value=doi.strip())))
+
+        doi_normalized = raw.get("doi_normalized")
+        if isinstance(doi_normalized, str) and doi_normalized.strip():
+            must.append(
+                FieldCondition(key="doi_normalized", match=MatchValue(value=doi_normalized.strip()))
+            )
+
         disease = raw.get("disease")
         if isinstance(disease, str) and disease:
             must.append(FieldCondition(key="disease", match=MatchValue(value=disease)))
@@ -504,6 +515,10 @@ class QdrantVectorIndex(VectorWriter):
         source_type = raw.get("source_type")
         if isinstance(source_type, str) and source_type:
             must.append(FieldCondition(key="source_type", match=MatchValue(value=source_type)))
+
+        year = raw.get("year")
+        if isinstance(year, int):
+            must.append(FieldCondition(key="year", match=MatchValue(value=int(year))))
 
         year_min = raw.get("year_min")
         year_max = raw.get("year_max")
@@ -519,3 +534,141 @@ class QdrantVectorIndex(VectorWriter):
             )
 
         return Filter(must=must) if must else None
+
+    def _to_chunk_candidate(self, hit: VectorSearchHit) -> ChunkCandidate:
+        payload = hit.payload or {}
+
+        doc_id = str(payload.get("doc_id") or "")
+        doi = str(payload.get("doi_original") or payload.get("doi") or "")
+
+        title = payload.get("title")
+        year = payload.get("year")
+        section = payload.get("section")
+        source_type = payload.get("source_type")
+        text = payload.get("text")
+
+        parsed_title = str(title) if isinstance(title, str) else None
+        parsed_section = str(section) if isinstance(section, str) else None
+        parsed_year = int(year) if isinstance(year, int) else None
+        parsed_text = str(text) if isinstance(text, str) else None
+
+        parsed_source_type = None
+        if isinstance(source_type, str):
+            try:
+                parsed_source_type = schemas.SourceType(source_type)
+            except Exception:
+                parsed_source_type = None
+
+        return ChunkCandidate(
+            chunk_id=str(hit.point_id),
+            doc_id=doc_id,
+            doi=doi,
+            title=parsed_title,
+            year=parsed_year,
+            section=parsed_section,
+            source_type=parsed_source_type,
+            score=float(hit.score),
+            chunk_text=parsed_text,
+        )
+
+    async def search_chunks(
+        self,
+        *,
+        embedding_model_id: str,
+        query_vector: Sequence[float],
+        top_k: int,
+        qfilter: object | None,
+    ) -> list[ChunkCandidate]:
+        raw_hits = await self.search(
+            embedding_model_id=embedding_model_id,
+            query_vector=query_vector,
+            top_k=top_k,
+            qfilter=qfilter,
+        )
+
+        out: list[ChunkCandidate] = []
+        for h in raw_hits:
+            out.append(self._to_chunk_candidate(h))
+        return out
+
+    def _retrieve_any(self, *, name: str, chunk_ids: Sequence[str]) -> Any:
+        ids = [c for c in chunk_ids if c]
+
+        if hasattr(self.client, "retrieve"):
+            return self.client.retrieve(
+                collection_name=name,
+                ids=ids,
+                with_payload=True,
+                with_vectors=False,
+            )
+
+        if hasattr(self.client, "get_points"):
+            return self.client.get_points(
+                collection_name=name,
+                ids=ids,
+                with_payload=True,
+                with_vectors=False,
+            )
+
+        raise AttributeError("No compatible retrieve method found on QdrantClient")
+
+    async def fetch_chunks_by_ids(
+        self,
+        *,
+        embedding_model_id: str,
+        chunk_ids: Sequence[str],
+    ) -> list[ChunkCandidate]:
+        ids = [c for c in chunk_ids if c]
+        if not ids:
+            return []
+
+        name = self._collection_name(embedding_model_id=embedding_model_id)
+
+        try:
+            res = await self._call_blocking(lambda: self._retrieve_any(name=name, chunk_ids=ids))
+
+        except AttributeError as exc:
+            raise SystemError(
+                code="qdrant_client_incompatible",
+                message="Installed qdrant client is incompatible with this server code",
+                details={"missing": "retrieve or get_points"},
+                retryable=False,
+            ) from exc
+
+        except UnexpectedResponse as exc:
+            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            if status_code == 404:
+                log.debug(
+                    "Qdrant collection missing during fetch_chunks_by_ids, returning empty,"
+                    " name=%s",
+                    name,
+                )
+                return []
+
+            raise SystemError(
+                code="qdrant_fetch_failed",
+                message="Failed to fetch chunks from qdrant",
+                details={"collection": name, "status_code": status_code},
+                retryable=True,
+            ) from exc
+
+        except Exception as exc:
+            raise SystemError(
+                code="qdrant_fetch_failed",
+                message="Failed to fetch chunks from qdrant",
+                details={"collection": name},
+                retryable=True,
+            ) from exc
+
+        points = getattr(res, "points", None) or res or []
+
+        out: list[ChunkCandidate] = []
+        for p in points:
+            hit = VectorSearchHit(
+                point_id=str(getattr(p, "id", None)),
+                score=float(getattr(p, "score", None) or 0.0),
+                payload=dict(getattr(p, "payload", None) or {}),
+            )
+            out.append(self._to_chunk_candidate(hit))
+
+        return out
