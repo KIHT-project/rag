@@ -162,6 +162,112 @@ async def test_upsert_exists_search_and_filter_paths(monkeypatch) -> None:
     # Then
     assert exc.value.code == "qdrant_client_incompatible"
 
+
+@pytest.mark.anyio
+async def test_search_chunks_maps_candidate_fields_and_applies_filters(monkeypatch) -> None:
+    # Given
+    client = MagicMock(
+        spec_set=[
+            "search",
+        ]
+    )
+    client.search = MagicMock()
+
+    client.search.return_value = [
+        SimpleNamespace(
+            id="c1",
+            score=0.9,
+            payload={
+                "doc_id": "d1",
+                "doi_original": "10.1/abc",
+                "title": "t1",
+                "year": 2021,
+                "source_type": "pubmed_abstract",
+                "text": "chunk text",
+            },
+        )
+    ]
+
+    idx = QdrantVectorIndex(client=client, collection_name_prefix="docs", distance=Distance.COSINE)
+
+    async def _to_thread(fn):
+        return fn()
+
+    monkeypatch.setattr(
+        "biomed_platform.adapters.qdrant.vector_index.asyncio.to_thread",
+        _to_thread,
+        raising=True,
+    )
+
+    # When
+    out = await idx.search_chunks(
+        embedding_model_id="m",
+        query_vector=[0.1],
+        top_k=10,
+        qfilter={"doi": "10.1/abc", "year": 2021, "source_type": "pubmed_abstract"},
+    )
+
+    # Then
+    assert len(out) == 1
+    assert out[0].chunk_id == "c1"
+    assert out[0].doc_id == "d1"
+    assert out[0].doi == "10.1/abc"
+    assert out[0].title == "t1"
+    assert out[0].year == 2021
+    assert out[0].source_type is not None
+    assert out[0].source_type.value == "pubmed_abstract"
+    assert out[0].chunk_text == "chunk text"
+
+    # And filter was passed to qdrant
+    args, kwargs = client.search.call_args
+    filt = kwargs.get("query_filter")
+    assert isinstance(filt, Filter)
+    keys = {getattr(c, "key", None) for c in (filt.must or [])}
+    assert "doi_original" in keys
+    assert "year" in keys
+    assert "source_type" in keys
+
+
+@pytest.mark.anyio
+async def test_fetch_chunks_by_ids_uses_retrieve_and_maps(monkeypatch) -> None:
+    # Given
+    client = MagicMock(spec_set=["retrieve"])
+    client.retrieve = MagicMock()
+    client.retrieve.return_value = [
+        SimpleNamespace(
+            id="c1",
+            payload={
+                "doc_id": "d1",
+                "doi_original": "10.1/abc",
+                "title": "t1",
+                "year": 2021,
+                "source_type": "pubmed_abstract",
+                "text": "chunk text",
+            },
+        )
+    ]
+
+    idx = QdrantVectorIndex(client=client, collection_name_prefix="docs", distance=Distance.COSINE)
+
+    async def _to_thread(fn):
+        return fn()
+
+    monkeypatch.setattr(
+        "biomed_platform.adapters.qdrant.vector_index.asyncio.to_thread",
+        _to_thread,
+        raising=True,
+    )
+
+    # When
+    out = await idx.fetch_chunks_by_ids(embedding_model_id="m", chunk_ids=["c1"])
+
+    # Then
+    assert len(out) == 1
+    assert out[0].chunk_id == "c1"
+    assert out[0].chunk_text == "chunk text"
+    assert client.retrieve.call_count == 1
+
+
 @pytest.mark.anyio
 async def test_collection_name_sanitizes_and_prefix_fallback(monkeypatch) -> None:
     # Given
