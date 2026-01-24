@@ -5,3 +5,4 @@ exclude =
 
 per-file-ignores =
     src/biomed_platform/core/ports/*.py:E704
+    src/biomed_platform/core/services/hyde/prompt_templates.py:E501
