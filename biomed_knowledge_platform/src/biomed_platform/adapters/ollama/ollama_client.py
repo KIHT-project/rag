@@ -38,7 +38,7 @@ class OllamaLlmClient(LlmClientPort):
         base_url: str,
         max_retries: int,
         semaphore: asyncio.Semaphore,
-        timeout_seconds: float = 120.0,
+        timeout_seconds: float = 3600.0,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         if not base_url or not base_url.strip():
@@ -107,11 +107,17 @@ class OllamaLlmClient(LlmClientPort):
             "messages": [{"role": m.role, "content": m.content} for m in messages],
             "stream": False,
         }
+
         if options:
-            payload["options"] = dict(options)
+            opts = dict(options)
+
+            fmt = opts.pop("format", None)
+            if isinstance(fmt, str) and fmt.strip():
+                payload["format"] = fmt.strip()
+
+            payload["options"] = opts
 
         log.info(f"Ollama payload built | model_id={mid} | payload_keys={list(payload.keys())}")
-
         return payload
 
     async def _chat_with_retries(self, *, url: str, payload: Mapping[str, Any]) -> str:
