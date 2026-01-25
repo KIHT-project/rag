@@ -7,12 +7,12 @@ hyde_model_id: "llama3.1:8b-instruct-q4_K_M" #"mistral:7b-instruct-q4_K_M"
 reranker_mode: "off"
 reranker_model_id: "llama3.1:8b-instruct-q4_K_M"
 
-ask_max_question_chars: 2000
-ask_max_context_chars: 24000
-ask_max_chunks_candidate: 60
-ask_max_chunks_final: 12
+ask_max_question_chars: 1200
+ask_max_context_chars: 9000
+ask_max_chunks_candidate: 30
+ask_max_chunks_final: 8
 
-llm_max_concurrency: 3
-ask_llm_max_retries: 1
+llm_max_concurrency: 2
+ask_llm_max_retries: 0
 
-timeout_seconds: 600.0
+timeout_seconds: 3600.0

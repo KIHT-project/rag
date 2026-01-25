@@ -46,7 +46,7 @@ from biomed_platform.core.services.ingestion.worker import IngestionWorker
 from biomed_platform.db.engine import create_engine_and_sessionmaker
 from biomed_platform.db.migrate import run_migrations
 
-WORKER_COUNT = 5
+WORKER_COUNT = 1
 QUEUE_MAX_SIZE = 3
 
 JOB_TTL_SECONDS = 86400
