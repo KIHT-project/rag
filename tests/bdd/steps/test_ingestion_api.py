@@ -53,7 +53,6 @@ def test_schema_validation_path():
 
 def _base_ingest_payload() -> dict:
     return {
-        "embedding_model_id": "sentence-transformers/all-MiniLM-L6-v2",
         "items": [
             {
                 "doi": "10.1000/xyz123",
@@ -165,6 +164,12 @@ def then_400(ctx):
     assert ctx["post_res_2"].status_code == 400
 
 
+@then("the response status is 409")
+def then_409(ctx):
+    res = ctx.get("post_res_2") or ctx.get("post_res")
+    assert res.status_code == 409
+
+
 @then("the response status is 404")
 def then_404(ctx):
     assert ctx["res"].status_code == 404
@@ -209,7 +214,6 @@ def then_counts_internally_consistent(ctx):
 
     terminal = (
         counts.get("succeeded", 0)
-        + counts.get("skipped", 0)
         + counts.get("skipped_duplicate", 0)
         + counts.get("failed", 0)
     )
@@ -228,9 +232,15 @@ def then_error_404(ctx):
     assert _extract_error_code(ctx["res"]) == "not_found"
 
 
+@then("the error code is duplicate_doi")
+def then_error_duplicate_doi(ctx):
+    res = ctx.get("post_res_2") or ctx.get("post_res")
+    assert _extract_error_code(res) == "duplicate_doi"
+
+
 @then("request id is present")
 def then_request_id_present(ctx):
-    res = ctx.get("res") or ctx.get("post_res")
+    res = ctx.get("res") or ctx.get("post_res_2") or ctx.get("post_res")
     assert extract_request_id(res)
 
 

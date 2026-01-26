@@ -23,10 +23,11 @@ from biomed_platform.core.errors.errors import SystemError
 
 
 class _Settings:
-    def __init__(self, *, embedding_provider: str = "e", qdrant_url: str = "http://q", ollama_url: str = "http://o") -> None:
+    def __init__(self, *, embedding_provider: str = "e", qdrant_url: str = "http://q", ollama_url: str = "http://o", postgres_url: str = "postgresql://user:pass@localhost:5432/db",) -> None:
         self._embedding_provider = embedding_provider
         self._qdrant_url = qdrant_url
         self._ollama_url = ollama_url
+        self._postgres_url = postgres_url
 
     def require_rag(self):
         return {"embedding": {"provider": self._embedding_provider}}
@@ -36,6 +37,11 @@ class _Settings:
 
     def require_llm(self):
         return {"ollama_base_url": self._ollama_url}
+
+    def require_postgres(self) -> dict[str, object]:
+        return {
+            "postgres_url": "postgresql+asyncpg://user:pass@localhost:5432/db",
+        }
 
 
 def _make_request(app) -> Request:
@@ -61,7 +67,6 @@ def _make_ingest_item(*, doi: str = "10.1/x") -> schemas.IngestItem:
 
 def _make_ingest_batch_request() -> schemas.IngestBatchRequest:
     return schemas.IngestBatchRequest(
-        embedding_model_id=None,
         items=[_make_ingest_item()],
     )
 
@@ -109,7 +114,6 @@ async def test_ingestion_endpoint_errors_when_missing_service() -> None:
     req = _make_request(app)
 
     body = schemas.IngestBatchRequest(
-        embedding_model_id="m",
         items=[
             schemas.IngestItem(
                 doi="10.1/x",
@@ -164,7 +168,7 @@ async def test_system_readiness_sets_status_code(monkeypatch) -> None:
 
     ready = ReadinessResult(
         status=ReadinessStatus.ready,
-        checks=ReadinessChecks(qdrant=CheckStatus.ok, llm=CheckStatus.ok),
+        checks=ReadinessChecks(qdrant=CheckStatus.ok, llm=CheckStatus.ok, rdbms=CheckStatus.ok),
         errors=None,
     )
 
@@ -180,7 +184,7 @@ async def test_system_readiness_sets_status_code(monkeypatch) -> None:
     # Given, not ready
     not_ready = ReadinessResult(
         status=ReadinessStatus.not_ready,
-        checks=ReadinessChecks(qdrant=CheckStatus.unhealthy, llm=CheckStatus.ok),
+        checks=ReadinessChecks(qdrant=CheckStatus.unhealthy, llm=CheckStatus.ok, rdbms=CheckStatus.ok),
         errors={"qdrant": {"reason": "http_5xx"}},
     )
 

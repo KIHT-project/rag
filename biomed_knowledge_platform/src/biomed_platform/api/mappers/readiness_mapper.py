@@ -22,6 +22,7 @@ def to_api_readiness_response(result: DomainReadinessResult) -> ApiReadinessResp
         checks=ApiReadinessChecks(
             qdrant=to_api_check_status(result.checks.qdrant),
             llm=to_api_check_status(result.checks.llm),
+            rdbms=to_api_check_status(result.checks.rdbms),
         ),
         errors=result.errors,
     )

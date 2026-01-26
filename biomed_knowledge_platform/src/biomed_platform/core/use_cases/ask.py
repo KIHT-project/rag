@@ -319,7 +319,6 @@ class AskUseCase:
             question=question_normalized,
             selected_chunks=selected_chunks,
             max_context_chars=int(ask_max_context_chars),
-            max_json_retries=int(ask_llm_max_retries),
             llm_options=None,
         )
 
@@ -349,10 +348,7 @@ class AskUseCase:
 
         return schemas.AskResponseEnvelope(
             request_id=request_id,
-            effective_embedding_model_id=embedding_model_id,
-            effective_generator_model_id=generator_model_id,
             effective_hyde_enabled=bool(hyde_enabled),
-            effective_reranker_mode=schemas.RerankerMode.off,
             answer=synthesis.answer,
             citations=synthesis.citations,
             debug=debug,

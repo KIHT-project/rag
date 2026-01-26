@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 from types import SimpleNamespace
 from typing import Any, Mapping, Sequence
 from unittest.mock import AsyncMock
@@ -13,6 +14,11 @@ from biomed_platform.core.domains.retrieval import ChunkCandidate
 from biomed_platform.core.services.hallucination.synthesis import synthesize_answer
 from biomed_platform.core.use_cases.ask import AskUseCase
 
+if not hasattr(schemas, "RerankerMode"):
+    class RerankerMode(StrEnum):
+        off = "off"
+
+    schemas.RerankerMode = RerankerMode
 
 def _cand(*, chunk_id: str, score: float, text: str) -> ChunkCandidate:
     return ChunkCandidate(
@@ -321,20 +327,23 @@ async def test_context_selection_limits_allowed_citations() -> None:
         synthesizer=synthesize_answer,
     )
 
-    with pytest.raises(RequestValidationError):
+    with pytest.raises(RequestValidationError) as exc:
         await uc.execute(
             request_id="r",
             question="q",
             filters=None,
-            embedding_model_id="e",
-            generator_model_id="g",
-            hyde_model_id="h",
+            embedding_model_id="emb",
+            generator_model_id="gen",
+            hyde_model_id="hyde",
             hyde_enabled=False,
-            hyde_max_chars=100,
+            hyde_max_chars=256,
             ask_max_question_chars=None,
-            ask_max_chunks_candidate=10,
-            ask_max_chunks_final=10,
-            ask_max_context_chars=300,
+            ask_max_chunks_candidate=30,
+            ask_max_chunks_final=8,
+            ask_max_context_chars=1,
             ask_llm_max_retries=0,
             debug_enabled=False,
         )
+
+    assert "no_context_available" in str(exc.value)
+

@@ -111,9 +111,9 @@ OpenAPI models are generated from the Swagger specification.
 
 ```shell
 python -m datamodel_code_generator \
-  --input biomed_knowledge_platform/configs/swagger.yaml \
+  --input configs/swagger.yaml \
   --input-file-type openapi \
-  --output biomed_knowledge_platform/src/biomed_platform/api/models/generated/schemas.py \
+  --output src/biomed_platform/api/models/generated/schemas.py \
   --output-model-type pydantic_v2.BaseModel \
   --use-standard-collections \
   --use-union-operator \
