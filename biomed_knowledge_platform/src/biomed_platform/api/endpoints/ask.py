@@ -39,6 +39,10 @@ def _require_int_from_llm_cfg(*, llm_cfg: Mapping[str, Any], key: str, default: 
         return int(default)
 
 
+def _get_optional_attr(obj: Any, name: str) -> Any:
+    return getattr(obj, name, None)
+
+
 @router.post("")
 async def ask(
     request: Request,
@@ -62,36 +66,25 @@ async def ask(
 
     hyde_max_chars = _require_int_from_llm_cfg(llm_cfg=llm_cfg, key="hyde_max_chars", default=1024)
 
-    default_candidate_k = _require_int_from_llm_cfg(
+    ask_max_chunks_candidate = _require_int_from_llm_cfg(
         llm_cfg=llm_cfg,
         key="ask_max_chunks_candidate",
         default=8,
     )
-    default_final_k = _require_int_from_llm_cfg(
+    ask_max_chunks_final = _require_int_from_llm_cfg(
         llm_cfg=llm_cfg,
         key="ask_max_chunks_final",
         default=8,
     )
 
-    hyde_enabled = (
-        (x_hyde_enabled is True) if x_hyde_enabled is not None else (payload.hyde_enabled is True)
-    )
-    raw_candidate_k = payload.retrieval_top_k
-    ask_max_chunks_candidate = (
-        int(raw_candidate_k) if raw_candidate_k is not None else int(default_candidate_k)
-    )
-    raw_final_k = payload.final_context_k
-    ask_max_chunks_final = int(raw_final_k) if raw_final_k is not None else int(default_final_k)
+    cfg_hyde_enabled = bool(llm_cfg.get("hyde_enabled", False))
+    hyde_enabled = bool(x_hyde_enabled) if x_hyde_enabled is not None else cfg_hyde_enabled
+
     log.info(
-        "Ask chunk limits resolved | payload_retrieval_top_k=%s | default_candidate_k=%s | "
-        "effective_candidate_k=%s | payload_final_context_k=%s | default_final_k=%s | "
-        "effective_final_k=%s",
-        payload.retrieval_top_k,
-        default_candidate_k,
-        ask_max_chunks_candidate,
-        payload.final_context_k,
-        default_final_k,
-        ask_max_chunks_final,
+        "Ask chunk limits resolved | candidate_k=%s | final_k=%s | hyde_enabled=%s",
+        int(ask_max_chunks_candidate),
+        int(ask_max_chunks_final),
+        bool(hyde_enabled),
     )
 
     synthesis_max_context_chars = _require_int_from_llm_cfg(
@@ -102,7 +95,6 @@ async def ask(
     )
 
     ask_max_question_chars_raw = llm_cfg.get("ask_max_question_chars")
-    ask_max_question_chars: int | None
     if ask_max_question_chars_raw is None:
         ask_max_question_chars = None
     else:
@@ -114,14 +106,16 @@ async def ask(
         if ask_max_question_chars <= 0:
             ask_max_question_chars = None
 
+    filters = _get_optional_attr(payload, "filters")
+
     return await use_case.execute(
         request_id=get_request_id(),
         question=payload.question,
-        filters=payload.filters,
+        filters=filters,
         embedding_model_id=embedding_model_id,
         generator_model_id=generator_model_id,
         hyde_model_id=hyde_model_id,
-        hyde_enabled=hyde_enabled,
+        hyde_enabled=bool(hyde_enabled),
         hyde_max_chars=int(hyde_max_chars),
         ask_max_question_chars=ask_max_question_chars,
         ask_max_chunks_candidate=int(ask_max_chunks_candidate),

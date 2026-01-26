@@ -29,8 +29,9 @@ def then_ready(ctx):
     assert body["status"] == "ready"
 
 
-@then("qdrant is ok and llm is ok")
+@then("qdrant is ok and llm is ok and rdbms is ok")
 def then_checks_ok(ctx):
     body = ctx["res"].json()
     assert body["checks"]["qdrant"] == "ok"
     assert body["checks"]["llm"] == "ok"
+    assert body["checks"]["rdbms"] == "ok"

@@ -1,29 +1,30 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import Enum
 
 
-class CheckStatus(StrEnum):
+class CheckStatus(str, Enum):
     ok = "ok"
-    missing_config = "missing_config"
-    unhealthy = "unhealthy"
     degraded = "degraded"
+    unhealthy = "unhealthy"
     error = "error"
+    missing_config = "missing_config"
 
 
-class ReadinessStatus(StrEnum):
+class ReadinessStatus(str, Enum):
     ready = "ready"
     not_ready = "not_ready"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ReadinessChecks:
     qdrant: CheckStatus
     llm: CheckStatus
+    rdbms: CheckStatus
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ReadinessResult:
     status: ReadinessStatus
     checks: ReadinessChecks

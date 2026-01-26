@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import httpx
+
+from biomed_platform.db.engine import build_async_database_url
 from fastapi import APIRouter, Request, Response, status
 
 from biomed_platform.api.mappers.readiness_mapper import to_api_readiness_response
@@ -29,6 +31,7 @@ async def readiness_check(request: Request, response: Response) -> ReadinessResp
 
     qdrant_url = ""
     ollama_url = ""
+    postgres_url = ""
 
     if settings is not None:
         qdrant_cfg = settings.require_qdrant()
@@ -36,11 +39,15 @@ async def readiness_check(request: Request, response: Response) -> ReadinessResp
         qdrant_url = str(qdrant_cfg.get("url", "")).rstrip("/")
         ollama_url = normalize_ollama_base_url(str(llm_cfg.get("ollama_base_url", "")).rstrip("/"))
 
+        pg_cfg = settings.require_postgres()
+        postgres_url = build_async_database_url(pg_cfg)
+
     timeout = httpx.Timeout(connect=2.0, read=2.0, write=2.0, pool=2.0)
 
     domain_result = await compute_readiness(
         qdrant_url=qdrant_url,
         ollama_url=ollama_url,
+        postgres_url=postgres_url,
         timeout=timeout,
     )
 
@@ -48,10 +55,11 @@ async def readiness_check(request: Request, response: Response) -> ReadinessResp
     response.status_code = status.HTTP_200_OK if is_ready else status.HTTP_503_SERVICE_UNAVAILABLE
 
     (log.debug if is_ready else log.warning)(
-        "Readiness result, status=%s, qdrant=%s, llm=%s, errors=%s",
+        "Readiness result, status=%s, qdrant=%s, llm=%s, rdbms=%s, errors=%s",
         domain_result.status.value,
         domain_result.checks.qdrant.value,
         domain_result.checks.llm.value,
+        domain_result.checks.rdbms.value,
         domain_result.errors,
     )
 

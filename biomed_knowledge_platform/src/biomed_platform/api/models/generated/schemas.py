@@ -55,6 +55,7 @@ class ReadinessChecks(BaseModel):
     )
     qdrant: CheckStatus
     llm: CheckStatus
+    rdbms: CheckStatus
 
 
 class ReadinessResponse(BaseModel):
@@ -281,13 +282,6 @@ class IngestBatchRequest(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    embedding_model_id: Annotated[
-        str | None,
-        Field(
-            description="Optional, defaults to rag.yaml default_embedding_model_id",
-            examples=["nomic-embed-text"],
-        ),
-    ] = None
     items: Annotated[list[IngestItem], Field(max_length=100, min_length=1)]
 
 
@@ -394,17 +388,14 @@ class SearchResponse(BaseModel):
         extra="forbid",
     )
     request_id: str
-    effective_embedding_model_id: str
     next_cursor: Annotated[
         str | None,
         Field(description="Optional cursor for next page (reserved for future use)"),
     ] = None
+    effective_embedding_model_id: Annotated[
+        str, Field(description="Embedding model id actually used for retrieval")
+    ]
     hits: list[SearchHit]
-
-
-class RerankerMode(StrEnum):
-    llm = "llm"
-    off = "off"
 
 
 class AskRequest(BaseModel):
@@ -412,22 +403,7 @@ class AskRequest(BaseModel):
         extra="forbid",
     )
     question: Annotated[str, Field(max_length=2000, min_length=1)]
-    retrieval_top_k: Annotated[int | None, Field(ge=5, le=100)] = 30
-    final_context_k: Annotated[int | None, Field(ge=3, le=30)] = 10
-    hyde_enabled: Annotated[
-        bool | None,
-        Field(description="Optional, defaults to rag.yaml hyde_enabled_default"),
-    ] = None
-    reranker_mode: RerankerMode | None = None
-    filters: SearchFilters
-
-
-class AskJobAcceptedResponse(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    job_id: str
-    state: State
+    filters: SearchFilters | None = None
 
 
 class Citation(BaseModel):
@@ -499,10 +475,7 @@ class AskResponseEnvelope(BaseModel):
         extra="forbid",
     )
     request_id: str
-    effective_embedding_model_id: str
-    effective_generator_model_id: str
     effective_hyde_enabled: bool
-    effective_reranker_mode: RerankerMode
     answer: AnswerPayload
     citations: list[Citation]
     debug: Annotated[

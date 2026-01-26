@@ -70,7 +70,6 @@ def _make_item(
 
 def _make_ingest_payload(*, items: list[dict[str, Any]]) -> dict[str, Any]:
     return {
-        "embedding_model_id": "sentence-transformers/all-MiniLM-L6-v2",
         "items": items,
     }
 

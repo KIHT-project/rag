@@ -74,7 +74,7 @@ class TestReadinessService:
 
     def test_evaluate_readiness_status_returns_ready_when_all_ok(self) -> None:
         # Given
-        checks = ReadinessChecks(qdrant=CheckStatus.ok, llm=CheckStatus.ok)
+        checks = ReadinessChecks(qdrant=CheckStatus.ok, llm=CheckStatus.ok, rdbms=CheckStatus.ok)
 
         # When
         status = readiness_mod.evaluate_readiness_status(checks)
@@ -99,7 +99,7 @@ class TestReadinessService:
         self, qdrant: CheckStatus, llm: CheckStatus
     ) -> None:
         # Given
-        checks = ReadinessChecks(qdrant=qdrant, llm=llm)
+        checks = ReadinessChecks(qdrant=qdrant, llm=llm, rdbms=CheckStatus.ok)
 
         # When
         status = readiness_mod.evaluate_readiness_status(checks)
@@ -262,8 +262,12 @@ class TestReadinessService:
         assert err == {"reason": "RequestError", "base_url": "http://ollama:11434"}
 
     @pytest.mark.asyncio
-    async def test_compute_readiness_returns_ready_when_both_dependencies_ok(self) -> None:
+    async def test_compute_readiness_returns_ready_when_both_dependencies_ok(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # Given
+        async def _fake_check_postgres(postgres_url: str):
+            return CheckStatus.ok, None
+
+        monkeypatch.setattr(readiness_mod, "check_postgres", _fake_check_postgres)
         def fake_get(url: str) -> Any:
             if url == "http://qdrant:6333/collections":
                 return _FakeResponse(status_code=200)
@@ -278,6 +282,7 @@ class TestReadinessService:
         result = await readiness_mod.compute_readiness(
             qdrant_url="http://qdrant:6333",
             ollama_url="http://ollama:11434",
+            postgres_url="postgresql://user:pass@localhost:5432/db",
             timeout=timeout,
             client=client,
         )
@@ -285,13 +290,17 @@ class TestReadinessService:
         # Then
         assert isinstance(result, ReadinessResult)
         assert result.status == ReadinessStatus.ready
-        assert result.checks == ReadinessChecks(qdrant=CheckStatus.ok, llm=CheckStatus.ok)
+        assert result.checks == ReadinessChecks(qdrant=CheckStatus.ok, llm=CheckStatus.ok, rdbms=CheckStatus.ok)
         assert result.errors is None
         assert client.closed is False
 
     @pytest.mark.asyncio
-    async def test_compute_readiness_returns_not_ready_when_qdrant_not_ok(self) -> None:
+    async def test_compute_readiness_returns_not_ready_when_qdrant_not_ok(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # Given
+        async def _fake_check_postgres(postgres_url: str):
+            return CheckStatus.ok, None
+
+        monkeypatch.setattr(readiness_mod, "check_postgres", _fake_check_postgres)
         def fake_get(url: str) -> Any:
             if url == "http://qdrant:6333/collections":
                 return _FakeResponse(status_code=500)
@@ -306,6 +315,7 @@ class TestReadinessService:
         result = await readiness_mod.compute_readiness(
             qdrant_url="http://qdrant:6333",
             ollama_url="http://ollama:11434",
+            postgres_url="postgresql://user:pass@localhost:5432/db",
             timeout=timeout,
             client=client,
         )
@@ -318,8 +328,12 @@ class TestReadinessService:
         assert client.closed is False
 
     @pytest.mark.asyncio
-    async def test_compute_readiness_returns_not_ready_when_ollama_errors(self) -> None:
+    async def test_compute_readiness_returns_not_ready_when_ollama_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # Given
+        async def _fake_check_postgres(postgres_url: str):
+            return CheckStatus.ok, None
+
+        monkeypatch.setattr(readiness_mod, "check_postgres", _fake_check_postgres)
         def fake_get(url: str) -> Any:
             if url == "http://qdrant:6333/collections":
                 return _FakeResponse(status_code=200)
@@ -334,6 +348,7 @@ class TestReadinessService:
         result = await readiness_mod.compute_readiness(
             qdrant_url="http://qdrant:6333",
             ollama_url="http://ollama:11434",
+            postgres_url="postgresql://user:pass@localhost:5432/db",
             timeout=timeout,
             client=client,
         )
@@ -350,6 +365,10 @@ class TestReadinessService:
     @pytest.mark.asyncio
     async def test_compute_readiness_closes_owned_client(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # Given
+        async def _fake_check_postgres(postgres_url: str):
+            return CheckStatus.ok, None
+
+        monkeypatch.setattr(readiness_mod, "check_postgres", _fake_check_postgres)
         created: dict[str, Any] = {}
 
         def fake_async_client(*, timeout: httpx.Timeout) -> _FakeAsyncClient:
@@ -371,6 +390,7 @@ class TestReadinessService:
         result = await readiness_mod.compute_readiness(
             qdrant_url="http://qdrant:6333",
             ollama_url="http://ollama:11434",
+            postgres_url="postgresql://user:pass@localhost:5432/db",
             timeout=timeout,
             client=None,
         )
