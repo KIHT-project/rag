@@ -96,6 +96,7 @@ def poll_job_until_terminal(
     job_id: str,
     timeout_seconds: int = 120,
     interval_seconds: float = 0.5,
+    request_id: str | None = None,
 ) -> PollResult:
     deadline = time.time() + timeout_seconds
     polls = 0
@@ -103,7 +104,7 @@ def poll_job_until_terminal(
 
     while time.time() < deadline:
         polls += 1
-        res = get_job(client, job_id=job_id)
+        res = get_job(client, job_id=job_id, request_id=request_id)
         if res.status_code != 200:
             raise AssertionError(
                 f"GET job failed, status={res.status_code}, body={json_body(res)}"
