@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
@@ -24,6 +25,52 @@ def _ollama_chat_url(base_url: str) -> str:
 
 def _is_retryable_status(status_code: int) -> bool:
     return status_code == 429 or 500 <= status_code <= 599
+
+
+def _as_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return int(value)
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return None
+        try:
+            return int(float(s))
+        except Exception:
+            return None
+    return None
+
+
+def _as_str(value: object) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _ns_to_s(ns: int | None) -> float | None:
+    if ns is None:
+        return None
+    if ns <= 0:
+        return None
+    return float(ns) / 1_000_000_000.0
+
+
+def _safe_rate(tokens: int | None, seconds: float | None) -> float | None:
+    if tokens is None or seconds is None:
+        return None
+    if tokens <= 0 or seconds <= 0:
+        return None
+    return float(tokens) / float(seconds)
+
+
+def _pct(part: float | None, total: float | None) -> float | None:
+    if part is None or total is None:
+        return None
+    if part <= 0 or total <= 0:
+        return None
+    return 100.0 * (part / total)
 
 
 @dataclass(frozen=True)
@@ -56,7 +103,7 @@ class OllamaLlmClient(LlmClientPort):
         self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(timeout_s))
 
         log.info(
-            "OllamaLlmClient initialized | base_url=%s | max_retries=%s "
+            "OllamaLlmClient initialized | base_url=%s | max_retries=%s"
             "| timeout_seconds=%s | owns_client=%s",
             self._base_url,
             self._max_retries,
@@ -77,17 +124,14 @@ class OllamaLlmClient(LlmClientPort):
         options: Mapping[str, Any] | None = None,
     ) -> str:
         url = _ollama_chat_url(self._base_url)
-        payload = self._build_chat_payload(
-            model_id=model_id,
-            messages=messages,
-            options=options,
-        )
+        payload = self._build_chat_payload(model_id=model_id, messages=messages, options=options)
 
+        option_keys = sorted([str(k) for k in (dict(options or {}).keys())])
         log.info(
             "Ollama chat started | model_id=%s | messages=%s | option_keys=%s",
             model_id,
             len(messages),
-            sorted([str(k) for k in (dict(options or {}).keys())]),
+            option_keys,
         )
 
         return await self._chat_with_retries(url=url, payload=payload)
@@ -106,8 +150,8 @@ class OllamaLlmClient(LlmClientPort):
             raise ValueError("messages must be non empty")
 
         opts = dict(options or {})
-
         fmt = opts.pop("format", None)
+
         payload: dict[str, Any] = {
             "model": mid,
             "messages": [{"role": m.role, "content": m.content} for m in messages],
@@ -136,7 +180,11 @@ class OllamaLlmClient(LlmClientPort):
             try:
                 response = await self._post(url=url, payload=payload)
                 return self._handle_response(
-                    response=response, attempt_no=attempt_no, total_attempts=total_attempts
+                    response=response,
+                    attempt_no=attempt_no,
+                    total_attempts=total_attempts,
+                    url=url,
+                    model_id=_as_str(payload.get("model")),
                 )
 
             except (httpx.TimeoutException, httpx.RequestError) as e:
@@ -170,19 +218,37 @@ class OllamaLlmClient(LlmClientPort):
     async def _post(self, *, url: str, payload: Mapping[str, Any]) -> httpx.Response:
         async with self._semaphore:
             log.info("Ollama HTTP POST %s", url)
-            return await self._client.post(url, json=dict(payload))
+            started = time.perf_counter()
+            resp = await self._client.post(url, json=dict(payload))
+            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            log.info(
+                "Ollama HTTP POST completed | status=%s | elapsed_ms=%s",
+                resp.status_code,
+                elapsed_ms,
+            )
+            return resp
 
     def _handle_response(
-        self, *, response: httpx.Response, attempt_no: int, total_attempts: int
+        self,
+        *,
+        response: httpx.Response,
+        attempt_no: int,
+        total_attempts: int,
+        url: str,
+        model_id: str,
     ) -> str:
         status = int(response.status_code)
 
         log.info(
-            "Ollama HTTP response | status=%s | attempt=%s/%s", status, attempt_no, total_attempts
+            "Ollama HTTP response | status=%s | attempt=%s/%s",
+            status,
+            attempt_no,
+            total_attempts,
         )
 
         if 200 <= status < 300:
             body = self._safe_json(response=response)
+            self._log_perf(body=body, url=url, model_id=model_id)
             return self._extract_message_content(body=body)
 
         retryable = _is_retryable_status(status)
@@ -221,6 +287,55 @@ class OllamaLlmClient(LlmClientPort):
                 retryable=False,
             )
         return body
+
+    def _log_perf(self, *, body: Mapping[str, Any], url: str, model_id: str) -> None:
+        total_ns = _as_int(body.get("total_duration"))
+        load_ns = _as_int(body.get("load_duration"))
+        prompt_ns = _as_int(body.get("prompt_eval_duration"))
+        gen_ns = _as_int(body.get("eval_duration"))
+
+        prompt_tokens = _as_int(body.get("prompt_eval_count"))
+        gen_tokens = _as_int(body.get("eval_count"))
+
+        total_s = _ns_to_s(total_ns)
+        load_s = _ns_to_s(load_ns)
+        prompt_s = _ns_to_s(prompt_ns)
+        gen_s = _ns_to_s(gen_ns)
+
+        prompt_tps = _safe_rate(prompt_tokens, prompt_s)
+        gen_tps = _safe_rate(gen_tokens, gen_s)
+
+        if all(
+            v is None
+            for v in (
+                total_ns,
+                load_ns,
+                prompt_ns,
+                gen_ns,
+                prompt_tokens,
+                gen_tokens,
+            )
+        ):
+            return
+
+        log.info(
+            "Ollama perf | model_id=%s | url=%s | total_s=%s | load_s=%s |"
+            "prompt_s=%s | gen_s=%s |prompt_tokens=%s | gen_tokens=%s |"
+            "prompt_tps=%s | gen_tps=%s | load_pct=%s | prompt_pct=%s | gen_pct=%s",
+            model_id or "na",
+            url,
+            f"{total_s:.3f}" if isinstance(total_s, float) else "na",
+            f"{load_s:.3f}" if isinstance(load_s, float) else "na",
+            f"{prompt_s:.3f}" if isinstance(prompt_s, float) else "na",
+            f"{gen_s:.3f}" if isinstance(gen_s, float) else "na",
+            prompt_tokens if prompt_tokens is not None else "na",
+            gen_tokens if gen_tokens is not None else "na",
+            f"{prompt_tps:.2f}" if isinstance(prompt_tps, float) else "na",
+            f"{gen_tps:.2f}" if isinstance(gen_tps, float) else "na",
+            f"{_pct(load_s, total_s):.1f}" if _pct(load_s, total_s) is not None else "na",
+            f"{_pct(prompt_s, total_s):.1f}" if _pct(prompt_s, total_s) is not None else "na",
+            f"{_pct(gen_s, total_s):.1f}" if _pct(gen_s, total_s) is not None else "na",
+        )
 
     def _extract_message_content(self, *, body: Mapping[str, Any]) -> str:
         msg = body.get("message")

@@ -1,3 +1,4 @@
+# biomed_platform/core/services/hallucination/synthesis.py
 from __future__ import annotations
 
 import json
@@ -15,82 +16,87 @@ from biomed_platform.core.ports.llm import LlmCallError, LlmClientPort
 
 log = get_logger(__name__)
 
-DEFAULT_MAX_CONTEXT_CHARS = 24000
-DEFAULT_NUM_PREDICT = 2048
+# ----------------------------
+# Tunables
+# ----------------------------
+
+DEFAULT_MAX_CONTEXT_CHARS = 12000
+DEFAULT_NUM_PREDICT = 450
 
 LOG_INVALID_JSON_MAX_CHARS = 1200
 
 SUMMARY_MAX_CHARS = 2500
-SNIPPET_MAX_CHARS = 350
 RATIONALE_MAX_CHARS = 600
 
-MAX_RISK_FACTORS = 5
-MAX_CITATIONS = 6
-
 SUMMARY_HARD_CAP = 900
-SNIPPET_HARD_CAP = 180
-RATIONALE_HARD_CAP = 420
+RATIONALE_HARD_CAP = 260
+SNIPPET_HARD_CAP = 160
+
+MAX_RISK_FACTORS = 3
+MAX_CITATIONS = 4
 
 RISK_FACTOR_FALLBACK_CITATIONS = 2
-
 MIN_TOP_LEVEL_CITATIONS = 3
 
-SYNTHESIS_JSON_ONLY_PROMPT_TEMPLATE = f"""You are a biomedical evidence grounded answer generator.
+# ----------------------------
+# Prompt
+# ----------------------------
 
-Goal
-Produce a structured answer to the user question using ONLY the information in the provided chunk contexts.
+SYNTHESIS_JSON_ONLY_PROMPT_TEMPLATE = """
+You are a biomedical evidence grounded answer generator.
 
 Hard rules
 1. Output MUST be a single JSON object and nothing else.
-2. No markdown, no code fences, no commentary.
-3. Do not invent facts.
-4. If you cite anything, cite only allowed chunk_ids.
-5. If the chunks do not support an answer, say so in answer.summary, keep risk_factors empty, and include a limitation.
-6. Acronyms rule (MANDATORY)
-   1. On first mention, write the full term followed by the acronym in parentheses.
-   2. After first mention, use the acronym only.
-   3. Do not introduce acronyms without definition.
-   4. Do not redefine acronyms.
-7. Each risk_factors item SHOULD include at least one citation chunk_id. If uncertain, cite the most relevant chunk that mentions it.
+2. No markdown, no prose, no commentary.
+3. Use ONLY the provided chunk contexts, do not invent facts.
+4. Cite ONLY allowed chunk_ids.
+5. If evidence is insufficient, state so in answer.summary, keep answer.risk_factors empty, and add a limitation.
 
-Quality requirements
-Summary requirements
-1. Write a compact evidence grounded synthesis, not a one liner.
-2. Include: population or setting, intervention or exposure, key outcome direction, and 1 to 2 key limitations.
-3. Do not include numbers unless they exist in the chunk text.
-4. Max {SUMMARY_HARD_CAP} characters.
-
-Risk factor rationale requirements
-1. Rationale explains why this is a relevant risk factor in this specific question context.
-2. Must reference what the chunks say, not generic medical knowledge.
-3. Max {RATIONALE_HARD_CAP} characters per rationale.
+Acronyms
+On first mention, write the full term followed by the acronym in parentheses. Then use the acronym only.
 
 Output constraints
-1. Max {MAX_RISK_FACTORS} risk_factors.
-2. Max {MAX_CITATIONS} citations.
-3. Each citation.snippet must be a short excerpt from the chunk, max {SNIPPET_HARD_CAP} characters.
+1. answer.summary max {summary_hard_cap} characters.
+2. max {max_risk_factors} risk_factors.
+3. max {max_citations} citations.
+4. citations MUST be a list of chunk_id strings only.
+5. risk_factors.citations MUST be a list of chunk_id strings only.
+
+Required JSON schema
+{{
+  "answer": {{
+    "summary": "string",
+    "risk_factors": [
+      {{
+        "rank": 1,
+        "normalized_name": "string",
+        "aliases": ["string"],
+        "confidence": 0.5,
+        "rationale": "string",
+        "citations": ["chunk_id"]
+      }}
+    ],
+    "limitations": ["string"]
+  }},
+  "citations": ["chunk_id"]
+}}
 
 Allowed chunk_ids CSV
-{{allowed_chunk_ids_csv}}
+{allowed_chunk_ids_csv}
 
 Chunk contexts
-{{context}}
+{context}
 
 User question
-{{question}}
+{question}
 
-Required JSON shape example
-{{schema_json}}
-
-Output JSON now.
+Return JSON now.
 """
 
 
 def _truncate(text: str, max_chars: int) -> str:
     s = (text or "").strip()
-    if not s:
-        return ""
-    if max_chars <= 0:
+    if not s or max_chars <= 0:
         return ""
     if len(s) <= max_chars:
         return s
@@ -103,91 +109,44 @@ def _to_request_error(message: str) -> RequestValidationError:
     )
 
 
-def _schema_json() -> str:
-    obj = {
-        "answer": {
-            "summary": "string",
-            "risk_factors": [
-                {
-                    "rank": 1,
-                    "normalized_name": "string",
-                    "aliases": ["string"],
-                    "confidence": 0.5,
-                    "rationale": "string",
-                    "citations": ["chunk_id"],
-                }
-            ],
-            "limitations": ["string"],
-        },
-        "citations": [
-            {"chunk_id": "chunk_id", "doi": "", "title": "", "year": 0, "snippet": "string"}
-        ],
-    }
-    return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+def _looks_like_truncated_json(text: str) -> bool:
+    s = (text or "").strip()
+    return bool(s) and s.startswith("{") and not s.endswith("}")
 
 
-def _build_context(chunks: Sequence[ChunkCandidate], max_chars: int) -> tuple[str, set[str]]:
-    limit_raw = int(max_chars)
-    limit = limit_raw if limit_raw > 0 else DEFAULT_MAX_CONTEXT_CHARS
+def _build_prompt(*, question: str, context: str, allowed: set[str]) -> str:
+    return SYNTHESIS_JSON_ONLY_PROMPT_TEMPLATE.format(
+        summary_hard_cap=SUMMARY_HARD_CAP,
+        max_risk_factors=MAX_RISK_FACTORS,
+        max_citations=MAX_CITATIONS,
+        allowed_chunk_ids_csv=",".join(sorted(allowed)),
+        context=context,
+        question=question,
+    )
 
-    out: list[str] = []
-    used = 0
-    allowed: set[str] = set()
 
-    for c in chunks:
-        chunk_id = (c.chunk_id or "").strip()
-        chunk_text = (c.chunk_text or "").strip()
-        if not chunk_id or not chunk_text:
-            continue
-
-        prefix = f"\n<<<CHUNK {chunk_id}>>>\n"
-        suffix = "\n<<<END_CHUNK>>>\n"
-
-        remaining = limit - used
-        if remaining <= 0:
-            break
-
-        overhead = len(prefix) + len(suffix)
-        if remaining <= overhead:
-            break
-
-        max_text_len = remaining - overhead
-
-        if len(chunk_text) <= max_text_len:
-            block = prefix + chunk_text + suffix
-            out.append(block)
-            allowed.add(chunk_id)
-            used += len(block)
-            continue
-
-        if out:
-            continue
-
-        truncated_text = _truncate(chunk_text, max_text_len)
-        if not truncated_text:
-            continue
-
-        block = prefix + truncated_text + suffix
-        out.append(block)
-        allowed.add(chunk_id)
-        used += len(block)
-
-    return "".join(out).strip(), allowed
+def _build_retry_prompt(base_prompt: str, reason: str) -> str:
+    return (
+        "Your previous output was invalid.\n"
+        f"Reason: {reason}\n"
+        "Return a single compact JSON object only.\n"
+        "Do not pretty print JSON.\n"
+        "citations must be a list of chunk_id strings.\n"
+        "risk_factors.citations must be a list of chunk_id strings.\n"
+        "Use only allowed chunk_ids.\n\n" + base_prompt
+    )
 
 
 def _extract_json_slice(text: str) -> str | None:
     s = (text or "").strip()
     if not s:
         return None
-
     if s.startswith("{") and s.endswith("}"):
         return s
-
     start = s.find("{")
     end = s.rfind("}")
     if start < 0 or end <= start:
         return None
-
     return s[start : end + 1]
 
 
@@ -199,15 +158,11 @@ def _try_load_json_object(text: str) -> dict[str, Any] | None:
         obj = json.loads(raw)
     except Exception:
         return None
-    if not isinstance(obj, dict):
-        return None
-    return obj
+    return obj if isinstance(obj, dict) else None
 
 
 def _as_str(value: object) -> str:
-    if isinstance(value, str):
-        return value.strip()
-    return ""
+    return value.strip() if isinstance(value, str) else ""
 
 
 def _as_int(value: object) -> int | None:
@@ -277,6 +232,46 @@ def _dedupe_keep_order(values: list[str]) -> list[str]:
     return out
 
 
+def _build_context(chunks: Sequence[ChunkCandidate], max_chars: int) -> tuple[str, set[str]]:
+    limit_raw = int(max_chars)
+    limit = limit_raw if limit_raw > 0 else DEFAULT_MAX_CONTEXT_CHARS
+
+    out: list[str] = []
+    used = 0
+    allowed: set[str] = set()
+
+    for c in chunks:
+        chunk_id = (c.chunk_id or "").strip()
+        chunk_text = (c.chunk_text or "").strip()
+        if not chunk_id or not chunk_text:
+            continue
+
+        prefix = f"\nCHUNK {chunk_id}\n"
+        suffix = "\nENDCHUNK\n"
+
+        remaining = limit - used
+        if remaining <= 0:
+            break
+
+        overhead = len(prefix) + len(suffix)
+        if remaining <= overhead:
+            break
+
+        max_text_len = remaining - overhead
+        body = (
+            chunk_text if len(chunk_text) <= max_text_len else _truncate(chunk_text, max_text_len)
+        )
+        if not body:
+            continue
+
+        block = prefix + body + suffix
+        out.append(block)
+        allowed.add(chunk_id)
+        used += len(block)
+
+    return "".join(out).strip(), allowed
+
+
 def _normalize_risk_factor(item: object) -> dict[str, Any] | None:
     if not isinstance(item, dict):
         return None
@@ -311,74 +306,20 @@ def _normalize_answer(answer_in: object) -> dict[str, Any]:
     }
 
 
-def _normalize_citation(item: object) -> dict[str, Any] | None:
-    if not isinstance(item, dict):
-        return None
-
-    chunk_id = _as_str(item.get("chunk_id"))
-    if not chunk_id:
-        return None
-
-    year = _as_int(item.get("year"))
-    snippet_cap = min(SNIPPET_MAX_CHARS, SNIPPET_HARD_CAP)
-
-    return {
-        "chunk_id": chunk_id,
-        "doi": _as_str(item.get("doi")),
-        "title": _as_str(item.get("title")),
-        "year": int(year) if year is not None else 0,
-        "snippet": _truncate(_as_str(item.get("snippet")), snippet_cap),
-    }
-
-
-def _normalize_citations(citations_in: object) -> list[dict[str, Any]]:
-    if not isinstance(citations_in, list):
-        return []
-    out: list[dict[str, Any]] = []
-    for it in citations_in:
-        c = _normalize_citation(it)
-        if c is not None:
-            out.append(c)
-    return out
-
-
 def _normalize_payload(data: object) -> dict[str, Any] | None:
     if not isinstance(data, dict):
         return None
     return {
         "answer": _normalize_answer(data.get("answer")),
-        "citations": _normalize_citations(data.get("citations")),
+        "citations": _dedupe_keep_order(_as_str_list(data.get("citations"))),
     }
-
-
-def _collect_risk_factor_chunk_ids(answer: dict[str, Any]) -> list[str]:
-    rf_raw = answer.get("risk_factors")
-    rf_list = rf_raw if isinstance(rf_raw, list) else []
-    out: list[str] = []
-    for rf in rf_list:
-        if not isinstance(rf, dict):
-            continue
-        out.extend(_as_str_list(rf.get("citations")))
-    return out
-
-
-def _collect_top_level_chunk_ids(citations: list[dict[str, Any]]) -> list[str]:
-    out: list[str] = []
-    for c in citations:
-        if not isinstance(c, dict):
-            continue
-        out.append(_as_str(c.get("chunk_id")))
-    return out
 
 
 def _filter_chunk_ids_to_allowed(chunk_ids: list[str], allowed: set[str]) -> list[str]:
     out: list[str] = []
     for cid in chunk_ids:
-        if not cid:
-            continue
-        if cid not in allowed:
-            continue
-        out.append(cid)
+        if cid and cid in allowed:
+            out.append(cid)
     return _dedupe_keep_order(out)
 
 
@@ -386,84 +327,19 @@ def _build_chunk_meta(selected_chunks: Sequence[ChunkCandidate]) -> dict[str, Ch
     out: dict[str, ChunkCandidate] = {}
     for c in selected_chunks:
         cid = (c.chunk_id or "").strip()
-        if not cid:
-            continue
-        out[cid] = c
-    return out
-
-
-def _ensure_top_level_citations(
-    normalized: dict[str, Any],
-    *,
-    allowed: set[str],
-    chunk_meta: Mapping[str, ChunkCandidate],
-) -> list[dict[str, Any]]:
-    citations_raw = normalized.get("citations")
-    citations_list = citations_raw if isinstance(citations_raw, list) else []
-
-    answer_raw = normalized.get("answer")
-    answer = answer_raw if isinstance(answer_raw, dict) else {}
-
-    top_ids = _filter_chunk_ids_to_allowed(_collect_top_level_chunk_ids(citations_list), allowed)
-    rf_ids = _filter_chunk_ids_to_allowed(_collect_risk_factor_chunk_ids(answer), allowed)
-
-    all_ids = _dedupe_keep_order(top_ids + rf_ids)
-    if not all_ids:
-        return []
-
-    by_id: dict[str, dict[str, Any]] = {}
-    for c in citations_list:
-        if not isinstance(c, dict):
-            continue
-        cid = _as_str(c.get("chunk_id"))
-        if not cid or cid not in allowed:
-            continue
-        by_id[cid] = c
-
-    snippet_cap = min(SNIPPET_MAX_CHARS, SNIPPET_HARD_CAP)
-
-    out: list[dict[str, Any]] = []
-    for cid in all_ids:
-        existing = by_id.get(cid)
-        meta = chunk_meta.get(cid)
-
-        doi = _as_str((existing or {}).get("doi")) or _as_str(getattr(meta, "doi", ""))
-        title = _as_str((existing or {}).get("title")) or _as_str(getattr(meta, "title", ""))
-
-        year_val = _as_int((existing or {}).get("year"))
-        if year_val is None:
-            year_val = _as_int(getattr(meta, "year", None))
-
-        snippet = _as_str((existing or {}).get("snippet"))
-        if not snippet and meta is not None:
-            snippet = _as_str(getattr(meta, "chunk_text", ""))
-        snippet = _truncate(snippet, snippet_cap)
-
-        out.append(
-            {
-                "chunk_id": cid,
-                "doi": doi,
-                "title": title,
-                "year": int(year_val) if year_val is not None else 0,
-                "snippet": snippet,
-            }
-        )
-
-        if len(out) >= MAX_CITATIONS:
-            break
-
-    return out
-
-
-def _count_unique_top_level_citations(citations: list[dict[str, Any]]) -> int:
-    seen: set[str] = set()
-    for c in citations:
-        if not isinstance(c, dict):
-            continue
-        cid = _as_str(c.get("chunk_id"))
         if cid:
-            seen.add(cid)
-    return len(seen)
+            out[cid] = c
+    return out
+
+
+def _collect_risk_factor_chunk_ids(answer: dict[str, Any]) -> list[str]:
+    rf_raw = answer.get("risk_factors")
+    rf_list = rf_raw if isinstance(rf_raw, list) else []
+    out: list[str] = []
+    for rf in rf_list:
+        if isinstance(rf, dict):
+            out.extend(_as_str_list(rf.get("citations")))
+    return out
 
 
 def _cap_risk_factors(answer: dict[str, Any]) -> dict[str, Any]:
@@ -532,22 +408,58 @@ def _ensure_summary(answer: dict[str, Any], fallback_summary: str) -> dict[str, 
     return answer
 
 
-def _build_prompt(question: str, context: str, allowed: set[str]) -> str:
-    return SYNTHESIS_JSON_ONLY_PROMPT_TEMPLATE.format(
-        question=question,
-        context=context,
-        allowed_chunk_ids_csv=",".join(sorted(allowed)),
-        schema_json=_schema_json(),
+def _expand_citations(
+    *,
+    top_level_ids: list[str],
+    rf_ids: list[str],
+    allowed: set[str],
+    chunk_meta: Mapping[str, ChunkCandidate],
+) -> list[dict[str, Any]]:
+    ids = _dedupe_keep_order(
+        _filter_chunk_ids_to_allowed(top_level_ids, allowed)
+        + _filter_chunk_ids_to_allowed(rf_ids, allowed)
     )
+    if not ids:
+        return []
+
+    out: list[dict[str, Any]] = []
+    for cid in ids:
+        meta = chunk_meta.get(cid)
+        if meta is None:
+            continue
+
+        doi = _as_str(getattr(meta, "doi", ""))
+        title = _as_str(getattr(meta, "title", ""))
+
+        year_val = _as_int(getattr(meta, "year", None))
+        year = int(year_val) if year_val is not None else 0
+
+        snippet = _truncate(_as_str(getattr(meta, "chunk_text", "")), SNIPPET_HARD_CAP)
+
+        out.append(
+            {
+                "chunk_id": cid,
+                "doi": doi,
+                "title": title,
+                "year": year,
+                "snippet": snippet,
+            }
+        )
+
+        if len(out) >= MAX_CITATIONS:
+            break
+
+    return out
 
 
-def _build_retry_prompt(base_prompt: str, reason: str) -> str:
-    return (
-        "Your previous output was invalid.\n"
-        f"Reason: {reason}\n"
-        "Return a single JSON object only.\n"
-        "If you provide citations, use only allowed chunk_ids.\n\n" + base_prompt
-    )
+def _count_unique_top_level_citations(citations: list[dict[str, Any]]) -> int:
+    seen: set[str] = set()
+    for c in citations:
+        if isinstance(c, dict):
+            cid = _as_str(c.get("chunk_id"))
+            if cid:
+                seen.add(cid)
+    return len(seen)
 
 
 def _build_llm_options(llm_options: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -614,6 +526,10 @@ def _parse_and_validate(
 
     excerpt = _truncate(cleaned, LOG_INVALID_JSON_MAX_CHARS)
 
+    if _looks_like_truncated_json(cleaned):
+        log.warning("Synthesis likely truncated JSON | model_id=%s | excerpt=%s", model_id, excerpt)
+        return _ParseResult(ok=False, output=None, grounded=False, code="truncated_json")
+
     obj = _try_load_json_object(cleaned)
     if obj is None:
         log.warning("Synthesis invalid JSON | model_id=%s | excerpt=%s", model_id, excerpt)
@@ -626,29 +542,37 @@ def _parse_and_validate(
 
     chunk_meta = _build_chunk_meta(selected_chunks)
 
-    citations = _ensure_top_level_citations(normalized, allowed=allowed, chunk_meta=chunk_meta)
-    grounded = bool(citations)
-    normalized["citations"] = citations
-
     answer_raw = normalized.get("answer")
     answer = answer_raw if isinstance(answer_raw, dict) else {}
-
     answer = _cap_risk_factors(answer)
+
+    top_level_ids = _as_str_list(normalized.get("citations"))
+    rf_ids = _collect_risk_factor_chunk_ids(answer)
+
+    citations = _expand_citations(
+        top_level_ids=top_level_ids,
+        rf_ids=rf_ids,
+        allowed=allowed,
+        chunk_meta=chunk_meta,
+    )
+    grounded = bool(citations)
 
     fallback_ids = [c.get("chunk_id", "") for c in citations if isinstance(c, dict)]
     answer, did_backfill = _backfill_risk_factor_citations(
         answer, allowed=allowed, fallback_ids=fallback_ids
     )
-
     if did_backfill:
         answer = _append_limitations(
             answer, ["Some risk factor citations were assigned from the overall cited evidence."]
         )
-
-        normalized["answer"] = answer
-        citations = _ensure_top_level_citations(normalized, allowed=allowed, chunk_meta=chunk_meta)
+        rf_ids = _collect_risk_factor_chunk_ids(answer)
+        citations = _expand_citations(
+            top_level_ids=top_level_ids,
+            rf_ids=rf_ids,
+            allowed=allowed,
+            chunk_meta=chunk_meta,
+        )
         grounded = bool(citations)
-        normalized["citations"] = citations
 
     unique_top_level = _count_unique_top_level_citations(citations)
     if grounded and unique_top_level < MIN_TOP_LEVEL_CITATIONS:
@@ -665,10 +589,13 @@ def _parse_and_validate(
             answer, ["No citations were produced by the model, answer is not evidence grounded."]
         )
 
-    normalized["answer"] = answer
+    normalized_out = {
+        "answer": answer,
+        "citations": citations,
+    }
 
     try:
-        out = SynthesisOutput.model_validate(normalized)
+        out = SynthesisOutput.model_validate(normalized_out)
         return _ParseResult(ok=True, output=out, grounded=grounded, code="")
     except (ValidationError, Exception):
         log.warning(

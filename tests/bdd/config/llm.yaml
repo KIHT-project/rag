@@ -1,4 +1,4 @@
-ollama_base_url: "http://ollama.lan:7000/ollama"
+ollama_base_url: "http://192.168.2.24:11434"
 generator_model_id: "phi:2.7b"
 
 hyde_enabled: false
@@ -8,9 +8,9 @@ reranker_mode: "off"
 reranker_model_id: "phi:2.7b"
 
 ask_max_question_chars: 1200
-ask_max_context_chars: 9000
+ask_max_context_chars: 4000
 ask_max_chunks_candidate: 30
-ask_max_chunks_final: 8
+ask_max_chunks_final: 4
 
 llm_max_concurrency: 2
 ask_llm_max_retries: 0
