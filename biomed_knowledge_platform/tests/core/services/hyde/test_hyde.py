@@ -5,20 +5,29 @@ from unittest.mock import AsyncMock
 import pytest
 
 from biomed_platform.core.ports.llm import LlmCallError
+from biomed_platform.core.services.hyde import hyde as hyde_mod
 from biomed_platform.core.services.hyde.hyde import generate_hypothetical_answer_document
+
+
+@pytest.fixture(autouse=True)
+def _reset_hyde_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        hyde_mod,
+        "_HYDE_CACHE",
+        hyde_mod._HydeCache(max_entries=128),
+        raising=True,
+    )
 
 
 class TestHydeService:
     @pytest.mark.asyncio
     async def test_hyde_enabled_calls_llm_once_and_returns_capped_text(self) -> None:
-        # Given
         llm = AsyncMock()
-        llm.chat = AsyncMock(return_value="  " + ("x" * 50) + "  ")
+        llm.chat = AsyncMock(return_value="  " + ("x" * 500) + "  ")
         model_id = "m1"
         question = "What causes neuropathic pain?"
-        max_chars = 10
+        max_chars = 200
 
-        # When
         text = await generate_hypothetical_answer_document(
             llm=llm,
             model_id=model_id,
@@ -27,7 +36,6 @@ class TestHydeService:
             max_chars=max_chars,
         )
 
-        # Then
         assert text is not None
         assert text == "x" * max_chars
         assert llm.chat.await_count == 1
@@ -40,11 +48,9 @@ class TestHydeService:
 
     @pytest.mark.asyncio
     async def test_hyde_disabled_returns_none_and_does_not_call_llm(self) -> None:
-        # Given
         llm = AsyncMock()
         llm.chat = AsyncMock(return_value="should not be called")
 
-        # When
         text = await generate_hypothetical_answer_document(
             llm=llm,
             model_id="m1",
@@ -52,7 +58,6 @@ class TestHydeService:
             enabled=None,
         )
 
-        # Then
         assert text is None
         assert llm.chat.await_count == 0
 
@@ -72,7 +77,7 @@ class TestHydeService:
         assert llm.chat.await_count == 0
 
     @pytest.mark.asyncio
-    async def test_max_chars_zero_returns_text_without_capping(self) -> None:
+    async def test_max_chars_zero_is_clamped_to_min_and_does_not_truncate_short_text(self) -> None:
         llm = AsyncMock()
         llm.chat = AsyncMock(return_value="  abcdef  ")
 
@@ -97,7 +102,7 @@ class TestHydeService:
             model_id="m1",
             question="q",
             enabled=True,
-            max_chars=3,
+            max_chars=200,
         )
 
         assert text == "abc"
