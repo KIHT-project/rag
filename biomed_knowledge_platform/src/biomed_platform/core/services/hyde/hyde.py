@@ -46,7 +46,11 @@ async def generate_hypothetical_answer_document(
     # Log HyDE prompt
     log.info(f"HyDE generated a prompt: {prompt}")
 
-    options: dict[str, Any] = {"temperature": 0}
+    options: dict[str, Any] = {
+        "temperature": 0,
+        "num_predict": 256,
+        "stop": ["\n\n", "\nUser question", "\nRequired JSON"],
+    }
     if llm_options:
         options.update(dict(llm_options))
 

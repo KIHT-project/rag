@@ -16,7 +16,7 @@ from biomed_platform.core.ports.llm import LlmCallError, LlmClientPort
 log = get_logger(__name__)
 
 DEFAULT_MAX_CONTEXT_CHARS = 24000
-DEFAULT_NUM_PREDICT = 1024
+DEFAULT_NUM_PREDICT = 2048
 
 LOG_INVALID_JSON_MAX_CHARS = 1200
 
@@ -24,11 +24,11 @@ SUMMARY_MAX_CHARS = 2500
 SNIPPET_MAX_CHARS = 350
 RATIONALE_MAX_CHARS = 600
 
-MAX_RISK_FACTORS = 7
-MAX_CITATIONS = 10
+MAX_RISK_FACTORS = 5
+MAX_CITATIONS = 6
 
 SUMMARY_HARD_CAP = 900
-SNIPPET_HARD_CAP = 260
+SNIPPET_HARD_CAP = 180
 RATIONALE_HARD_CAP = 420
 
 RISK_FACTOR_FALLBACK_CITATIONS = 2
@@ -253,10 +253,16 @@ def _as_str_list(value: object) -> list[str]:
     if isinstance(value, list):
         out: list[str] = []
         for it in value:
-            s = _as_str(it)
+            if isinstance(it, dict):
+                s = _as_str(it.get("chunk_id"))
+            else:
+                s = _as_str(it)
             if s:
                 out.append(s)
         return out
+    if isinstance(value, dict):
+        s = _as_str(value.get("chunk_id"))
+        return [s] if s else []
     return []
 
 
