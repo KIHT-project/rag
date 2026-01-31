@@ -1,7 +1,7 @@
 rag_api:
   base_url: http://127.0.0.1:8000
   timeout_seconds: 180.0
-  search_top_k_pool: 2
+  search_top_k_pool: 5
   search_top_k_context: 10
 ask:
   hyde_header_name: X-HyDE-Enabled
