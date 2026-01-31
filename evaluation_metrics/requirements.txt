@@ -1,0 +1,12 @@
+httpx==0.28.1
+pyyaml==6.0.3
+pydantic==2.12.5
+
+# Retrieval metrics
+beir==2.2.0
+
+# Generation metrics
+ragas==0.4.3
+datasets>=4.5.0
+numpy==2.4.1
+pandas==3.0.0

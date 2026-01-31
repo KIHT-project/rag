@@ -1,3 +1,4 @@
 -r biomed_knowledge_platform/requirements.txt
 -r biomed_knowledge_platform/requirements-embeddings.txt
+-r evaluation_metrics/requirements.txt
 -r tests/requirements.txt
