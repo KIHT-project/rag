@@ -7,13 +7,15 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Iterable, List
+from typing import Any, Iterable, List, Tuple
 
 from datasets import Dataset
 from openai import AsyncOpenAI, OpenAI
 from ragas import evaluate
 from ragas.llms import llm_factory
 from ragas.metrics import AnswerRelevancy, Faithfulness, LLMContextPrecisionWithoutReference
+
+from evaluation_metrics.src.utils.output_writer import write_outputs
 
 log = logging.getLogger(__name__)
 
@@ -27,17 +29,75 @@ def _require_env(name: str) -> str:
 
 def _probe_openai_json_mode(*, base_url: str, api_key: str, model: str) -> None:
     """
-    If this fails, you should assume RAGAS grading will likely produce NaNs.
+    Probe evaluator JSON compliance using a schema closer to what graders need.
+
+    A trivial {"ok": true} probe is too weak. Some backends pass that test but fail
+    once prompts get longer and schema constraints tighten.
     """
     client = OpenAI(base_url=base_url, api_key=api_key)
+
+    prompt = (
+        "Return ONLY valid JSON with EXACTLY these keys: "
+        "scores (array of objects with keys metric:string and score:number), "
+        "explanation (string). "
+        "No extra keys. Example shape: "
+        "{\"scores\":[{\"metric\":\"m\",\"score\":0.5}],\"explanation\":\"x\"}"
+    )
     r = client.chat.completions.create(
         model=model,
-        messages=[{"role": "user", "content": 'Return ONLY valid JSON: {"ok": true}'}],
+        messages=[{"role": "user", "content": prompt}],
         temperature=0,
         response_format={"type": "json_object"},
     )
     content = (r.choices[0].message.content or "").strip()
-    json.loads(content)
+    obj = json.loads(content)
+    if not isinstance(obj, dict):
+        raise ValueError("JSON probe did not return an object")
+    if set(obj.keys()) != {"scores", "explanation"}:
+        raise ValueError("JSON probe returned unexpected keys")
+    scores = obj.get("scores")
+    if not isinstance(scores, list) or not scores:
+        raise ValueError("JSON probe scores is empty")
+    first = scores[0]
+    if not isinstance(first, dict) or "metric" not in first or "score" not in first:
+        raise ValueError("JSON probe scores item invalid")
+
+
+def _cap_contexts(
+    contexts: list[str],
+    *,
+    max_contexts: int,
+    max_chars_per_context: int,
+    max_total_chars: int,
+) -> Tuple[list[str], dict[str, Any]]:
+    """Apply hard caps to reduce evaluator prompt size and failure rate."""
+    raw_contexts = [c.strip() for c in contexts if isinstance(c, str) and c.strip()]
+    raw_contexts = raw_contexts[:max_contexts]
+
+    capped: list[str] = []
+    total = 0
+    for c in raw_contexts:
+        if max_chars_per_context > 0 and len(c) > max_chars_per_context:
+            c2 = c[:max_chars_per_context].rstrip()
+        else:
+            c2 = c
+        if max_total_chars > 0 and total + len(c2) > max_total_chars:
+            remaining = max_total_chars - total
+            if remaining <= 0:
+                break
+            c2 = c2[:remaining].rstrip()
+        capped.append(c2)
+        total += len(c2)
+
+    stats = {
+        "contexts_in": len(contexts or []),
+        "contexts_out": len(capped),
+        "total_chars_out": total,
+        "max_contexts": max_contexts,
+        "max_chars_per_context": max_chars_per_context,
+        "max_total_chars": max_total_chars,
+    }
+    return capped, stats
 
 
 class _SentenceTransformersEmbeddings:
@@ -108,8 +168,13 @@ def run_ragas(
     log.info("Phase7 start input=%s", input_jsonl)
 
     records: list[dict[str, Any]] = []
+    diagnostics: list[dict[str, Any]] = []
     empty_answer = 0
     empty_contexts = 0
+
+    max_contexts = int(os.environ.get("RAGAS_MAX_CONTEXTS", "5"))
+    max_chars_per_context = int(os.environ.get("RAGAS_MAX_CHARS_PER_CONTEXT", "2000"))
+    max_total_context_chars = int(os.environ.get("RAGAS_MAX_TOTAL_CONTEXT_CHARS", "9000"))
 
     with input_jsonl.open("r", encoding="utf-8") as f:
         for line in f:
@@ -119,20 +184,22 @@ def run_ragas(
             rec = json.loads(line)
 
             answer = _extract_answer_text(rec)
-            contexts = rec.get("contexts") or []
+            contexts_raw = rec.get("contexts") or []
+            contexts, ctx_stats = _cap_contexts(
+                list(contexts_raw) if isinstance(contexts_raw, list) else [],
+                max_contexts=max_contexts,
+                max_chars_per_context=max_chars_per_context,
+                max_total_chars=max_total_context_chars,
+            )
 
             if not answer:
                 empty_answer += 1
             if not contexts:
                 empty_contexts += 1
 
-            records.append(
-                {
-                    "question": rec.get("question"),
-                    "answer": answer,
-                    "contexts": contexts,
-                }
-            )
+            qid = rec.get("query_id")
+            records.append({"query_id": qid, "question": rec.get("question"), "answer": answer, "contexts": contexts})
+            diagnostics.append({"query_id": qid, "ctx": ctx_stats, "contexts_source": rec.get("contexts_source")})
 
     log.info(
         "Phase7 loaded_records=%d empty_answer=%d empty_contexts=%d",
@@ -184,11 +251,15 @@ def run_ragas(
         local_only=embeddings_local_only,
     )
 
-    metrics = [
-        Faithfulness(llm=evaluator_llm),
-        AnswerRelevancy(llm=evaluator_llm),
-        LLMContextPrecisionWithoutReference(llm=evaluator_llm),
-    ]
+    # Choose metrics based on data availability.
+    # If contexts are missing, context based metrics are undefined and will just produce NaNs.
+    all_empty_contexts = all((r.get("contexts") or []) == [] for r in records)
+    if all_empty_contexts:
+        metrics = [AnswerRelevancy(llm=evaluator_llm)]
+        log.info("Phase7 metrics=answer_relevancy only (no contexts in input)")
+    else:
+        metrics = [Faithfulness(llm=evaluator_llm), AnswerRelevancy(llm=evaluator_llm), LLMContextPrecisionWithoutReference(llm=evaluator_llm)]
+        log.info("Phase7 metrics=faithfulness, answer_relevancy, llm_context_precision_wo_ref")
 
     run_config = None
     try:
@@ -213,10 +284,29 @@ def run_ragas(
 
     df = result.to_pandas()
 
+    # Write diagnostics alongside results to make NaNs debuggable.
+    diag_path = out_csv.with_suffix(".diagnostics.jsonl")
+    try:
+        with diag_path.open("w", encoding="utf-8") as f:
+            for d in diagnostics:
+                f.write(json.dumps(d, ensure_ascii=False) + "\n")
+        log.info("Phase7 diagnostics written %s", diag_path)
+    except Exception:
+        log.exception("Phase7 failed to write diagnostics")
+
     metric_cols = [
         c
         for c in df.columns
-        if c not in {"question", "answer", "contexts", "user_input", "response", "retrieved_contexts"}
+        if c
+        not in {
+            "query_id",
+            "question",
+            "answer",
+            "contexts",
+            "user_input",
+            "response",
+            "retrieved_contexts",
+        }
     ]
     if metric_cols and df[metric_cols].isna().all().all():
         raise RuntimeError(
@@ -225,6 +315,6 @@ def run_ragas(
         )
 
     out_csv.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(out_csv, index=False)
+    write_outputs(df, out_csv)
     log.info("Phase7 done duration_sec=%.2f rows=%d out=%s", t1 - t0, len(df), out_csv)
     return out_csv

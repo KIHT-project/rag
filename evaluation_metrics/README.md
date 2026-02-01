@@ -31,6 +31,13 @@ eval/
       models.py
 
 ```
+# Metrics
+
+| Metric Variable                         | What it Measures                              | How it is Measured                                                                                                                                                                | Value Range and Interpretation                                                                                                             | Why it Matters                                                                                 |
+|-----------------------------------------|-----------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|
+| answer_relevancy                        | Relevance of the answer to the question       | An evaluator LLM compares the question and the generated answer and assigns a normalized score based on how directly and completely the answer addresses the question             | 0.0–1.0, where 1.0 means the answer fully and directly addresses the question, and values closer to 0.0 indicate weak or off topic answers | Validates whether the system actually answers what was asked, independent of retrieval quality |
+| faithfulness                            | Grounding of the answer in retrieved contexts | The answer is decomposed into atomic claims and an evaluator LLM checks whether each claim is supported by the provided retrieved contexts, scoring the ratio of supported claims | 0.0–1.0, where 1.0 means all claims are supported by evidence, and lower values indicate partial or significant hallucination              | Detects hallucinations and ensures the answer is evidence backed                               |
+| llm_context_precision_without_reference | Relevance of retrieved contexts to the answer | An evaluator LLM assesses each retrieved context and scores how many of them are relevant to the answer, without using gold reference labels                                      | 0.0–1.0, where 1.0 means all retrieved contexts are relevant, and lower values indicate increasing retrieval noise                         | Measures retrieval quality and noise when no ground truth documents are available              |
 
 Phase3:
 ```shell
@@ -42,7 +49,7 @@ Phase5.1:
 python -m evaluation_metrics.src.eval_cli \
   --config evaluation_metrics/config/eval.yaml \
   phase5_overlap \
-  --phase3-pool-jsonl evaluation_metrics/runs/20260201_151659_nogit/phase3_pool.jsonl \
+  --phase3-pool-jsonl evaluation_metrics/runs/20260201_175701_nogit/phase3_pool.jsonl \
   --tasks-clean-json evaluation_metrics/tasks_clean.json \
   --list-labels
 ```
@@ -52,7 +59,7 @@ Phase5.2:
 python -m evaluation_metrics.src.eval_cli \
   --config evaluation_metrics/config/eval.yaml \
   phase5_overlap \
-  --phase3-pool-jsonl evaluation_metrics/runs/20260201_151659_nogit/phase3_pool.jsonl \
+  --phase3-pool-jsonl evaluation_metrics/runs/20260201_182925_nogit/phase3_pool.jsonl \
   --tasks-clean-json evaluation_metrics/tasks_clean.json \
   --positive-label-field related_to_vte \
   --positive-yes-value Yes
@@ -83,7 +90,7 @@ python -m evaluation_metrics.src.eval_cli --config /Users/nchaikalis/IdeaProject
 
 ```shell
 CFG=/Users/nchaikalis/IdeaProjects/rag/evaluation_metrics/config/eval.yaml
-RUN=/Users/nchaikalis/IdeaProjects/rag/evaluation_metrics/runs/20260201_151736_nogit
+RUN=/Users/nchaikalis/IdeaProjects/rag/evaluation_metrics/runs/20260201_182949_nogit
 
 python -m evaluation_metrics.src.eval_cli --config "$CFG" phase7 --input-jsonl "$RUN/phase6_answers_rag_no_hyde.jsonl"
 python -m evaluation_metrics.src.eval_cli --config "$CFG" phase7 --input-jsonl "$RUN/phase6_answers_rag_hyde.jsonl"
@@ -95,9 +102,9 @@ Phase8:
 python -m evaluation_metrics.src.eval_cli \
   --config evaluation_metrics/config/eval.yaml \
   phase8 \
-  --rag-no-hyde evaluation_metrics/runs/20260201_151736_nogit/phase6_answers_rag_no_hyde.jsonl \
-  --rag-hyde evaluation_metrics/runs/20260201_151736_nogit/phase6_answers_rag_hyde.jsonl \
-  --llm-only evaluation_metrics/runs/20260201_151736_nogit/phase6_answers_llm_only.jsonl
+  --rag-no-hyde evaluation_metrics/runs/20260201_182949_nogit/phase6_answers_rag_no_hyde.jsonl \
+  --rag-hyde evaluation_metrics/runs/20260201_182949_nogit/phase6_answers_rag_hyde.jsonl \
+  --llm-only evaluation_metrics/runs/20260201_182949_nogit/phase6_answers_llm_only.jsonl
 ```
 
 ## RAGAS Evaluation Metrics

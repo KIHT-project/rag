@@ -28,6 +28,55 @@ def _cap(s: str, n: int = 160) -> str:
     return s[:n] + ("…" if len(s) > n else "")
 
 
+def _extract_contexts_from_ask_raw(raw: Any) -> list[str]:
+    """
+    Extract the evidence that actually supported the answer.
+
+    The RAG API schema is allowed to evolve, so this function is intentionally defensive.
+    Priority is given to citations or evidence snippets that the server already emits,
+    since those are the only contexts we can claim were used during answer generation.
+    """
+    if not isinstance(raw, dict):
+        return []
+
+    out: list[str] = []
+
+    # Most stable: top level citations.
+    citations = raw.get("citations")
+    if isinstance(citations, list):
+        for c in citations:
+            if isinstance(c, dict):
+                snip = c.get("snippet") or c.get("text") or c.get("content")
+                if isinstance(snip, str) and snip.strip():
+                    out.append(snip.strip())
+
+    # Common alternates.
+    for key in ("evidence", "chunks", "retrieved_contexts", "contexts"):
+        v = raw.get(key)
+        if isinstance(v, list):
+            for item in v:
+                if isinstance(item, str) and item.strip():
+                    out.append(item.strip())
+                elif isinstance(item, dict):
+                    txt = (
+                        item.get("snippet")
+                        or item.get("content_text")
+                        or item.get("text")
+                        or item.get("content")
+                    )
+                    if isinstance(txt, str) and txt.strip():
+                        out.append(txt.strip())
+
+    # Deduplicate while preserving order.
+    seen: set[str] = set()
+    uniq: list[str] = []
+    for t in out:
+        if t not in seen:
+            seen.add(t)
+            uniq.append(t)
+    return uniq
+
+
 async def run_phase6_generate(
     *,
     ctx: RunContext,
@@ -77,16 +126,9 @@ async def run_phase6_generate(
             log.info("Phase6 | q=%d | query_id=%s | %s", total, qid, _cap(question, 120))
 
             try:
-                t0 = time.perf_counter()
-                search_resp = await rag.search(query=question, top_k=search_top_k_context, filters=filters)
-                contexts = [h.content_text for h in search_resp.hits if h.content_text]
-                t1 = time.perf_counter()
-                log.info(
-                    "Phase6 | query_id=%s | contexts=%d | search_ms=%.2f",
-                    qid,
-                    len(contexts),
-                    (t1 - t0) * 1000.0,
-                )
+                # Important: the only contexts we can evaluate against are the ones that were
+                # actually used by the server during answer generation. Never mix in a separate
+                # /search call, because that produces different hits and breaks faithfulness.
 
                 t2 = time.perf_counter()
                 rag_resp = await rag.ask(
@@ -98,12 +140,15 @@ async def run_phase6_generate(
                 )
                 t3 = time.perf_counter()
 
+                contexts_rag = _extract_contexts_from_ask_raw(rag_resp.raw)
+
                 rec_rag = {
                     "query_id": qid,
                     "question": question,
                     "mode": "rag_no_hyde",
                     "answer_raw": rag_resp.raw,
-                    "contexts": contexts,
+                    "contexts": contexts_rag,
+                    "contexts_source": "ask",
                 }
                 f_rag.write(json.dumps(rec_rag, ensure_ascii=False) + "\n")
 
@@ -131,12 +176,15 @@ async def run_phase6_generate(
                 )
                 t5 = time.perf_counter()
 
+                contexts_hyde = _extract_contexts_from_ask_raw(hyde_resp.raw)
+
                 rec_hyde = {
                     "query_id": qid,
                     "question": question,
                     "mode": "rag_hyde",
                     "answer_raw": hyde_resp.raw,
-                    "contexts": contexts,
+                    "contexts": contexts_hyde,
+                    "contexts_source": "ask",
                 }
                 f_hyde.write(json.dumps(rec_hyde, ensure_ascii=False) + "\n")
 
@@ -170,6 +218,7 @@ async def run_phase6_generate(
                     "mode": "llm_only",
                     "answer_text": llm_text,
                     "contexts": [],
+                    "contexts_source": "none",
                 }
                 f_llm.write(json.dumps(rec_llm, ensure_ascii=False) + "\n")
 

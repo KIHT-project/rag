@@ -10,6 +10,8 @@ from typing import Any, Iterable
 
 import pandas as pd
 
+from evaluation_metrics.src.utils.output_writer import write_outputs
+
 log = logging.getLogger(__name__)
 
 
@@ -286,10 +288,7 @@ def build_overlap_audit(
     else:
         meta_df = pd.DataFrame(columns=meta_columns)
 
-    (out_dir / "phase5_overlap_metadata.csv").write_text(
-        meta_df.to_csv(index=False),
-        encoding="utf-8",
-    )
+    write_outputs(meta_df, out_dir / "phase5_overlap_metadata.csv")
 
     if positive_label_field:
         per_query_rows: list[dict[str, Any]] = []
@@ -342,9 +341,7 @@ def build_overlap_audit(
             per_query_rows.append(row_out)
 
         per_query_df = pd.DataFrame(per_query_rows).sort_values("query_id")
-        (out_dir / "phase5_weaklabel_metrics_per_query.csv").write_text(
-            per_query_df.to_csv(index=False), encoding="utf-8"
-        )
+        write_outputs(per_query_df, out_dir / "phase5_weaklabel_metrics_per_query.csv")
 
         agg: dict[str, list[Any]] = {"metric": [], "value": []}
         agg["metric"].append("mrr")
@@ -356,8 +353,4 @@ def build_overlap_audit(
         agg["value"].append(float((per_query_df["relevant_docs_in_retrieved"] > 0).mean()))
 
         summary_df = pd.DataFrame(agg)
-        (out_dir / "phase5_weaklabel_metrics_summary.csv").write_text(summary_df.to_csv(index=False), encoding="utf-8")
-        (out_dir / "phase5_weaklabel_metrics_summary.json").write_text(
-            json.dumps(summary_df.to_dict(orient="records"), ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        write_outputs(summary_df, out_dir / "phase5_weaklabel_metrics_summary.csv")

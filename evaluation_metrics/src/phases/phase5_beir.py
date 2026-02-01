@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Iterable
 
 import pandas as pd
+
+from evaluation_metrics.src.utils.output_writer import write_outputs
 
 log = logging.getLogger(__name__)
 logging.basicConfig(
@@ -132,17 +133,7 @@ def write_retrieval_metrics(
     log.info("Phase5 | writing metrics to %s", out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    (out_dir / "phase5_retrieval_metrics_summary.csv").write_text(
-        summary_df.to_csv(index=False),
-        encoding="utf-8",
-    )
-    (out_dir / "phase5_retrieval_metrics_per_query.csv").write_text(
-        per_query_df.to_csv(index=False),
-        encoding="utf-8",
-    )
-    (out_dir / "phase5_retrieval_metrics_summary.json").write_text(
-        json.dumps(summary_df.to_dict(orient="records"), ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    write_outputs(summary_df, out_dir / "phase5_retrieval_metrics_summary.csv")
+    write_outputs(per_query_df, out_dir / "phase5_retrieval_metrics_per_query.csv")
 
     log.info("Phase5 | metrics written successfully")
