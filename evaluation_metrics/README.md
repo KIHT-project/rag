@@ -59,7 +59,7 @@ Phase5.2:
 python -m evaluation_metrics.src.eval_cli \
   --config evaluation_metrics/config/eval.yaml \
   phase5_overlap \
-  --phase3-pool-jsonl evaluation_metrics/runs/20260201_182925_nogit/phase3_pool.jsonl \
+  --phase3-pool-jsonl evaluation_metrics/runs/20260201_190141_nogit/phase3_pool.jsonl \
   --tasks-clean-json evaluation_metrics/tasks_clean.json \
   --positive-label-field related_to_vte \
   --positive-yes-value Yes
@@ -90,7 +90,7 @@ python -m evaluation_metrics.src.eval_cli --config /Users/nchaikalis/IdeaProject
 
 ```shell
 CFG=/Users/nchaikalis/IdeaProjects/rag/evaluation_metrics/config/eval.yaml
-RUN=/Users/nchaikalis/IdeaProjects/rag/evaluation_metrics/runs/20260201_182949_nogit
+RUN=/Users/nchaikalis/IdeaProjects/rag/evaluation_metrics/runs/20260201_190201_nogit
 
 python -m evaluation_metrics.src.eval_cli --config "$CFG" phase7 --input-jsonl "$RUN/phase6_answers_rag_no_hyde.jsonl"
 python -m evaluation_metrics.src.eval_cli --config "$CFG" phase7 --input-jsonl "$RUN/phase6_answers_rag_hyde.jsonl"
@@ -102,9 +102,9 @@ Phase8:
 python -m evaluation_metrics.src.eval_cli \
   --config evaluation_metrics/config/eval.yaml \
   phase8 \
-  --rag-no-hyde evaluation_metrics/runs/20260201_182949_nogit/phase6_answers_rag_no_hyde.jsonl \
-  --rag-hyde evaluation_metrics/runs/20260201_182949_nogit/phase6_answers_rag_hyde.jsonl \
-  --llm-only evaluation_metrics/runs/20260201_182949_nogit/phase6_answers_llm_only.jsonl
+  --rag-no-hyde evaluation_metrics/runs/20260201_190201_nogit/phase6_answers_rag_no_hyde.jsonl \
+  --rag-hyde evaluation_metrics/runs/20260201_190201_nogit/phase6_answers_rag_hyde.jsonl \
+  --llm-only evaluation_metrics/runs/20260201_190201_nogit/phase6_answers_llm_only.jsonl
 ```
 
 ## RAGAS Evaluation Metrics

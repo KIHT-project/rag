@@ -1,0 +1,6 @@
+query_id,mrr,retrieved_unique_docs,relevant_docs_in_retrieved,precision@5,precision@10,precision@20
+thrombosis_q021,1.0,5,5,1.0,0.5,0.25
+thrombosis_q022,0.5,5,4,0.8,0.4,0.2
+thrombosis_q023,1.0,5,5,1.0,0.5,0.25
+thrombosis_q024,1.0,5,5,1.0,0.5,0.25
+thrombosis_q025,1.0,5,4,0.8,0.4,0.2
