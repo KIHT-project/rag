@@ -1,6 +1,6 @@
 {
   "tasks_unique_dois": 1288,
-  "phase3_pool_unique_dois": 25,
+  "phase1_pool_unique_dois": 25,
   "intersection_unique_dois": 25,
   "tasks_covered_by_pool_rate": 0.019409937888198756,
   "pool_covered_by_tasks_rate": 1.0,
