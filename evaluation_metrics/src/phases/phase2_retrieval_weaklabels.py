@@ -183,7 +183,7 @@ def _is_relevant(labels: dict[str, Any], rule: WeakLabelRule) -> bool:
     return True
 
 
-def compute_phase5_metrics(
+def compute_phase2_metrics(
     *,
     pool_jsonl: Path,
     tasks_clean_json: Path,
@@ -199,24 +199,24 @@ def compute_phase5_metrics(
     if rule is None:
         rule = WeakLabelRule()
 
-    log.info("Phase5 | loading retrieval pool from %s", pool_jsonl)
+    log.info("phase2 | loading retrieval pool from %s", pool_jsonl)
     pool = pd.read_json(pool_jsonl, lines=True)
 
     required_cols = {"query_id", "rank", "doi"}
     missing = required_cols.difference(set(pool.columns))
     if missing:
-        raise RuntimeError(f"Phase5 pool missing required columns: {sorted(missing)}")
+        raise RuntimeError(f"phase2 pool missing required columns: {sorted(missing)}")
 
     pool["doi_norm"] = pool["doi"].map(_norm_doi)
 
     log.info(
-        "Phase5 | pool loaded, rows=%d, unique_queries=%d",
+        "phase2 | pool loaded, rows=%d, unique_queries=%d",
         len(pool),
         int(pool["query_id"].nunique()),
     )
 
     doi_to_labels = _label_map_from_tasks_clean(tasks_clean_json)
-    log.info("Phase5 | loaded labeled dois=%d from %s", len(doi_to_labels), tasks_clean_json)
+    log.info("phase2 | loaded labeled dois=%d from %s", len(doi_to_labels), tasks_clean_json)
 
     def label_hit(doi_norm: str) -> int:
         if not doi_norm:
@@ -245,7 +245,7 @@ def compute_phase5_metrics(
     per_query_rows: list[dict[str, Any]] = []
     zero_relevance_queries = 0
 
-    log.info("Phase5 | computing metrics for %d queries", int(pool["query_id"].nunique()))
+    log.info("phase2 | computing metrics for %d queries", int(pool["query_id"].nunique()))
 
     for qid, g in pool.groupby("query_id"):
         g_sorted = g.sort_values("rank")
@@ -268,7 +268,7 @@ def compute_phase5_metrics(
         per_query_rows.append(per_query)
 
     log.info(
-        "Phase5 | queries with zero relevant docs in pool: %d / %d",
+        "phase2 | queries with zero relevant docs in pool: %d / %d",
         zero_relevance_queries,
         int(pool["query_id"].nunique()),
     )
@@ -294,7 +294,7 @@ def compute_phase5_metrics(
     return summary_df, per_query_df, overlap_df
 
 
-def write_phase5_metrics(
+def write_phase2_metrics(
     *,
     out_dir: Path,
     summary_df: pd.DataFrame,
@@ -303,6 +303,6 @@ def write_phase5_metrics(
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    write_outputs(summary_df, out_dir / "phase5_retrieval_metrics_summary.csv")
-    write_outputs(per_query_df, out_dir / "phase5_retrieval_metrics_per_query.csv")
-    write_outputs(overlap_df, out_dir / "phase5_retrieval_overlap_per_query.csv")
+    write_outputs(summary_df, out_dir / "phase2_retrieval_metrics_summary.csv")
+    write_outputs(per_query_df, out_dir / "phase2_retrieval_metrics_per_query.csv")
+    write_outputs(overlap_df, out_dir / "phase2_retrieval_overlap_per_query.csv")

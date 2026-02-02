@@ -163,12 +163,12 @@ def _index_tasks_by_doi(tasks_clean_json: Path) -> dict[str, dict[str, Any]]:
     return doi_map
 
 
-def _load_phase3_pool(phase3_pool_jsonl: Path) -> pd.DataFrame:
-    pool = pd.read_json(phase3_pool_jsonl, lines=True)
+def _load_phase1_pool(phase1_pool_jsonl: Path) -> pd.DataFrame:
+    pool = pd.read_json(phase1_pool_jsonl, lines=True)
     required = {"query_id", "rank", "doi"}
     missing = required.difference(set(pool.columns))
     if missing:
-        raise RuntimeError(f"phase3_pool missing columns: {sorted(missing)}")
+        raise RuntimeError(f"phase1_pool missing columns: {sorted(missing)}")
     pool["doi_norm"] = pool["doi"].map(_norm_doi)
     pool["rank"] = pool["rank"].astype(int)
     if "score" in pool.columns:
@@ -180,7 +180,7 @@ def _load_phase3_pool(phase3_pool_jsonl: Path) -> pd.DataFrame:
 
 def build_overlap_audit(
     *,
-    phase3_pool_jsonl: Path,
+    phase1_pool_jsonl: Path,
     tasks_clean_json: Path,
     out_dir: Path,
     k_values: Iterable[int],
@@ -191,7 +191,7 @@ def build_overlap_audit(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     doi_to_task = _index_tasks_by_doi(tasks_clean_json)
-    pool = _load_phase3_pool(phase3_pool_jsonl)
+    pool = _load_phase1_pool(phase1_pool_jsonl)
 
     tasks_dois = set(doi_to_task.keys())
     pool_dois = set([x for x in pool["doi_norm"].tolist() if isinstance(x, str) and x])
@@ -200,14 +200,14 @@ def build_overlap_audit(
 
     summary: dict[str, Any] = {
         "tasks_unique_dois": len(tasks_dois),
-        "phase3_pool_unique_dois": len(pool_dois),
+        "phase1_pool_unique_dois": len(pool_dois),
         "intersection_unique_dois": len(intersection),
         "tasks_covered_by_pool_rate": (len(intersection) / len(tasks_dois)) if tasks_dois else 0.0,
         "pool_covered_by_tasks_rate": (len(intersection) / len(pool_dois)) if pool_dois else 0.0,
         "positive_label_field": positive_label_field or "",
     }
 
-    (out_dir / "phase5_overlap_summary.json").write_text(
+    (out_dir / "phase2_overlap_summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
@@ -273,7 +273,7 @@ def build_overlap_audit(
         "source_id",
     ]
     log.info(
-        "Phase5 overlap | unique_dois tasks=%d pool=%d intersection=%d",
+        "phase2 overlap | unique_dois tasks=%d pool=%d intersection=%d",
         len(tasks_dois),
         len(pool_dois),
         len(intersection),
@@ -288,7 +288,7 @@ def build_overlap_audit(
     else:
         meta_df = pd.DataFrame(columns=meta_columns)
 
-    write_outputs(meta_df, out_dir / "phase5_overlap_metadata.csv")
+    write_outputs(meta_df, out_dir / "phase2_overlap_metadata.csv")
 
     if positive_label_field:
         per_query_rows: list[dict[str, Any]] = []
@@ -341,7 +341,7 @@ def build_overlap_audit(
             per_query_rows.append(row_out)
 
         per_query_df = pd.DataFrame(per_query_rows).sort_values("query_id")
-        write_outputs(per_query_df, out_dir / "phase5_weaklabel_metrics_per_query.csv")
+        write_outputs(per_query_df, out_dir / "phase2_weaklabel_metrics_per_query.csv")
 
         agg: dict[str, list[Any]] = {"metric": [], "value": []}
         agg["metric"].append("mrr")
@@ -353,4 +353,4 @@ def build_overlap_audit(
         agg["value"].append(float((per_query_df["relevant_docs_in_retrieved"] > 0).mean()))
 
         summary_df = pd.DataFrame(agg)
-        write_outputs(summary_df, out_dir / "phase5_weaklabel_metrics_summary.csv")
+        write_outputs(summary_df, out_dir / "phase2_weaklabel_metrics_summary.csv")

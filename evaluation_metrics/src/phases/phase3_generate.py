@@ -77,7 +77,7 @@ def _extract_contexts_from_ask_raw(raw: Any) -> list[str]:
     return uniq
 
 
-async def run_phase6_generate(
+async def run_phase3_generate(
     *,
     ctx: RunContext,
     rag: RagApiClient,
@@ -91,14 +91,14 @@ async def run_phase6_generate(
     ollama_num_predict: int,
     filters: Optional[dict[str, Any]] = None,
 ) -> dict[str, Path]:
-    out_rag = Path(ctx.run_dir) / "phase6_answers_rag_no_hyde.jsonl"
-    out_hyde = Path(ctx.run_dir) / "phase6_answers_rag_hyde.jsonl"
-    out_llm = Path(ctx.run_dir) / "phase6_answers_llm_only.jsonl"
+    out_rag = Path(ctx.run_dir) / "phase3_answers_rag_no_hyde.jsonl"
+    out_hyde = Path(ctx.run_dir) / "phase3_answers_rag_hyde.jsonl"
+    out_llm = Path(ctx.run_dir) / "phase3_answers_llm_only.jsonl"
 
     out_rag.parent.mkdir(parents=True, exist_ok=True)
 
     log.info(
-        "Phase6 | start | run_id=%s | queries=%s | ctx_top_k=%d | model=%s",
+        "phase3 | start | run_id=%s | queries=%s | ctx_top_k=%d | model=%s",
         ctx.run_id,
         str(queries_jsonl),
         search_top_k_context,
@@ -123,7 +123,7 @@ async def run_phase6_generate(
             qid = q.id
             question = q.text
 
-            log.info("Phase6 | q=%d | query_id=%s | %s", total, qid, _cap(question, 120))
+            log.info("phase3 | q=%d | query_id=%s | %s", total, qid, _cap(question, 120))
 
             try:
                 # Important: the only contexts we can evaluate against are the ones that were
@@ -160,7 +160,7 @@ async def run_phase6_generate(
                     elif isinstance(ans, str):
                         preview = ans
                 log.info(
-                    "Phase6 | query_id=%s | rag_no_hyde_ms=%.2f | answer_preview=%s",
+                    "phase3 | query_id=%s | rag_no_hyde_ms=%.2f | answer_preview=%s",
                     qid,
                     (t3 - t2) * 1000.0,
                     _cap(preview),
@@ -196,7 +196,7 @@ async def run_phase6_generate(
                     elif isinstance(ans, str):
                         preview = ans
                 log.info(
-                    "Phase6 | query_id=%s | rag_hyde_ms=%.2f | answer_preview=%s",
+                    "phase3 | query_id=%s | rag_hyde_ms=%.2f | answer_preview=%s",
                     qid,
                     (t5 - t4) * 1000.0,
                     _cap(preview),
@@ -223,22 +223,22 @@ async def run_phase6_generate(
                 f_llm.write(json.dumps(rec_llm, ensure_ascii=False) + "\n")
 
                 log.info(
-                    "Phase6 | query_id=%s | llm_only_ms=%.2f | answer_preview=%s",
+                    "phase3 | query_id=%s | llm_only_ms=%.2f | answer_preview=%s",
                     qid,
                     (t7 - t6) * 1000.0,
                     _cap(llm_text),
                 )
 
                 if total % 5 == 0:
-                    log.info("Phase6 | progress | done=%d", total)
+                    log.info("phase3 | progress | done=%d", total)
 
             except Exception as e:
                 failures += 1
-                log.exception("Phase6 | query_id=%s | failed | error=%s", qid, str(e))
+                log.exception("phase3 | query_id=%s | failed | error=%s", qid, str(e))
                 continue
 
     log.info(
-        "Phase6 | done | total=%d | failures=%d | out_dir=%s",
+        "phase3 | done | total=%d | failures=%d | out_dir=%s",
         total,
         failures,
         ctx.run_dir,

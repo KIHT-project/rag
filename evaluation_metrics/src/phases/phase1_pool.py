@@ -17,7 +17,7 @@ logging.basicConfig(
 
 
 
-async def run_phase3_pool(
+async def run_phase1_pool(
     *,
     ctx: RunContext,
     rag: RagApiClient,
@@ -25,11 +25,11 @@ async def run_phase3_pool(
     top_k_pool: int,
     filters: Optional[dict[str, Any]] = None,
 ) -> Path:
-    out_path = Path(ctx.run_dir) / "phase3_pool.jsonl"
+    out_path = Path(ctx.run_dir) / "phase1_pool.jsonl"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     log.info(
-        "Phase3 | start | run_id=%s | queries_file=%s | top_k=%d",
+        "phase1 | start | run_id=%s | queries_file=%s | top_k=%d",
         ctx.run_id,
         str(queries_jsonl),
         top_k_pool,
@@ -50,7 +50,7 @@ async def run_phase3_pool(
             total_queries += 1
 
             log.info(
-                "Phase3 | query=%d | query_id=%s",
+                "phase1 | query=%d | query_id=%s",
                 total_queries,
                 q.id,
             )
@@ -69,12 +69,12 @@ async def run_phase3_pool(
 
                 if not hits:
                     log.warning(
-                        "Phase3 | query_id=%s | no hits returned",
+                        "phase1 | query_id=%s | no hits returned",
                         q.id,
                     )
 
                 log.info(
-                    "Phase3 | query_id=%s | hits=%d | search_ms=%.2f",
+                    "phase1 | query_id=%s | hits=%d | search_ms=%.2f",
                     q.id,
                     len(hits),
                     (t1 - t0) * 1000.0,
@@ -100,14 +100,14 @@ async def run_phase3_pool(
 
                 if total_queries % 10 == 0:
                     log.info(
-                        "Phase3 | progress | queries_done=%d",
+                        "phase1 | progress | queries_done=%d",
                         total_queries,
                     )
 
             except Exception as e:
                 failures += 1
                 log.exception(
-                    "Phase3 | query_id=%s | failed | error=%s",
+                    "phase1 | query_id=%s | failed | error=%s",
                     q.id,
                     str(e),
                 )
@@ -116,7 +116,7 @@ async def run_phase3_pool(
     t_end = time.perf_counter()
 
     log.info(
-        "Phase3 | done | total_queries=%d | total_hits=%d | failures=%d | duration_sec=%.2f | out=%s",
+        "phase1 | done | total_queries=%d | total_hits=%d | failures=%d | duration_sec=%.2f | out=%s",
         total_queries,
         total_hits,
         failures,

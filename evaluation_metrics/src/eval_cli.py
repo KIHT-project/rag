@@ -13,12 +13,12 @@ import yaml
 
 from evaluation_metrics.src.clients.ollama_api import OllamaClient
 from evaluation_metrics.src.clients.rag_api import RagApiClient
-from evaluation_metrics.src.phases.phase3_pool import run_phase3_pool
-from evaluation_metrics.src.phases.phase5_beir import compute_retrieval_metrics, write_retrieval_metrics
-from evaluation_metrics.src.phases.phase5_overlap_audit import build_overlap_audit, discover_label_fields
-from evaluation_metrics.src.phases.phase6_generate import run_phase6_generate
-from evaluation_metrics.src.phases.phase7_ragas import run_ragas
-from evaluation_metrics.src.phases.phase8_audit import build_audit_sample
+from evaluation_metrics.src.phases.phase1_pool import run_phase1_pool
+from evaluation_metrics.src.phases.phase2_beir import compute_retrieval_metrics, write_retrieval_metrics
+from evaluation_metrics.src.phases.phase2_overlap_audit import build_overlap_audit, discover_label_fields
+from evaluation_metrics.src.phases.phase3_generate import run_phase3_generate
+from evaluation_metrics.src.phases.phase4_ragas import run_ragas
+from evaluation_metrics.src.phases.phase5_audit import build_audit_sample
 from evaluation_metrics.src.schemas.models import RunContext
 
 
@@ -41,14 +41,14 @@ def _init_run(config: dict[str, Any]) -> RunContext:
     return RunContext(run_id=run_id, run_dir=str(run_dir))
 
 
-async def _cmd_phase3(args: argparse.Namespace) -> None:
+async def _cmd_phase1(args: argparse.Namespace) -> None:
     config = _load_config(Path(args.config))
     ctx = _init_run(config)
     rag = RagApiClient(
         base_url=config["rag_api"]["base_url"],
         timeout_seconds=float(config["rag_api"]["timeout_seconds"]),
     )
-    await run_phase3_pool(
+    await run_phase1_pool(
         ctx=ctx,
         rag=rag,
         queries_jsonl=Path(config["paths"]["queries_jsonl"]),
@@ -56,7 +56,7 @@ async def _cmd_phase3(args: argparse.Namespace) -> None:
     )
 
 
-async def _cmd_phase6(args: argparse.Namespace) -> None:
+async def _cmd_phase3(args: argparse.Namespace) -> None:
     config = _load_config(Path(args.config))
     ctx = _init_run(config)
     rag = RagApiClient(
@@ -64,7 +64,7 @@ async def _cmd_phase6(args: argparse.Namespace) -> None:
         timeout_seconds=float(config["rag_api"]["timeout_seconds"]),
     )
     ollama = OllamaClient(base_url=config["ollama"]["base_url"])
-    await run_phase6_generate(
+    await run_phase3_generate(
         ctx=ctx,
         rag=rag,
         ollama=ollama,
@@ -78,7 +78,7 @@ async def _cmd_phase6(args: argparse.Namespace) -> None:
     )
 
 
-def _cmd_phase5(args: argparse.Namespace) -> None:
+def _cmd_phase2(args: argparse.Namespace) -> None:
     config = _load_config(Path(args.config))
     ctx = _init_run(config)
 
@@ -98,7 +98,7 @@ def _cmd_phase5(args: argparse.Namespace) -> None:
     )
 
 
-def _cmd_phase5_overlap(args: argparse.Namespace) -> None:
+def _cmd_phase2_overlap(args: argparse.Namespace) -> None:
     config = _load_config(Path(args.config))
     ctx = _init_run(config)
 
@@ -109,7 +109,7 @@ def _cmd_phase5_overlap(args: argparse.Namespace) -> None:
         fields = discover_label_fields(tasks_clean)
         for lf in fields:
             types = ", ".join(sorted(lf.types))
-            logging.info("Phase5 overlap label_field=%s types=%s", lf.name, types)
+            logging.info("phase2 overlap label_field=%s types=%s", lf.name, types)
         return
 
     positive_label_field = str(args.positive_label_field or "").strip()
@@ -117,7 +117,7 @@ def _cmd_phase5_overlap(args: argparse.Namespace) -> None:
         positive_label_field = None
 
     build_overlap_audit(
-        phase3_pool_jsonl=Path(args.phase3_pool_jsonl),
+        phase1_pool_jsonl=Path(args.phase1_pool_jsonl),
         tasks_clean_json=tasks_clean,
         out_dir=Path(ctx.run_dir),
         k_values=k_values,
@@ -127,12 +127,12 @@ def _cmd_phase5_overlap(args: argparse.Namespace) -> None:
     )
 
 
-def _cmd_phase7(args: argparse.Namespace) -> None:
+def _cmd_phase4(args: argparse.Namespace) -> None:
     config = _load_config(Path(args.config))
     ctx = _init_run(config)
 
     in_path = Path(args.input_jsonl)
-    out_csv = Path(ctx.run_dir) / f"phase7_ragas_{in_path.stem}.csv"
+    out_csv = Path(ctx.run_dir) / f"phase4_ragas_{in_path.stem}.csv"
 
     os.environ.setdefault("OPENAI_API_KEY", "ollama")
     os.environ["OPENAI_BASE_URL"] = str(config["ollama"]["base_url"]).rstrip("/") + "/v1"
@@ -151,11 +151,11 @@ def _cmd_phase7(args: argparse.Namespace) -> None:
     )
 
 
-def _cmd_phase8(args: argparse.Namespace) -> None:
+def _cmd_phase5(args: argparse.Namespace) -> None:
     config = _load_config(Path(args.config))
     ctx = _init_run(config)
 
-    out = Path(ctx.run_dir) / "phase8_audit_sample.jsonl"
+    out = Path(ctx.run_dir) / "phase5_audit_sample.jsonl"
     build_audit_sample(
         rag_no_hyde_jsonl=Path(args.rag_no_hyde),
         rag_hyde_jsonl=Path(args.rag_hyde),
@@ -177,35 +177,35 @@ def main() -> None:
     p.add_argument("--config", default="evaluation_metrics/config/eval.yaml")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    s3 = sub.add_parser("phase3")
-    s3.set_defaults(func=lambda a: asyncio.run(_cmd_phase3(a)))
+    s3 = sub.add_parser("phase1")
+    s3.set_defaults(func=lambda a: asyncio.run(_cmd_phase1(a)))
 
-    s6 = sub.add_parser("phase6")
-    s6.set_defaults(func=lambda a: asyncio.run(_cmd_phase6(a)))
+    s6 = sub.add_parser("phase3")
+    s6.set_defaults(func=lambda a: asyncio.run(_cmd_phase3(a)))
 
-    s5 = sub.add_parser("phase5")
+    s5 = sub.add_parser("phase2")
     s5.add_argument("--pool-jsonl", required=True)
     s5.add_argument("--qrels-tsv", required=True)
-    s5.set_defaults(func=_cmd_phase5)
+    s5.set_defaults(func=_cmd_phase2)
 
-    s5o = sub.add_parser("phase5_overlap")
-    s5o.add_argument("--phase3-pool-jsonl", required=True)
+    s5o = sub.add_parser("phase2_overlap")
+    s5o.add_argument("--phase1-pool-jsonl", required=True)
     s5o.add_argument("--tasks-clean-json", required=True)
     s5o.add_argument("--list-labels", action="store_true")
     s5o.add_argument("--positive-label-field", default="")
     s5o.add_argument("--positive-yes-value", default="Yes")
     s5o.add_argument("--min-title-similarity", default="0.92")
-    s5o.set_defaults(func=_cmd_phase5_overlap)
+    s5o.set_defaults(func=_cmd_phase2_overlap)
 
-    s7 = sub.add_parser("phase7")
+    s7 = sub.add_parser("phase4")
     s7.add_argument("--input-jsonl", required=True)
-    s7.set_defaults(func=_cmd_phase7)
+    s7.set_defaults(func=_cmd_phase4)
 
-    s8 = sub.add_parser("phase8")
+    s8 = sub.add_parser("phase5")
     s8.add_argument("--rag-no-hyde", required=True)
     s8.add_argument("--rag-hyde", required=True)
     s8.add_argument("--llm-only", required=True)
-    s8.set_defaults(func=_cmd_phase8)
+    s8.set_defaults(func=_cmd_phase5)
 
     args = p.parse_args()
     args.func(args)

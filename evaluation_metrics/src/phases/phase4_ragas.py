@@ -1,4 +1,4 @@
-# evaluation_metrics/src/phases/phase7_ragas.py
+# evaluation_metrics/src/phases/phase4_ragas.py
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 def _require_env(name: str) -> str:
     v = os.environ.get(name, "").strip()
     if not v:
-        raise RuntimeError(f"Phase7 missing env var {name}")
+        raise RuntimeError(f"phase4 missing env var {name}")
     return v
 
 
@@ -165,7 +165,7 @@ def run_ragas(
     embeddings_device: str,
     embeddings_local_only: bool = False,
 ) -> Path:
-    log.info("Phase7 start input=%s", input_jsonl)
+    log.info("phase4 start input=%s", input_jsonl)
 
     records: list[dict[str, Any]] = []
     diagnostics: list[dict[str, Any]] = []
@@ -202,13 +202,13 @@ def run_ragas(
             diagnostics.append({"query_id": qid, "ctx": ctx_stats, "contexts_source": rec.get("contexts_source")})
 
     log.info(
-        "Phase7 loaded_records=%d empty_answer=%d empty_contexts=%d",
+        "phase4 loaded_records=%d empty_answer=%d empty_contexts=%d",
         len(records),
         empty_answer,
         empty_contexts,
     )
     if not records:
-        raise RuntimeError("Phase7 no records loaded")
+        raise RuntimeError("phase4 no records loaded")
 
     ds = Dataset.from_list(records)
 
@@ -216,14 +216,14 @@ def run_ragas(
     api_key = _require_env("OPENAI_API_KEY")
     model = _require_env("EVAL_OLLAMA_MODEL")
 
-    log.info("Phase7 evaluator base_url=%s model=%s", base_url, model)
+    log.info("phase4 evaluator base_url=%s model=%s", base_url, model)
 
     try:
         _probe_openai_json_mode(base_url=base_url, api_key=api_key, model=model)
-        log.info("Phase7 json_mode_probe ok")
+        log.info("phase4 json_mode_probe ok")
     except Exception as e:
         raise RuntimeError(
-            "Phase7 evaluator failed JSON mode probe. "
+            "phase4 evaluator failed JSON mode probe. "
             "Your backend is not OpenAI JSON mode compatible, so RAGAS graders commonly return NaNs. "
             "Fix the server or switch evaluator to a model that supports response_format json_object."
         ) from e
@@ -240,7 +240,7 @@ def run_ragas(
     evaluator_llm = llm_factory(model=model, client=evaluator_client)
 
     log.info(
-        "Phase7 embeddings model=%s device=%s local_only=%s",
+        "phase4 embeddings model=%s device=%s local_only=%s",
         embeddings_model,
         embeddings_device,
         embeddings_local_only,
@@ -256,10 +256,10 @@ def run_ragas(
     all_empty_contexts = all((r.get("contexts") or []) == [] for r in records)
     if all_empty_contexts:
         metrics = [AnswerRelevancy(llm=evaluator_llm)]
-        log.info("Phase7 metrics=answer_relevancy only (no contexts in input)")
+        log.info("phase4 metrics=answer_relevancy only (no contexts in input)")
     else:
         metrics = [Faithfulness(llm=evaluator_llm), AnswerRelevancy(llm=evaluator_llm), LLMContextPrecisionWithoutReference(llm=evaluator_llm)]
-        log.info("Phase7 metrics=faithfulness, answer_relevancy, llm_context_precision_wo_ref")
+        log.info("phase4 metrics=faithfulness, answer_relevancy, llm_context_precision_wo_ref")
 
     run_config = None
     try:
@@ -274,7 +274,7 @@ def run_ragas(
     except Exception:
         run_config = None
 
-    log.info("Phase7 running RAGAS")
+    log.info("phase4 running RAGAS")
     t0 = time.perf_counter()
     if run_config is not None:
         result = evaluate(ds, metrics=metrics, llm=evaluator_llm, embeddings=embeddings, run_config=run_config)
@@ -290,9 +290,9 @@ def run_ragas(
         with diag_path.open("w", encoding="utf-8") as f:
             for d in diagnostics:
                 f.write(json.dumps(d, ensure_ascii=False) + "\n")
-        log.info("Phase7 diagnostics written %s", diag_path)
+        log.info("phase4 diagnostics written %s", diag_path)
     except Exception:
-        log.exception("Phase7 failed to write diagnostics")
+        log.exception("phase4 failed to write diagnostics")
 
     metric_cols = [
         c
@@ -310,11 +310,11 @@ def run_ragas(
     ]
     if metric_cols and df[metric_cols].isna().all().all():
         raise RuntimeError(
-            "Phase7 produced only NaNs. The evaluator calls likely succeeded but the grader parsing failed. "
+            "phase4 produced only NaNs. The evaluator calls likely succeeded but the grader parsing failed. "
             "Common causes are evaluator incompatibility or repeated timeouts."
         )
 
     out_csv.parent.mkdir(parents=True, exist_ok=True)
     write_outputs(df, out_csv)
-    log.info("Phase7 done duration_sec=%.2f rows=%d out=%s", t1 - t0, len(df), out_csv)
+    log.info("phase4 done duration_sec=%.2f rows=%d out=%s", t1 - t0, len(df), out_csv)
     return out_csv

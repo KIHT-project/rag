@@ -42,12 +42,12 @@ def compute_retrieval_metrics(
     qrels_tsv: Path,
     k_values: Iterable[int],
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    log.info("Phase5 | loading retrieval pool from %s", pool_jsonl)
+    log.info("phase2 | loading retrieval pool from %s", pool_jsonl)
     pool = pd.read_json(pool_jsonl, lines=True)
-    log.info("Phase5 | pool loaded, rows=%d, unique_queries=%d",
+    log.info("phase2 | pool loaded, rows=%d, unique_queries=%d",
              len(pool), pool["query_id"].nunique())
 
-    log.info("Phase5 | loading qrels from %s", qrels_tsv)
+    log.info("phase2 | loading qrels from %s", qrels_tsv)
     qrels = pd.read_csv(
         qrels_tsv,
         sep="\t",
@@ -55,7 +55,7 @@ def compute_retrieval_metrics(
         names=["query_id", "doc_id", "relevance"],
     )
     qrels["relevance"] = qrels["relevance"].astype(int)
-    log.info("Phase5 | qrels loaded, rows=%d, unique_queries=%d, unique_docs=%d",
+    log.info("phase2 | qrels loaded, rows=%d, unique_queries=%d, unique_docs=%d",
              len(qrels), qrels["query_id"].nunique(), qrels["doc_id"].nunique())
 
     rel_map = {(r.query_id, r.doc_id): r.relevance for r in qrels.itertuples(index=False)}
@@ -64,7 +64,7 @@ def compute_retrieval_metrics(
     per_query_rows: list[dict] = []
     zero_relevance_queries = 0
 
-    log.info("Phase5 | computing metrics for %d queries", pool["query_id"].nunique())
+    log.info("phase2 | computing metrics for %d queries", pool["query_id"].nunique())
 
     for qid, g in pool.groupby("query_id"):
         g_sorted = g.sort_values("rank")
@@ -90,14 +90,14 @@ def compute_retrieval_metrics(
             per_query[f"recall@{k}"] = _recall_at_k(rels, total_relevant, k)
 
         log.debug(
-            "Phase5 | query=%s total_relevant=%d mrr=%.3f",
+            "phase2 | query=%s total_relevant=%d mrr=%.3f",
             qid, total_relevant, mrr
         )
 
         per_query_rows.append(per_query)
 
     log.info(
-        "Phase5 | queries with zero relevant docs: %d / %d",
+        "phase2 | queries with zero relevant docs: %d / %d",
         zero_relevance_queries,
         pool["query_id"].nunique(),
     )
@@ -117,9 +117,9 @@ def compute_retrieval_metrics(
 
     summary_df = pd.DataFrame(summary)
 
-    log.info("Phase5 | aggregate metrics computed")
+    log.info("phase2 | aggregate metrics computed")
     for _, row in summary_df.iterrows():
-        log.info("Phase5 | %s = %.4f", row["metric"], row["value"])
+        log.info("phase2 | %s = %.4f", row["metric"], row["value"])
 
     return summary_df, per_query_df
 
@@ -130,10 +130,10 @@ def write_retrieval_metrics(
     summary_df: pd.DataFrame,
     per_query_df: pd.DataFrame,
 ) -> None:
-    log.info("Phase5 | writing metrics to %s", out_dir)
+    log.info("phase2 | writing metrics to %s", out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    write_outputs(summary_df, out_dir / "phase5_retrieval_metrics_summary.csv")
-    write_outputs(per_query_df, out_dir / "phase5_retrieval_metrics_per_query.csv")
+    write_outputs(summary_df, out_dir / "phase2_retrieval_metrics_summary.csv")
+    write_outputs(per_query_df, out_dir / "phase2_retrieval_metrics_per_query.csv")
 
-    log.info("Phase5 | metrics written successfully")
+    log.info("phase2 | metrics written successfully")
