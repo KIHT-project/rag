@@ -1,0 +1,202 @@
+[
+  {
+    "query_id": "thrombosis_q001",
+    "question": "What are the strongest independent risk factors for venous thromboembolism in adults"
+  },
+  {
+    "query_id": "thrombosis_q002",
+    "question": "How does age modify venous thromboembolism risk across population cohorts"
+  },
+  {
+    "query_id": "thrombosis_q003",
+    "question": "What is the venous thromboembolism risk associated with obesity, and how is it quantified across studies"
+  },
+  {
+    "query_id": "thrombosis_q004",
+    "question": "How does smoking affect venous thromboembolism risk, and is the effect independent of other factors"
+  },
+  {
+    "query_id": "thrombosis_q005",
+    "question": "What is the recurrence risk after a first unprovoked venous thromboembolism, and what predictors are most validated"
+  },
+  {
+    "query_id": "thrombosis_q006",
+    "question": "What validated clinical prediction tools exist for venous thromboembolism risk assessment, and how do they compare"
+  },
+  {
+    "query_id": "thrombosis_q007",
+    "question": "What is the evidence for D dimer guided strategies to predict recurrence after anticoagulation discontinuation"
+  },
+  {
+    "query_id": "thrombosis_q008",
+    "question": "What is the relationship between inflammatory markers and venous thromboembolism risk in cohort studies"
+  },
+  {
+    "query_id": "thrombosis_q009",
+    "question": "What is the association between thrombophilia testing results and recurrence risk, and does it change management"
+  },
+  {
+    "query_id": "thrombosis_q010",
+    "question": "What is the relative contribution of transient risk factors versus persistent risk factors in venous thromboembolism incidence"
+  },
+  {
+    "query_id": "thrombosis_q011",
+    "question": "What is the venous thromboembolism risk after major orthopedic surgery, and what prophylaxis regimens reduce risk"
+  },
+  {
+    "query_id": "thrombosis_q012",
+    "question": "What is the evidence on venous thromboembolism risk after general surgery, and which patients benefit from extended prophylaxis"
+  },
+  {
+    "query_id": "thrombosis_q013",
+    "question": "What is the venous thromboembolism risk associated with prolonged immobilization, and what prevention strategies are supported"
+  },
+  {
+    "query_id": "thrombosis_q014",
+    "question": "What is the evidence for travel related venous thromboembolism risk, and what duration thresholds are used"
+  },
+  {
+    "query_id": "thrombosis_q015",
+    "question": "What is the venous thromboembolism risk associated with lower limb casting, and what prophylaxis is recommended"
+  },
+  {
+    "query_id": "thrombosis_q016",
+    "question": "What is the incidence of venous thromboembolism in trauma patients, and what prophylaxis approaches are best supported"
+  },
+  {
+    "query_id": "thrombosis_q017",
+    "question": "What perioperative anticoagulation interruption strategies minimize thrombosis without increasing bleeding excessively"
+  },
+  {
+    "query_id": "thrombosis_q018",
+    "question": "What cancers have the highest incidence of cancer associated thrombosis"
+  },
+  {
+    "query_id": "thrombosis_q019",
+    "question": "How does chemotherapy influence thrombosis risk, and which regimens are most associated"
+  },
+  {
+    "query_id": "thrombosis_q020",
+    "question": "What is the evidence for prophylactic anticoagulation in ambulatory cancer patients at high risk for thrombosis"
+  },
+  {
+    "query_id": "thrombosis_q021",
+    "question": "How do direct oral anticoagulants compare to low molecular weight heparin for treatment of cancer associated venous thromboembolism in effectiveness and bleeding"
+  },
+  {
+    "query_id": "thrombosis_q022",
+    "question": "What validated risk scores exist for cancer associated thrombosis, and how are they used"
+  },
+  {
+    "query_id": "thrombosis_q023",
+    "question": "What is the evidence for duration of anticoagulation in cancer associated venous thromboembolism"
+  },
+  {
+    "query_id": "thrombosis_q024",
+    "question": "What is the risk of venous thromboembolism during pregnancy and postpartum, and how does it vary by period"
+  },
+  {
+    "query_id": "thrombosis_q025",
+    "question": "What risk factors most strongly predict pregnancy associated venous thromboembolism"
+  },
+  {
+    "query_id": "thrombosis_q026",
+    "question": "What is the venous thromboembolism risk associated with combined oral contraceptives across different formulations"
+  },
+  {
+    "query_id": "thrombosis_q027",
+    "question": "What is the venous thromboembolism risk associated with hormone replacement therapy, and how does route of administration affect risk"
+  },
+  {
+    "query_id": "thrombosis_q028",
+    "question": "What is the evidence for thromboprophylaxis in high risk pregnancy, including prior venous thromboembolism"
+  },
+  {
+    "query_id": "thrombosis_q029",
+    "question": "How does inherited thrombophilia modify pregnancy related venous thromboembolism risk, and what screening is supported"
+  },
+  {
+    "query_id": "thrombosis_q030",
+    "question": "What is the clinical significance of Factor V Leiden for first venous thromboembolism risk and recurrence"
+  },
+  {
+    "query_id": "thrombosis_q031",
+    "question": "What is the clinical significance of prothrombin G20210A mutation for venous thromboembolism risk"
+  },
+  {
+    "query_id": "thrombosis_q032",
+    "question": "What is the evidence that protein C, protein S, and antithrombin deficiencies increase venous thromboembolism risk"
+  },
+  {
+    "query_id": "thrombosis_q033",
+    "question": "What is the evidence for antiphospholipid syndrome and thrombosis, and how is diagnosis operationalized"
+  },
+  {
+    "query_id": "thrombosis_q034",
+    "question": "How do direct oral anticoagulants perform in antiphospholipid syndrome compared with warfarin, and what risks are reported"
+  },
+  {
+    "query_id": "thrombosis_q035",
+    "question": "What is the role of thrombophilia testing after provoked versus unprovoked venous thromboembolism"
+  },
+  {
+    "query_id": "thrombosis_q036",
+    "question": "How accurate is D dimer for ruling out venous thromboembolism across age groups, and what adjusted thresholds are supported"
+  },
+  {
+    "query_id": "thrombosis_q037",
+    "question": "What is the evidence for clinical decision rules like Wells or Geneva in suspected deep vein thrombosis or pulmonary embolism"
+  },
+  {
+    "query_id": "thrombosis_q038",
+    "question": "What imaging modalities are best supported for deep vein thrombosis diagnosis, and in which clinical contexts"
+  },
+  {
+    "query_id": "thrombosis_q039",
+    "question": "What imaging modalities are best supported for pulmonary embolism diagnosis, and in which clinical contexts"
+  },
+  {
+    "query_id": "thrombosis_q040",
+    "question": "What is the evidence for biomarker guided risk stratification in acute pulmonary embolism, including troponin and BNP"
+  },
+  {
+    "query_id": "thrombosis_q041",
+    "question": "What is the relationship between platelet count and thrombosis risk across relevant conditions"
+  },
+  {
+    "query_id": "thrombosis_q042",
+    "question": "How do direct oral anticoagulants compare to warfarin for treatment of venous thromboembolism regarding recurrence and major bleeding"
+  },
+  {
+    "query_id": "thrombosis_q043",
+    "question": "What is the evidence for treatment duration in provoked venous thromboembolism"
+  },
+  {
+    "query_id": "thrombosis_q044",
+    "question": "What is the evidence for treatment duration in unprovoked venous thromboembolism"
+  },
+  {
+    "query_id": "thrombosis_q045",
+    "question": "What is the evidence for extended low dose anticoagulation to prevent venous thromboembolism recurrence"
+  },
+  {
+    "query_id": "thrombosis_q046",
+    "question": "What is the evidence for catheter directed thrombolysis in iliofemoral deep vein thrombosis outcomes"
+  },
+  {
+    "query_id": "thrombosis_q047",
+    "question": "What is the evidence for thrombolysis in massive or submassive pulmonary embolism outcomes"
+  },
+  {
+    "query_id": "thrombosis_q048",
+    "question": "What factors predict post thrombotic syndrome, and what interventions reduce its incidence"
+  },
+  {
+    "query_id": "thrombosis_q049",
+    "question": "What is the evidence for compression therapy in preventing post thrombotic syndrome"
+  },
+  {
+    "query_id": "thrombosis_q050",
+    "question": "What is the comparative evidence for inferior vena cava filters, including benefits, harms, and indications"
+  }
+]
