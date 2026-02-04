@@ -251,7 +251,7 @@ class QdrantVectorIndex(VectorWriter):
 
         except UnexpectedResponse as exc:
             status_code = getattr(getattr(exc, "response", None), "status_code", None)
-            if status_code == 404:
+            if status_code == 404 or (status_code is None and "not found" in str(exc).lower()):
                 log.debug(
                     "Qdrant collection missing during exists check, treating as not found, name=%s",
                     name,
@@ -272,6 +272,75 @@ class QdrantVectorIndex(VectorWriter):
                 details={"collection": name, "doc_id": doc_id},
                 retryable=True,
             ) from exc
+
+    def _delete_any(self, *, name: str, doc_id: str) -> Any:
+        selector = Filter(
+            must=[
+                FieldCondition(
+                    key="doc_id",
+                    match=MatchValue(value=doc_id),
+                )
+            ]
+        )
+
+        if hasattr(self.client, "delete"):
+            return self.client.delete(
+                collection_name=name,
+                points_selector=selector,
+                wait=True,
+            )
+
+        if hasattr(self.client, "delete_points"):
+            return self.client.delete_points(
+                collection_name=name,
+                points_selector=selector,
+                wait=True,
+            )
+
+        raise AttributeError("No compatible delete method found on QdrantClient")
+
+    async def delete_by_doc_id(self, *, embedding_model_id: str, doc_id: str) -> None:
+        if not doc_id:
+            return
+
+        name = self._collection_name(embedding_model_id=embedding_model_id)
+
+        try:
+            await self._call_blocking(lambda: self._delete_any(name=name, doc_id=doc_id))
+
+        except AttributeError as exc:
+            raise SystemError(
+                code="qdrant_client_incompatible",
+                message="Installed qdrant client is incompatible with this server code",
+                details={"missing": "delete or delete_points"},
+                retryable=False,
+            ) from exc
+
+        except UnexpectedResponse as exc:
+            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            if status_code == 404:
+                log.debug(
+                    "Qdrant collection missing during delete_by_doc_id, name=%s",
+                    name,
+                )
+                return
+
+            raise SystemError(
+                code="qdrant_delete_failed",
+                message="Failed to delete vectors from qdrant",
+                details={"collection": name, "status_code": status_code},
+                retryable=True,
+            ) from exc
+
+        except Exception as exc:
+            raise SystemError(
+                code="qdrant_delete_failed",
+                message="Failed to delete vectors from qdrant",
+                details={"collection": name},
+                retryable=True,
+            ) from exc
+
+        log.info("Qdrant delete completed, name=%s, doc_id=%s", name, doc_id)
 
     def _resolve_filter(self, raw: object | None) -> Filter | None:
         if isinstance(raw, Filter):
