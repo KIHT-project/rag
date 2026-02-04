@@ -10,7 +10,7 @@ from starlette.responses import Response
 from biomed_platform.api.endpoints.ingestion import _resolve_effective_embedding_model_id as _resolve_ingest_model
 from biomed_platform.api.endpoints.ingestion import ingest_items
 from biomed_platform.api.endpoints.documents import _resolve_effective_embedding_model_id as _resolve_delete_model
-from biomed_platform.api.endpoints.documents import delete_document
+from biomed_platform.api.endpoints.documents import delete_document, get_document, list_dois
 from biomed_platform.api.endpoints.retrieval import _resolve_effective_embedding_model_id as _resolve_search_model
 from biomed_platform.api.endpoints.retrieval import search
 from biomed_platform.api.endpoints.system import health_check, readiness_check
@@ -143,6 +143,117 @@ async def test_delete_document_endpoint_errors_when_missing_service() -> None:
 
 
 @pytest.mark.anyio
+async def test_get_document_endpoint_calls_use_case(monkeypatch) -> None:
+    # Given
+    app = SimpleNamespace(state=SimpleNamespace(settings=_Settings(embedding_provider="mdef")))
+    req = _make_request(app)
+
+    vector_index = AsyncMock()
+    app.state.vector_index = vector_index
+
+    captured: dict[str, object] = {}
+
+    class _UseCase:
+        def __init__(self, *, vector_index) -> None:
+            self.vector_index = vector_index
+
+        async def get_by_doi(self, *, request_id: str, embedding_model_id: str, doi: str):
+            captured["request_id"] = request_id
+            captured["embedding_model_id"] = embedding_model_id
+            captured["doi"] = doi
+            return schemas.DocumentResponse(
+                request_id=request_id,
+                doc_id="doc",
+                doi=doi,
+                chunk_ids=["c1"],
+                chunk_total=1,
+                authors=None,
+                journal=None,
+                year=None,
+                source_type=None,
+                title=None,
+                content_text="text",
+                updated_at="2026-01-18T14:32:05Z",
+            )
+
+    monkeypatch.setattr(
+        "biomed_platform.api.endpoints.documents.DocumentLookupUseCase",
+        _UseCase,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "biomed_platform.api.endpoints.documents.get_request_id",
+        lambda: "rid",
+        raising=True,
+    )
+
+    # When
+    res = await get_document(req, "10.1000/xyz123")
+
+    # Then
+    assert res.request_id == "rid"
+    assert res.doi == "10.1000/xyz123"
+    assert captured == {
+        "request_id": "rid",
+        "embedding_model_id": "mdef",
+        "doi": "10.1000/xyz123",
+    }
+
+
+@pytest.mark.anyio
+async def test_list_dois_endpoint_calls_use_case(monkeypatch) -> None:
+    # Given
+    app = SimpleNamespace(state=SimpleNamespace(settings=_Settings(embedding_provider="mdef")))
+    req = _make_request(app)
+
+    vector_index = AsyncMock()
+    app.state.vector_index = vector_index
+
+    captured: dict[str, object] = {}
+
+    class _UseCase:
+        def __init__(self, *, vector_index) -> None:
+            self.vector_index = vector_index
+
+        async def list_dois(
+            self,
+            *,
+            request_id: str,
+            embedding_model_id: str,
+            include_document_info: bool,
+        ):
+            captured["request_id"] = request_id
+            captured["embedding_model_id"] = embedding_model_id
+            captured["include_document_info"] = include_document_info
+            return schemas.DoiListSimpleResponse(
+                request_id=request_id,
+                dois=["10.1/a"],
+            )
+
+    monkeypatch.setattr(
+        "biomed_platform.api.endpoints.documents.DocumentLookupUseCase",
+        _UseCase,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "biomed_platform.api.endpoints.documents.get_request_id",
+        lambda: "rid",
+        raising=True,
+    )
+
+    # When
+    res = await list_dois(req, x_include_document_info=True)
+
+    # Then
+    assert res.request_id == "rid"
+    assert captured == {
+        "request_id": "rid",
+        "embedding_model_id": "mdef",
+        "include_document_info": True,
+    }
+
+
+@pytest.mark.anyio
 async def test_ingestion_endpoint_resolves_model_and_calls_service(monkeypatch) -> None:
     # Given, a request with settings default model id
     app = SimpleNamespace(state=SimpleNamespace(settings=_Settings(embedding_provider="mdef")))
@@ -260,4 +371,3 @@ async def test_system_readiness_sets_status_code(monkeypatch) -> None:
 
     # Then
     assert resp2.status_code == 503
-

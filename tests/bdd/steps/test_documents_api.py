@@ -4,7 +4,12 @@ from typing import Any
 
 from pytest_bdd import given, scenario, then, when
 
-from tests.bdd.helpers.documents_api import delete_document, extract_error_code
+from tests.bdd.helpers.documents_api import (
+    delete_document,
+    extract_error_code,
+    get_document,
+    list_dois,
+)
 from tests.bdd.helpers.ingestion_api import (
     extract_job_id,
     extract_request_id,
@@ -26,6 +31,21 @@ def test_delete_not_found_path():
 
 @scenario("../features/documents.feature", "Invalid DOI path")
 def test_delete_invalid_doi_path():
+    pass
+
+
+@scenario("../features/documents.feature", "Get document by DOI")
+def test_get_document_by_doi():
+    pass
+
+
+@scenario("../features/documents.feature", "List DOIs simple")
+def test_list_dois_simple():
+    pass
+
+
+@scenario("../features/documents.feature", "List DOIs with document info")
+def test_list_dois_with_document_info():
     pass
 
 
@@ -107,9 +127,32 @@ def when_delete_invalid_doi(client, ctx):
     ctx["res"] = res
 
 
+@when("I GET the document by doi")
+def when_get_document(client, ctx):
+    res = get_document(client, doi=ctx["doi"], request_id="bdd-doc-get-1")
+    ctx["res"] = res
+
+
+@when("I GET the doi list")
+def when_get_doi_list(client, ctx):
+    res = list_dois(client, request_id="bdd-doc-list-1")
+    ctx["res"] = res
+
+
+@when("I GET the doi list with document info")
+def when_get_doi_list_with_info(client, ctx):
+    res = list_dois(client, include_document_info=True, request_id="bdd-doc-list-2")
+    ctx["res"] = res
+
+
 @then("the response status is 204")
 def then_204(ctx):
     assert ctx["res"].status_code == 204
+
+
+@then("the response status is 200")
+def then_200(ctx):
+    assert ctx["res"].status_code == 200
 
 
 @then("the response status is 404")
@@ -136,3 +179,25 @@ def then_error_not_found(ctx):
 @then("the error code is validation_error")
 def then_error_validation(ctx):
     assert extract_error_code(ctx["res"]) == "validation_error"
+
+
+@then("the document doi matches")
+def then_document_doi_matches(ctx):
+    body = json_body(ctx["res"])
+    assert body.get("doi") == ctx["doi"]
+
+
+@then("the doi list includes the ingested doi")
+def then_doi_list_includes(ctx):
+    body = json_body(ctx["res"])
+    dois = body.get("dois")
+    assert isinstance(dois, list)
+    assert ctx["doi"] in dois
+
+
+@then("the document list includes the ingested doi")
+def then_document_list_includes(ctx):
+    body = json_body(ctx["res"])
+    docs = body.get("documents")
+    assert isinstance(docs, list)
+    assert any(isinstance(d, dict) and d.get("doi") == ctx["doi"] for d in docs)

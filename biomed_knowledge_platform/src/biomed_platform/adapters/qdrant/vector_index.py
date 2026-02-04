@@ -564,6 +564,49 @@ class QdrantVectorIndex(VectorWriter):
 
         return self._map_hits_without_score(points)
 
+    async def fetch_all(
+        self,
+        *,
+        embedding_model_id: str,
+        limit: int = 20000,
+    ) -> list[VectorSearchHit]:
+        name = self._collection_name(embedding_model_id=embedding_model_id)
+
+        try:
+            points = await self._call_blocking(
+                lambda: self._scroll_all(
+                    name=name,
+                    scroll_filter=Filter(must=[]),
+                    limit=limit,
+                )
+            )
+
+        except UnexpectedResponse as exc:
+            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            if status_code == 404:
+                log.debug(
+                    "Qdrant collection missing during fetch_all, returning empty, name=%s",
+                    name,
+                )
+                return []
+
+            raise SystemError(
+                code="qdrant_fetch_failed",
+                message="Failed to fetch document chunks from qdrant",
+                details={"collection": name, "status_code": status_code},
+                retryable=True,
+            ) from exc
+
+        except Exception as exc:
+            raise SystemError(
+                code="qdrant_fetch_failed",
+                message="Failed to fetch document chunks from qdrant",
+                details={"collection": name},
+                retryable=True,
+            ) from exc
+
+        return self._map_hits_without_score(points)
+
     def _to_filter(self, raw: dict[str, object]) -> Filter | None:
         must: list[Any] = []
 

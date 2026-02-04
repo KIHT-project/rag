@@ -13,7 +13,7 @@ from biomed_platform.core.use_cases.ask import AskUseCase
 
 log = get_logger(__name__)
 
-router = APIRouter(prefix="/v1/ask", tags=["Dummy"])
+router = APIRouter(prefix="/v1/ask", tags=["Retrieval"])
 
 
 def _require_embedding_model_id(*, settings: Any) -> str:

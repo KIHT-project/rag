@@ -8,3 +8,4 @@ per-file-ignores =
     src/biomed_platform/core/services/hyde/prompt_templates.py:E501
     src/biomed_platform/core/services/hallucination/synthesis.py:E501, W503, E203
     src/biomed_platform/core/services/readiness.py:E203, W503
+    src/biomed_platform/core/use_cases/document_lookup.py: W503
