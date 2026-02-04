@@ -43,11 +43,12 @@ def _get_optional_attr(obj: Any, name: str) -> Any:
     return getattr(obj, name, None)
 
 
-@router.post("")
+@router.post("", response_model=schemas.AskResponseEnvelope, response_model_exclude_none=True)
 async def ask(
     request: Request,
     payload: schemas.AskRequest,
     x_hyde_enabled: Optional[bool] = Header(default=None, alias="X-HyDE-Enabled"),
+    x_debug_enabled: Optional[bool] = Header(default=None, alias="X-Debug-Enabled"),
 ):
     app = request.app
     settings = app.state.settings
@@ -79,6 +80,7 @@ async def ask(
 
     cfg_hyde_enabled = bool(llm_cfg.get("hyde_enabled", False))
     hyde_enabled = bool(x_hyde_enabled) if x_hyde_enabled is not None else cfg_hyde_enabled
+    debug_enabled = bool(x_debug_enabled) if x_debug_enabled is not None else False
 
     log.info(
         "Ask chunk limits resolved | candidate_k=%s | final_k=%s | hyde_enabled=%s",
@@ -122,5 +124,5 @@ async def ask(
         ask_max_chunks_final=int(ask_max_chunks_final),
         ask_max_context_chars=int(synthesis_max_context_chars),
         ask_llm_max_retries=int(synthesis_max_retries),
-        debug_enabled=True,
+        debug_enabled=debug_enabled,
     )

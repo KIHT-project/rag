@@ -490,6 +490,13 @@ paths:
         description: Enable HyDE hybrid retrieval when true
         schema:
           type: boolean
+      - name: x-debug-enabled
+        in: header
+        required: false
+        description: Enable debug response payload when true (default false)
+        schema:
+          type: boolean
+          default: false
       requestBody:
         required: true
         content:
