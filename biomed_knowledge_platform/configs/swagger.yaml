@@ -2,9 +2,8 @@ openapi: 3.1.0
 info:
   title: Biomed Knowledge Platform API
   version: 1.0.0
-  description: 'High-performance API for thrombosis knowledge extraction. Supports
-    DOI-based ingestion, Qdrant vector retrieval, and RAG-based risk factor extraction.'
-
+  description: High-performance API for thrombosis knowledge extraction. Supports
+    DOI-based ingestion, Qdrant vector retrieval, and RAG-based risk factor extraction.
 servers:
 - url: http://localhost:8000
   description: Root server, system endpoints and versioned API
@@ -15,6 +14,8 @@ tags:
   description: Operations related to DOI processing and vector storage.
 - name: Retrieval
   description: Search and RAG (Retrieval-Augmented Generation) operations.
+- name: Documents
+  description: Operations related to read/delete existing DOIs.
 paths:
   /health:
     get:
@@ -226,7 +227,7 @@ paths:
   /v1/documents/{doi}:
     patch:
       tags:
-      - Ingestion
+      - Documents
       summary: Patch a document by DOI
       operationId: patchDocumentByDoi
       description: 'Updates stored document metadata and, if content_text is provided,
@@ -339,7 +340,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     delete:
       tags:
-      - Ingestion
+      - Documents
       summary: Delete a document by DOI
       operationId: deleteDocumentByDoi
       description: 'Deletes all stored chunks and metadata for the given DOI in the
@@ -398,6 +399,83 @@ paths:
             Retry-After:
               schema:
                 type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      tags:
+      - Retrieval
+      summary: Get a document by DOI
+      operationId: getDocumentByDoi
+      description: Returns all stored information for a single DOI, including current
+        stored text and chunk ids.
+      parameters:
+      - name: X-Request-Id
+        in: header
+        required: false
+        description: Optional request id for tracing
+        schema:
+          type: string
+      - name: doi
+        in: path
+        required: true
+        description: URL-encoded DOI (slashes must be percent-encoded)
+        allowReserved: true
+        schema:
+          type: string
+          minLength: 3
+          maxLength: 512
+      responses:
+        '200':
+          description: Document
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          description: Validation error
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: DOI not found
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: System error
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -547,6 +625,90 @@ paths:
             Retry-After:
               schema:
                 type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/documents:
+    get:
+      tags:
+      - Documents
+      summary: List ingested DOIs
+      operationId: listDois
+      description: Lists all currently stored DOIs. If header X-Include-Document-Info
+        is true, returns full document info per DOI.
+      parameters:
+      - name: X-Request-Id
+        in: header
+        required: false
+        description: Optional request id for tracing
+        schema:
+          type: string
+      - name: X-Include-Document-Info
+        in: header
+        required: false
+        description: If true, include full document info per DOI in the response
+        schema:
+          type: boolean
+          default: false
+      responses:
+        '200':
+          description: DOI list
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/DoiListSimpleResponse'
+                - $ref: '#/components/schemas/DoiListExpandedResponse'
+              examples:
+                simple:
+                  value:
+                    request_id: req_123
+                    dois:
+                    - 10.1000/xyz123
+                    - 10.5555/abc987
+                expanded:
+                  value:
+                    request_id: req_123
+                    documents:
+                    - doc_id: doc_1
+                      doi: 10.1000/xyz123
+                      chunk_ids:
+                      - chunk_1
+                      - chunk_2
+                      chunk_total: 2
+                      authors:
+                      - A Author
+                      - B Author
+                      journal: Journal Name
+                      year: 2024
+                      source_type: pubmed_abstract
+                      title: Paper title
+                      content_text: Abstract text
+                      updated_at: '2026-01-18T14:32:05Z'
+        '429':
+          description: Too many requests
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: System error
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -1126,3 +1288,72 @@ components:
       - effective_hyde_enabled
       - answer
       - citations
+    DocumentInfo:
+      type: object
+      additionalProperties: false
+      properties:
+        doc_id:
+          type: string
+        doi:
+          type: string
+          description: Original DOI string for end users
+        chunk_ids:
+          type: array
+          items:
+            type: string
+        chunk_total:
+          type: integer
+          minimum: 1
+        authors:
+          type: array
+          items:
+            type: string
+        journal:
+          type: string
+        year:
+          type: integer
+        source_type:
+          $ref: '#/components/schemas/SourceType'
+        title:
+          type: string
+        content_text:
+          type: string
+          description: Current stored document text assembled from all chunks
+        updated_at:
+          type: string
+          format: date-time
+          description: UTC timestamp in ISO 8601 format
+      required:
+      - doc_id
+      - doi
+      - chunk_ids
+      - chunk_total
+      - content_text
+      - updated_at
+    DoiListSimpleResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        request_id:
+          type: string
+        dois:
+          type: array
+          items:
+            type: string
+          description: List of stored DOIs
+      required:
+      - request_id
+      - dois
+    DoiListExpandedResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        request_id:
+          type: string
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentInfo'
+      required:
+      - request_id
+      - documents

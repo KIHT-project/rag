@@ -482,3 +482,38 @@ class AskResponseEnvelope(BaseModel):
         dict[str, Any] | None,
         Field(description="Optional debug information, may be disabled in production"),
     ] = None
+
+
+class DocumentInfo(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    doc_id: str
+    doi: Annotated[str, Field(description="Original DOI string for end users")]
+    chunk_ids: list[str]
+    chunk_total: Annotated[int, Field(ge=1)]
+    authors: list[str] | None = None
+    journal: str | None = None
+    year: int | None = None
+    source_type: SourceType | None = None
+    title: str | None = None
+    content_text: Annotated[
+        str, Field(description="Current stored document text assembled from all chunks")
+    ]
+    updated_at: Annotated[AwareDatetime, Field(description="UTC timestamp in ISO 8601 format")]
+
+
+class DoiListSimpleResponse(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    request_id: str
+    dois: Annotated[list[str], Field(description="List of stored DOIs")]
+
+
+class DoiListExpandedResponse(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    request_id: str
+    documents: list[DocumentInfo]
