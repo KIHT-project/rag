@@ -1,6 +1,7 @@
 # src/biomed_platform/api/app.py
 from __future__ import annotations
 from biomed_platform.api.endpoints.ask import router as ask_router
+from biomed_platform.api.endpoints.documents import router as documents_router
 from biomed_platform.api.endpoints.retrieval import router as retrieval_router
 
 import asyncio
@@ -235,6 +236,7 @@ def create_app() -> FastAPI:
 
     app.state.settings = settings
     app.state.ingestion_service = service
+    app.state.document_registry = document_registry
     app.state.search_use_case = search_use_case
     app.state.embedding_provider = embedder
     app.state.vector_index = index
@@ -242,6 +244,7 @@ def create_app() -> FastAPI:
     app.include_router(system_router)
     app.include_router(v1_router)
     app.include_router(ingestion_router)
+    app.include_router(documents_router)
     app.include_router(retrieval_router)
     app.include_router(ask_router)
 

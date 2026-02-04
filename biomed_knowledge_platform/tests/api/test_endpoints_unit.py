@@ -9,6 +9,8 @@ from starlette.responses import Response
 
 from biomed_platform.api.endpoints.ingestion import _resolve_effective_embedding_model_id as _resolve_ingest_model
 from biomed_platform.api.endpoints.ingestion import ingest_items
+from biomed_platform.api.endpoints.documents import _resolve_effective_embedding_model_id as _resolve_delete_model
+from biomed_platform.api.endpoints.documents import delete_document
 from biomed_platform.api.endpoints.retrieval import _resolve_effective_embedding_model_id as _resolve_search_model
 from biomed_platform.api.endpoints.retrieval import search
 from biomed_platform.api.endpoints.system import health_check, readiness_check
@@ -76,6 +78,68 @@ def test_health_check() -> None:
     out = health_check()
     # Then
     assert out == {"status": "ok"}
+
+
+@pytest.mark.anyio
+async def test_delete_document_endpoint_resolves_model_and_calls_use_case(monkeypatch) -> None:
+    # Given
+    app = SimpleNamespace(state=SimpleNamespace(settings=_Settings(embedding_provider="mdef")))
+    req = _make_request(app)
+
+    assert _resolve_delete_model(request=req) == "mdef"
+
+    vector_index = AsyncMock()
+    document_registry = AsyncMock()
+    app.state.vector_index = vector_index
+    app.state.document_registry = document_registry
+
+    captured: dict[str, object] = {}
+
+    class _UseCase:
+        def __init__(self, *, vector_index, document_registry) -> None:
+            self.vector_index = vector_index
+            self.document_registry = document_registry
+
+        async def execute(self, *, request_id: str, embedding_model_id: str, doi: str) -> None:
+            captured["request_id"] = request_id
+            captured["embedding_model_id"] = embedding_model_id
+            captured["doi"] = doi
+
+    monkeypatch.setattr(
+        "biomed_platform.api.endpoints.documents.DeleteDocumentUseCase",
+        _UseCase,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        "biomed_platform.api.endpoints.documents.get_request_id",
+        lambda: "rid",
+        raising=True,
+    )
+
+    # When
+    res = await delete_document(req, "10.1000/xyz123")
+
+    # Then
+    assert res.status_code == 204
+    assert captured == {
+        "request_id": "rid",
+        "embedding_model_id": "mdef",
+        "doi": "10.1000/xyz123",
+    }
+
+
+@pytest.mark.anyio
+async def test_delete_document_endpoint_errors_when_missing_service() -> None:
+    # Given
+    app = SimpleNamespace(state=SimpleNamespace(settings=_Settings(embedding_provider="mdef")))
+    req = _make_request(app)
+
+    # When
+    with pytest.raises(SystemError) as exc:
+        await delete_document(req, "10.1000/xyz123")
+
+    # Then
+    assert exc.value.code == "service_not_configured"
 
 
 @pytest.mark.anyio
@@ -196,5 +260,4 @@ async def test_system_readiness_sets_status_code(monkeypatch) -> None:
 
     # Then
     assert resp2.status_code == 503
-
 

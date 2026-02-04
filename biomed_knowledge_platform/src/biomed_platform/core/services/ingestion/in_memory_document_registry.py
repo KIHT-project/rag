@@ -96,3 +96,30 @@ class InMemoryDocumentRegistry(DocumentRegistry):
                 existed,
                 len(space.reserved),
             )
+
+    async def is_reserved(self, *, embedding_model_id: str, doc_id: str) -> bool:
+        async with self._lock:
+            space = self._space(embedding_model_id)
+            return doc_id in space.reserved
+
+    async def is_committed(self, *, embedding_model_id: str, doc_id: str) -> bool:
+        async with self._lock:
+            space = self._space(embedding_model_id)
+            return doc_id in space.committed
+
+    async def delete(self, *, embedding_model_id: str, doc_id: str) -> None:
+        async with self._lock:
+            space = self._space(embedding_model_id)
+            was_reserved = doc_id in space.reserved
+            was_committed = doc_id in space.committed
+            space.reserved.discard(doc_id)
+            space.committed.discard(doc_id)
+
+            log.debug(
+                "Doc_id deleted, embedding_model_id=%s, doc_id=%s, "
+                "was_reserved=%s, was_committed=%s",
+                embedding_model_id,
+                doc_id,
+                was_reserved,
+                was_committed,
+            )

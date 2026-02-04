@@ -251,6 +251,8 @@ paths:
       - name: doi
         in: path
         required: true
+        description: URL-encoded DOI (slashes must be percent-encoded)
+        allowReserved: true
         schema:
           type: string
           minLength: 3
@@ -354,6 +356,8 @@ paths:
       - name: doi
         in: path
         required: true
+        description: URL-encoded DOI (slashes must be percent-encoded)
+        allowReserved: true
         schema:
           type: string
           minLength: 3
