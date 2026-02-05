@@ -480,6 +480,192 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /v1/documents/fetch:
+    post:
+      tags:
+      - Documents
+      summary: Fetch a document by DOI or PMID
+      operationId: fetchDocument
+      description: Fetches document metadata and text from PubMed/PMC. If X-Ingest-Enabled
+        is true (default), the fetched content is ingested immediately (abstract
+        only if full text unavailable).
+      parameters:
+      - name: X-Request-Id
+        in: header
+        required: false
+        description: Optional request id for tracing
+        schema:
+          type: string
+      - name: X-Ingest-Enabled
+        in: header
+        required: false
+        description: If true (default), ingest fetched content into the vector index
+        schema:
+          type: boolean
+          default: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentFetchRequest'
+      responses:
+        '200':
+          description: Document fetched
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentFetchResponse'
+        '400':
+          description: Validation error
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: DOI or PMID not found
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict, for example duplicate DOI on ingest
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: System error
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/documents/fetch/batch:
+    post:
+      tags:
+      - Documents
+      summary: Fetch documents by DOI or PMID (async)
+      operationId: fetchDocumentsBatch
+      description: Enqueues retrieval (and optional ingest) for multiple documents.
+        If X-Ingest-Enabled is true (default), ingests fetched content into the vector
+        index.
+      parameters:
+      - name: X-Request-Id
+        in: header
+        required: false
+        description: Optional request id for tracing
+        schema:
+          type: string
+      - name: X-Ingest-Enabled
+        in: header
+        required: false
+        description: If true (default), ingest fetched content into the vector index
+        schema:
+          type: boolean
+          default: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentFetchBatchRequest'
+      responses:
+        '202':
+          description: Accepted
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentFetchBatchAcceptedResponse'
+        '400':
+          description: Validation error
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: System error
+          headers:
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/search:
     post:
       tags:
@@ -814,6 +1000,8 @@ components:
       type: string
       enum:
       - thrombosis
+      - unknown
+      - cancer
       description: Disease scope for v1
     SourceType:
       type: string
@@ -950,6 +1138,8 @@ components:
           type: string
         year:
           type: integer
+        disease:
+          $ref: '#/components/schemas/Disease'
         source_type:
           $ref: '#/components/schemas/SourceType'
         title:
@@ -1137,6 +1327,8 @@ components:
           type: number
         year:
           type: integer
+        disease:
+          $ref: '#/components/schemas/Disease'
         source_type:
           $ref: '#/components/schemas/SourceType'
         title:
@@ -1312,6 +1504,8 @@ components:
           type: string
         year:
           type: integer
+        disease:
+          $ref: '#/components/schemas/Disease'
         source_type:
           $ref: '#/components/schemas/SourceType'
         title:
@@ -1357,3 +1551,94 @@ components:
       required:
       - request_id
       - documents
+    DocumentFetchByDoiRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        doi:
+          type: string
+          minLength: 3
+          maxLength: 512
+      required:
+      - doi
+    DocumentFetchByPmidRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        pmid:
+          type: string
+          minLength: 1
+          maxLength: 32
+      required:
+      - pmid
+    DocumentFetchRequest:
+      oneOf:
+      - $ref: '#/components/schemas/DocumentFetchByDoiRequest'
+      - $ref: '#/components/schemas/DocumentFetchByPmidRequest'
+      description: Provide either DOI or PMID
+    DocumentFetchBatchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentFetchRequest'
+          minItems: 1
+          maxItems: 100
+      required:
+      - items
+    ContentTextSource:
+      type: string
+      enum:
+      - pmc
+      - abstract
+    DocumentFetchResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        request_id:
+          type: string
+        doi:
+          type: string
+        pmid:
+          type: string
+        title:
+          type: string
+        journal:
+          type: string
+        year:
+          type: integer
+        authors:
+          type: array
+          items:
+            type: string
+        source_type:
+          $ref: '#/components/schemas/SourceType'
+        content_text:
+          type: string
+        content_text_source:
+          $ref: '#/components/schemas/ContentTextSource'
+        full_text_available:
+          type: boolean
+        ingest:
+          $ref: '#/components/schemas/IngestJobAcceptedResponse'
+      required:
+      - request_id
+      - content_text
+      - content_text_source
+      - full_text_available
+    DocumentFetchBatchAcceptedResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        request_id:
+          type: string
+        job_id:
+          type: string
+        state:
+          $ref: '#/components/schemas/JobState'
+      required:
+      - request_id
+      - job_id
+      - state

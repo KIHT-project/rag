@@ -39,6 +39,7 @@ from biomed_platform.core.services.ingestion.in_memory_payload_store import (
 from biomed_platform.core.services.ingestion.pipeline import DefaultIngestionPipeline
 from biomed_platform.adapters.qdrant.vector_index import QdrantVectorIndex, parse_distance
 from biomed_platform.adapters.ollama.ollama_client import OllamaLlmClient
+from biomed_platform.adapters.pubmed import PubMedClientAdapter
 from biomed_platform.core.use_cases.search import SearchUseCase
 from biomed_platform.core.services.ingestion.sentence_transformers_embedder import (
     SentenceTransformersEmbeddingProvider,
@@ -180,6 +181,7 @@ def create_app() -> FastAPI:
         await run_migrations(pg_cfg=pg_cfg)
 
         llm_http_client = httpx.AsyncClient(timeout=httpx.Timeout(llm_timeout_seconds))
+        pubmed_http_client = httpx.AsyncClient(timeout=httpx.Timeout(10.0))
         llm_semaphore = asyncio.Semaphore(max(1, llm_max_concurrency))
         llm_client = OllamaLlmClient(
             base_url=ollama_base_url,
@@ -189,6 +191,8 @@ def create_app() -> FastAPI:
         )
         app.state.llm_http_client = llm_http_client
         app.state.llm_client = llm_client
+        app.state.pubmed_http_client = pubmed_http_client
+        app.state.pubmed_client = PubMedClientAdapter(client=pubmed_http_client, max_retries=2)
 
         worker_tasks: list[asyncio.Task[None]] = []
 
@@ -222,6 +226,7 @@ def create_app() -> FastAPI:
             await asyncio.gather(*worker_tasks, return_exceptions=True)
 
             await llm_http_client.aclose()
+            await pubmed_http_client.aclose()
 
             await db_engine.dispose()
 

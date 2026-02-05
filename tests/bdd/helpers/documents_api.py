@@ -11,6 +11,8 @@ __all__ = [
     "delete_document",
     "get_document",
     "list_dois",
+    "post_fetch_document",
+    "post_fetch_batch",
     "extract_error_code",
 ]
 
@@ -56,6 +58,36 @@ def list_dois(
         headers["X-Include-Document-Info"] = "true" if include_document_info else "false"
 
     return client.get("/v1/documents", headers=headers)
+
+
+def post_fetch_document(
+    client: TestClient,
+    *,
+    payload: dict[str, Any],
+    ingest_enabled: bool | None = None,
+    request_id: str | None = None,
+) -> Any:
+    headers: dict[str, str] = {}
+    if request_id:
+        headers["X-Request-Id"] = request_id
+    if ingest_enabled is not None:
+        headers["X-Ingest-Enabled"] = "true" if ingest_enabled else "false"
+    return client.post("/v1/documents/fetch", json=payload, headers=headers)
+
+
+def post_fetch_batch(
+    client: TestClient,
+    *,
+    payload: dict[str, Any],
+    ingest_enabled: bool | None = None,
+    request_id: str | None = None,
+) -> Any:
+    headers: dict[str, str] = {}
+    if request_id:
+        headers["X-Request-Id"] = request_id
+    if ingest_enabled is not None:
+        headers["X-Ingest-Enabled"] = "true" if ingest_enabled else "false"
+    return client.post("/v1/documents/fetch/batch", json=payload, headers=headers)
 
 
 def extract_error_code(res: Any) -> str:
