@@ -69,6 +69,8 @@ class ReadinessResponse(BaseModel):
 
 class Disease(StrEnum):
     thrombosis = "thrombosis"
+    unknown = "unknown"
+    cancer = "cancer"
 
 
 class SourceType(StrEnum):
@@ -270,6 +272,7 @@ class DocumentResponse(BaseModel):
     authors: list[str] | None = None
     journal: str | None = None
     year: int | None = None
+    disease: Disease | None = None
     source_type: SourceType | None = None
     title: str | None = None
     content_text: Annotated[
@@ -373,6 +376,7 @@ class SearchHit(BaseModel):
     journal: str | None = None
     score: float
     year: int | None = None
+    disease: Disease | None = None
     source_type: SourceType | None = None
     title: str | None = None
     content_text: Annotated[
@@ -495,6 +499,7 @@ class DocumentInfo(BaseModel):
     authors: list[str] | None = None
     journal: str | None = None
     year: int | None = None
+    disease: Disease | None = None
     source_type: SourceType | None = None
     title: str | None = None
     content_text: Annotated[
@@ -517,3 +522,63 @@ class DoiListExpandedResponse(BaseModel):
     )
     request_id: str
     documents: list[DocumentInfo]
+
+
+class DocumentFetchByDoiRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    doi: Annotated[str, Field(max_length=512, min_length=3)]
+
+
+class DocumentFetchByPmidRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    pmid: Annotated[str, Field(max_length=32, min_length=1)]
+
+
+class DocumentFetchRequest(RootModel[DocumentFetchByDoiRequest | DocumentFetchByPmidRequest]):
+    root: Annotated[
+        DocumentFetchByDoiRequest | DocumentFetchByPmidRequest,
+        Field(description="Provide either DOI or PMID"),
+    ]
+
+
+class DocumentFetchBatchRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    items: Annotated[list[DocumentFetchRequest], Field(max_length=100, min_length=1)]
+
+
+class ContentTextSource(StrEnum):
+    pmc = "pmc"
+    abstract = "abstract"
+
+
+class DocumentFetchResponse(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    request_id: str
+    doi: str | None = None
+    pmid: str | None = None
+    title: str | None = None
+    journal: str | None = None
+    year: int | None = None
+    authors: list[str] | None = None
+    source_type: SourceType | None = None
+    content_text: str
+    content_text_source: ContentTextSource
+    full_text_available: bool
+    ingest: IngestJobAcceptedResponse | None = None
+
+
+class DocumentFetchBatchAcceptedResponse(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    request_id: str
+    job_id: str
+    state: JobState

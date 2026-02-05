@@ -67,6 +67,14 @@ def _extract_document_info(
     authors_val = payload_first.get("authors")
     authors = [str(a) for a in authors_val] if isinstance(authors_val, list) else None
 
+    disease = None
+    disease_raw = payload_first.get("disease")
+    if isinstance(disease_raw, str) and disease_raw:
+        try:
+            disease = schemas.Disease(disease_raw)
+        except Exception:
+            disease = None
+
     updated_at = _select_updated_at(payloads)
 
     return schemas.DocumentInfo(
@@ -77,6 +85,7 @@ def _extract_document_info(
         authors=authors,
         journal=payload_first.get("journal"),
         year=payload_first.get("year"),
+        disease=disease,
         source_type=payload_first.get("source_type"),
         title=payload_first.get("title"),
         content_text=content_text,
@@ -137,6 +146,7 @@ class DocumentLookupUseCase:
             authors=info.authors,
             journal=info.journal,
             year=info.year,
+            disease=info.disease,
             source_type=info.source_type,
             title=info.title,
             content_text=info.content_text,
