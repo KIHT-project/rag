@@ -29,7 +29,6 @@ class IngestItem:
     disease: str
     source_type: str
     content_text: str
-
     year: int | None = None
     title: str | None = None
     journal: str | None = None
@@ -91,6 +90,8 @@ class TextChunk:
     text: str
     start: int
     end: int
+    section: str | None = None
+    subsection: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -49,20 +49,33 @@ def _extract_document_info(
     )
 
     chunk_parts: list[tuple[int, str, str]] = []
+    section_parts: list[tuple[int, str, str | None]] = []
+    section_fallback: list[tuple[str, str | None]] = []
     chunk_ids: list[str] = []
     for hit in hits:
         payload = dict(hit.payload) if isinstance(hit.payload, dict) else {}
         chunk_id = str(hit.point_id)
         text = payload.get("text")
         idx = payload.get("chunk_index")
+        section_val = payload.get("section")
+        section = str(section_val) if isinstance(section_val, str) else None
         if isinstance(idx, int) and isinstance(text, str):
             chunk_parts.append((idx, chunk_id, text))
+            section_parts.append((idx, chunk_id, section))
         else:
             chunk_ids.append(chunk_id)
+            section_fallback.append((chunk_id, section))
 
     chunk_parts.sort(key=lambda item: item[0])
+    section_parts.sort(key=lambda item: item[0])
     chunk_ids = [cid for _, cid, _ in chunk_parts] + chunk_ids
     content_text = "\n".join(text for _, _, text in chunk_parts)
+    sections = [
+        schemas.ChunkSection(chunk_id=cid, section=section) for _, cid, section in section_parts
+    ]
+    sections.extend(
+        schemas.ChunkSection(chunk_id=cid, section=section) for cid, section in section_fallback
+    )
 
     authors_val = payload_first.get("authors")
     authors = [str(a) for a in authors_val] if isinstance(authors_val, list) else None
@@ -81,6 +94,7 @@ def _extract_document_info(
         doc_id=doc_id,
         doi=doi,
         chunk_ids=chunk_ids,
+        sections=sections,
         chunk_total=len(chunk_ids),
         authors=authors,
         journal=payload_first.get("journal"),
@@ -142,6 +156,7 @@ class DocumentLookupUseCase:
             doc_id=info.doc_id,
             doi=info.doi,
             chunk_ids=info.chunk_ids,
+            sections=info.sections,
             chunk_total=info.chunk_total,
             authors=info.authors,
             journal=info.journal,

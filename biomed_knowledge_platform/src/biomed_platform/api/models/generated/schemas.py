@@ -260,27 +260,6 @@ class DocumentPatchAcceptedResponse(BaseModel):
     state: State
 
 
-class DocumentResponse(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    request_id: str
-    doc_id: str
-    doi: Annotated[str, Field(description="Original DOI string for end users")]
-    chunk_ids: list[str]
-    chunk_total: Annotated[int, Field(ge=1)]
-    authors: list[str] | None = None
-    journal: str | None = None
-    year: int | None = None
-    disease: Disease | None = None
-    source_type: SourceType | None = None
-    title: str | None = None
-    content_text: Annotated[
-        str, Field(description="Current stored document text assembled from all chunks")
-    ]
-    updated_at: Annotated[AwareDatetime, Field(description="UTC timestamp in ISO 8601 format")]
-
-
 class IngestBatchRequest(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -365,43 +344,6 @@ class SearchRequest(BaseModel):
     filters: SearchFilters | None = None
 
 
-class SearchHit(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    chunk_ids: list[str]
-    doc_id: str
-    doi: Annotated[str, Field(description="Original DOI string for end users")]
-    authors: list[str] | None = None
-    journal: str | None = None
-    score: float
-    year: int | None = None
-    disease: Disease | None = None
-    source_type: SourceType | None = None
-    title: str | None = None
-    content_text: Annotated[
-        str,
-        Field(
-            description="Returned full text from all the chunks that assembles a specific DOI. Basically is the full DOI."
-        ),
-    ]
-
-
-class SearchResponse(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    request_id: str
-    next_cursor: Annotated[
-        str | None,
-        Field(description="Optional cursor for next page (reserved for future use)"),
-    ] = None
-    effective_embedding_model_id: Annotated[
-        str, Field(description="Embedding model id actually used for retrieval")
-    ]
-    hits: list[SearchHit]
-
-
 class AskRequest(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -418,6 +360,9 @@ class Citation(BaseModel):
     doi: Annotated[str, Field(description="Original DOI string for end users")]
     title: str | None = None
     year: int | None = None
+    section: Annotated[
+        str | None, Field(description="Section title for the cited chunk, if available")
+    ] = None
     snippet: Annotated[str, Field(description="Excerpt of the chunk text used as evidence")]
 
 
@@ -488,24 +433,12 @@ class AskResponseEnvelope(BaseModel):
     ] = None
 
 
-class DocumentInfo(BaseModel):
+class ChunkSection(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    doc_id: str
-    doi: Annotated[str, Field(description="Original DOI string for end users")]
-    chunk_ids: list[str]
-    chunk_total: Annotated[int, Field(ge=1)]
-    authors: list[str] | None = None
-    journal: str | None = None
-    year: int | None = None
-    disease: Disease | None = None
-    source_type: SourceType | None = None
-    title: str | None = None
-    content_text: Annotated[
-        str, Field(description="Current stored document text assembled from all chunks")
-    ]
-    updated_at: Annotated[AwareDatetime, Field(description="UTC timestamp in ISO 8601 format")]
+    chunk_id: str
+    section: Annotated[str | None, Field(description="Section title for the chunk, if available")]
 
 
 class DoiListSimpleResponse(BaseModel):
@@ -514,14 +447,6 @@ class DoiListSimpleResponse(BaseModel):
     )
     request_id: str
     dois: Annotated[list[str], Field(description="List of stored DOIs")]
-
-
-class DoiListExpandedResponse(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    request_id: str
-    documents: list[DocumentInfo]
 
 
 class DocumentFetchByDoiRequest(BaseModel):
@@ -582,3 +507,101 @@ class DocumentFetchBatchAcceptedResponse(BaseModel):
     request_id: str
     job_id: str
     state: JobState
+
+
+class DocumentResponse(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    request_id: str
+    doc_id: str
+    doi: Annotated[str, Field(description="Original DOI string for end users")]
+    chunk_ids: list[str]
+    sections: Annotated[
+        list[ChunkSection],
+        Field(description="Section mapping for chunks in this document"),
+    ]
+    chunk_total: Annotated[int, Field(ge=1)]
+    authors: list[str] | None = None
+    journal: str | None = None
+    year: int | None = None
+    disease: Disease | None = None
+    source_type: SourceType | None = None
+    title: str | None = None
+    content_text: Annotated[
+        str, Field(description="Current stored document text assembled from all chunks")
+    ]
+    updated_at: Annotated[AwareDatetime, Field(description="UTC timestamp in ISO 8601 format")]
+
+
+class SearchHit(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    chunk_ids: list[str]
+    sections: Annotated[
+        list[ChunkSection],
+        Field(description="Section mapping for chunks in this document"),
+    ]
+    doc_id: str
+    doi: Annotated[str, Field(description="Original DOI string for end users")]
+    authors: list[str] | None = None
+    journal: str | None = None
+    score: float
+    year: int | None = None
+    disease: Disease | None = None
+    source_type: SourceType | None = None
+    title: str | None = None
+    content_text: Annotated[
+        str,
+        Field(
+            description="Returned full text from all the chunks that assembles a specific DOI. Basically is the full DOI."
+        ),
+    ]
+
+
+class SearchResponse(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    request_id: str
+    next_cursor: Annotated[
+        str | None,
+        Field(description="Optional cursor for next page (reserved for future use)"),
+    ] = None
+    effective_embedding_model_id: Annotated[
+        str, Field(description="Embedding model id actually used for retrieval")
+    ]
+    hits: list[SearchHit]
+
+
+class DocumentInfo(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    doc_id: str
+    doi: Annotated[str, Field(description="Original DOI string for end users")]
+    chunk_ids: list[str]
+    sections: Annotated[
+        list[ChunkSection],
+        Field(description="Section mapping for chunks in this document"),
+    ]
+    chunk_total: Annotated[int, Field(ge=1)]
+    authors: list[str] | None = None
+    journal: str | None = None
+    year: int | None = None
+    disease: Disease | None = None
+    source_type: SourceType | None = None
+    title: str | None = None
+    content_text: Annotated[
+        str, Field(description="Current stored document text assembled from all chunks")
+    ]
+    updated_at: Annotated[AwareDatetime, Field(description="UTC timestamp in ISO 8601 format")]
+
+
+class DoiListExpandedResponse(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    request_id: str
+    documents: list[DocumentInfo]

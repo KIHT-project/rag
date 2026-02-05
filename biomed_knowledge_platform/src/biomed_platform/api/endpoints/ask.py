@@ -90,7 +90,7 @@ async def ask(
     )
 
     synthesis_max_context_chars = _require_int_from_llm_cfg(
-        llm_cfg=llm_cfg, key="ask_max_context_chars", default=24000
+        llm_cfg=llm_cfg, key="ask_max_context_chars", default=60000
     )
     synthesis_max_retries = _require_int_from_llm_cfg(
         llm_cfg=llm_cfg, key="ask_llm_max_retries", default=1

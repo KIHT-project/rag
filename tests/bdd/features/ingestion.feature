@@ -48,3 +48,11 @@ Feature: Ingestion endpoint
     And the error code is validation_error
     And request id is present
 
+  Scenario: Section-aware chunking excludes references
+    Given ingestion payload has sectioned content
+    When I POST ingest
+    Then the response status is 202
+    And I can poll the job until terminal state
+    And the document content excludes section titles
+    And the document sections include expected titles
+    And the document content excludes references

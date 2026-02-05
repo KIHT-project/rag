@@ -90,7 +90,7 @@ async def test_execute_no_doc_ids_returns_empty_hits_and_skips_chunk_fetch() -> 
 
 
 @pytest.mark.anyio
-async def test_execute_parses_invalid_source_type_and_truncates_and_uses_chunk_index_sort() -> None:
+async def test_execute_parses_invalid_source_type_and_uses_chunk_index_sort() -> None:
     # Given, one best doc plus one doc with invalid source_type
     embedder = AsyncMock()
     embedder.embed_texts = AsyncMock(return_value=[[0.1]])
@@ -147,6 +147,7 @@ async def test_execute_parses_invalid_source_type_and_truncates_and_uses_chunk_i
                     "chunk_start": 5,
                     "chunk_end": -1,
                     "text": long_text,
+                    "section": "Results",
                 },
             ),
             VectorSearchHit(
@@ -158,6 +159,7 @@ async def test_execute_parses_invalid_source_type_and_truncates_and_uses_chunk_i
                     "chunk_start": 0,
                     "chunk_end": 5,
                     "text": "hello",
+                    "section": "Introduction",
                 },
             ),
         ]
@@ -188,8 +190,9 @@ async def test_execute_parses_invalid_source_type_and_truncates_and_uses_chunk_i
     assert hit.source_type == schemas.SourceType.pubmed_abstract
 
     assert hit.chunk_ids == ["c1", "c2"]  # sorted by chunk_index
+    assert [s.section for s in (hit.sections or [])] == ["Introduction", "Results"]
     assert hit.content_text is not None
-    assert len(hit.content_text) == 2000  # truncation branch
+    assert len(hit.content_text) == 3005
 
 
 def test_helpers_cover_remaining_branches() -> None:

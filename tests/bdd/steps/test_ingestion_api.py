@@ -5,6 +5,7 @@ import json
 import pytest
 from pytest_bdd import given, scenario, then, when
 
+from tests.bdd.helpers.documents_api import get_document
 from tests.bdd.helpers.ingestion_api import (
     extract_job_id,
     extract_request_id,
@@ -89,6 +90,35 @@ def given_payload_duplicate_doi(ctx):
 @given("ingestion payload is invalid")
 def given_payload_invalid(ctx):
     ctx["payload"] = {"items": "not a list"}
+
+
+@given("ingestion payload has sectioned content")
+def given_payload_sectioned(ctx):
+    doi = "10.1000/sectioned"
+    ctx["doi"] = doi
+    ctx["payload"] = {
+        "items": [
+            {
+                "doi": doi,
+                "disease": "thrombosis",
+                "year": 2020,
+                "source_type": "pubmed_abstract",
+                "title": "Sectioned title",
+                "journal": "Sectioned journal",
+                "authors": ["Author One"],
+                "content_text": (
+                    "Introduction\n\n"
+                    "Intro paragraph.\n\n"
+                    "Methods\n\n"
+                    "Methods paragraph.\n\n"
+                    "References\n\n"
+                    "Ref1\n\n"
+                    "Ref2"
+                ),
+            }
+        ],
+    }
+    ctx["expected_total"] = 1
 
 
 @given("idempotency key is set")
@@ -242,6 +272,34 @@ def then_error_duplicate_doi(ctx):
 def then_request_id_present(ctx):
     res = ctx.get("res") or ctx.get("post_res_2") or ctx.get("post_res")
     assert extract_request_id(res)
+
+
+@then("the document content excludes section titles")
+def then_document_excludes_titles(client, ctx):
+    res = get_document(client, doi=ctx["doi"], request_id="bdd-doc-1")
+    body = json_body(res)
+    text = body.get("content_text", "")
+    assert "Introduction" not in text
+    assert "Methods" not in text
+
+
+@then("the document sections include expected titles")
+def then_document_sections_include_expected(client, ctx):
+    res = get_document(client, doi=ctx["doi"], request_id="bdd-doc-sections")
+    body = json_body(res)
+    sections = body.get("sections") or []
+    section_titles = {item.get("section") for item in sections if isinstance(item, dict)}
+    assert "Introduction" in section_titles
+    assert "Methods" in section_titles
+
+
+@then("the document content excludes references")
+def then_document_excludes_references(client, ctx):
+    res = get_document(client, doi=ctx["doi"], request_id="bdd-doc-2")
+    body = json_body(res)
+    text = body.get("content_text", "")
+    assert "References" not in text
+    assert "Ref1" not in text
 
 
 # -----------------------------------------------------------------------------

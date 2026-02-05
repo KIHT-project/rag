@@ -1,4 +1,4 @@
-ollama_base_url: "http://192.168.2.24:11434"
+ollama_base_url: "http://192.168.2.3:11434"
 generator_model_id: "phi:2.7b"
 
 hyde_enabled: false

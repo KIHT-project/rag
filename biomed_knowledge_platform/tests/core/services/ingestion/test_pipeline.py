@@ -16,6 +16,8 @@ class _Chunk:
     start: int
     end: int
     text: str
+    section: str | None = None
+    subsection: str | None = None
 
 
 @pytest.mark.anyio
@@ -142,3 +144,38 @@ async def test_ingest_item_detects_duplicate_doc_and_success_upserts_points() ->
     assert pts[1].point_id == _point_id(doc_id="doc", chunk_index=1)
     assert pts[0].payload["doc_id"] == "doc"
     assert pts[0].payload["chunk_index"] == 0
+
+
+@pytest.mark.anyio
+async def test_ingest_item_stores_section_from_chunks() -> None:
+    chunker = MagicMock()
+    chunker.chunk = MagicMock(return_value=[_Chunk(0, 0, 5, "text", section="Methods")])
+
+    embedder = AsyncMock()
+    embedder.embed_texts = AsyncMock(return_value=[[0.1, 0.2]])
+
+    index = AsyncMock()
+    index.ensure_collection = AsyncMock()
+    index.exists = AsyncMock(return_value=False)
+    index.upsert = AsyncMock()
+
+    pipe = DefaultIngestionPipeline(chunker=chunker, embedder=embedder, index=index)
+
+    item = IngestItem(
+        doi_original="10.1/x",
+        doi_normalized="10.1/x",
+        title="t",
+        journal="j",
+        year=2020,
+        authors=["a"],
+        disease="disease",
+        source_type="abstract",
+        content_text="hello world",
+    )
+
+    await pipe.ingest_item(job_id="j1", embedding_model_id="m1", doc_id="doc", item=item)
+
+    args = index.upsert.await_args.kwargs
+    pts = list(args["points"])
+    assert len(pts) == 1
+    assert pts[0].payload["section"] == "Methods"

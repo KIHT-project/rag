@@ -8,16 +8,9 @@ from biomed_platform.core.domains.retrieval import ChunkPart, DocBest
 from biomed_platform.core.errors.errors import SystemError
 from biomed_platform.core.ports.ingestion import EmbeddingProvider
 from biomed_platform.core.ports.retrieval import ChunkStore, VectorSearcher
+from biomed_platform.core.services.retrieval.hybrid_ranker import rerank_vector_hits
 
 log = get_logger(__name__)
-
-_TEXT_TRUNCATE_LIMIT = 2000
-
-
-def _truncate_text(value: str) -> str:
-    if len(value) <= _TEXT_TRUNCATE_LIMIT:
-        return value
-    return value[:_TEXT_TRUNCATE_LIMIT]
 
 
 def _parse_author_item(item: object) -> str | None:
@@ -158,10 +151,12 @@ def _select_best_docs(
 
 def _assemble_chunks(
     chunks: list,
-) -> tuple[dict[str, str], dict[str, list[str]]]:
+) -> tuple[dict[str, str], dict[str, list[str]], dict[str, list[schemas.ChunkSection]]]:
     assembled_text_by_doc: dict[str, str] = {}
     chunk_ids_by_doc: dict[str, list[str]] = {}
     parts_by_doc: dict[str, list[ChunkPart]] = {}
+    section_parts_by_doc: dict[str, list[tuple[int, str, str | None]]] = {}
+    section_fallback_by_doc: dict[str, list[tuple[str, str | None]]] = {}
 
     for ch in chunks:
         payload = ch.payload or {}
@@ -177,6 +172,8 @@ def _assemble_chunks(
         idx = int(chunk_index) if isinstance(chunk_index, int) else 0
         start = int(chunk_start) if isinstance(chunk_start, int) else 0
         end = int(chunk_end) if isinstance(chunk_end, int) else -1
+        section_val = payload.get("section")
+        section = str(section_val) if isinstance(section_val, str) else None
 
         parts_by_doc.setdefault(did, []).append(
             ChunkPart(
@@ -187,12 +184,27 @@ def _assemble_chunks(
                 text=text,
             )
         )
+        if isinstance(chunk_index, int):
+            section_parts_by_doc.setdefault(did, []).append((idx, str(ch.point_id), section))
+        else:
+            section_fallback_by_doc.setdefault(did, []).append((str(ch.point_id), section))
 
     for did, parts in parts_by_doc.items():
         assembled_text_by_doc[did] = _assemble_full_text(parts)
         chunk_ids_by_doc[did] = [p.chunk_id for p in sorted(parts, key=lambda p: p.chunk_index)]
 
-    return assembled_text_by_doc, chunk_ids_by_doc
+    sections_by_doc: dict[str, list[schemas.ChunkSection]] = {}
+    for did, parts in section_parts_by_doc.items():
+        sorted_parts = sorted(parts, key=lambda p: p[0])
+        sections_by_doc[did] = [
+            schemas.ChunkSection(chunk_id=cid, section=section) for _, cid, section in sorted_parts
+        ]
+    for did, fallbacks in section_fallback_by_doc.items():
+        sections_by_doc.setdefault(did, []).extend(
+            schemas.ChunkSection(chunk_id=cid, section=section) for cid, section in fallbacks
+        )
+
+    return assembled_text_by_doc, chunk_ids_by_doc, sections_by_doc
 
 
 @dataclass(slots=True)
@@ -243,6 +255,7 @@ class SearchUseCase:
             top_k=chunk_limit,
             qfilter=qfilter,
         )
+        raw_hits = rerank_vector_hits(query=query, hits=raw_hits)
 
         best_by_doc = _select_best_docs(raw_hits)
 
@@ -256,6 +269,7 @@ class SearchUseCase:
 
         assembled_text_by_doc: dict[str, str] = {}
         chunk_ids_by_doc: dict[str, list[str]] = {}
+        sections_by_doc: dict[str, list[schemas.ChunkSection]] = {}
 
         if doc_ids:
             all_chunks = await self.chunks.fetch_by_doc_ids(
@@ -265,19 +279,18 @@ class SearchUseCase:
                 limit=20000,
             )
 
-            assembled_text_by_doc, chunk_ids_by_doc = _assemble_chunks(all_chunks)
+            assembled_text_by_doc, chunk_ids_by_doc, sections_by_doc = _assemble_chunks(all_chunks)
 
         hits: list[schemas.SearchHit] = []
         for d in selected_docs:
             full_text = assembled_text_by_doc.get(d.doc_id) if d.doc_id else None
             chunk_ids = chunk_ids_by_doc.get(d.doc_id) if d.doc_id else None
-
-            if full_text:
-                full_text = _truncate_text(full_text)
+            sections = sections_by_doc.get(d.doc_id) if d.doc_id else None
 
             hits.append(
                 schemas.SearchHit(
-                    chunk_ids=chunk_ids,
+                    chunk_ids=chunk_ids or [],
+                    sections=sections or [],
                     doc_id=d.doc_id,
                     doi=d.doi,
                     authors=d.authors,
