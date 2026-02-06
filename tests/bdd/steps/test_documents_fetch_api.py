@@ -3,10 +3,12 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
 from pytest_bdd import given, scenario, then, when
 
 from biomed_platform.core.domains.ingestion import IngestBatchAccepted, JobState
 from biomed_platform.core.domains.pubmed import PubMedDocument
+from biomed_platform.adapters.pubmed.pubmed_client import PubMedClientAdapter
 from tests.bdd.helpers.documents_api import post_fetch_batch, post_fetch_document
 from tests.bdd.helpers.ingestion_api import extract_request_id, json_body
 
@@ -18,6 +20,11 @@ def test_fetch_by_doi_with_ingest():
 
 @scenario("../features/documents_fetch.feature", "Fetch by PMID without ingest")
 def test_fetch_by_pmid_without_ingest():
+    pass
+
+
+@scenario("../features/documents_fetch.feature", "Fetch by PMID with namespaced PMC without ingest")
+def test_fetch_by_pmid_with_namespaced_pmc_without_ingest():
     pass
 
 
@@ -91,6 +98,69 @@ def given_pubmed_has_document_for_pmid(client, ctx):
     )
     _install_stubs(client, doc=doc)
     ctx["pmid"] = doc.pmid
+
+
+@given("PubMed has a namespaced PMC document for pmid")
+def given_pubmed_has_namespaced_pmc_document_for_pmid(client, ctx):
+    pubmed_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation>
+      <PMID>18648623</PMID>
+      <Article>
+        <ArticleTitle>Example title</ArticleTitle>
+        <Journal>
+          <JournalIssue>
+            <PubDate>
+              <Year>2008</Year>
+            </PubDate>
+          </JournalIssue>
+          <Title>Example journal</Title>
+        </Journal>
+      </Article>
+    </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList>
+        <ArticleId IdType="pmc">PMC2475953</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>
+"""
+
+    pmc_xml_with_default_ns = """<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://jats.nlm.nih.gov">
+  <body>
+    <sec>
+      <title>Intro</title>
+      <p>First paragraph.</p>
+      <sec>
+        <title>Methods</title>
+        <p>Second paragraph.</p>
+      </sec>
+    </sec>
+  </body>
+</article>
+"""
+
+    class _StubHttpxClient:
+        async def get(self, url: str, *, params: dict[str, object]) -> httpx.Response:
+            request = httpx.Request("GET", url)
+
+            if params.get("db") == "pubmed":
+                return httpx.Response(200, text=pubmed_xml, request=request)
+            if params.get("db") == "pmc":
+                return httpx.Response(200, text=pmc_xml_with_default_ns, request=request)
+
+            return httpx.Response(400, text="unexpected request", request=request)
+
+    client.app.state.pubmed_client = PubMedClientAdapter(
+        client=_StubHttpxClient(),  # type: ignore[arg-type]
+        base_url="http://example",
+        max_retries=0,
+    )
+    client.app.state.ingestion_service = _FakeIngestionService()
+    ctx["pmid"] = "18648623"
 
 
 @when("I POST fetch by doi")

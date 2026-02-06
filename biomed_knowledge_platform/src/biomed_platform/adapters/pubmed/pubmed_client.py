@@ -172,13 +172,24 @@ def _parse_pubmed_xml(xml_text: str) -> PubMedDocument | None:
 
 def _extract_section_blocks(sec: ET.Element) -> list[str]:
     blocks: list[str] = []
-    title = _first_text(sec.find("title"))
+
+    def _localname(elem: ET.Element) -> str:
+        tag = str(elem.tag)
+        return tag.rsplit("}", 1)[-1] if "}" in tag else tag
+
+    def _find_child(parent: ET.Element, name: str) -> ET.Element | None:
+        for child in list(parent):
+            if _localname(child) == name:
+                return child
+        return None
+
+    title = _first_text(_find_child(sec, "title"))
     if title:
         blocks.append(title.strip())
 
     paras: list[str] = []
     for child in list(sec):
-        if child.tag in {"title", "sec"}:
+        if _localname(child) in {"title", "sec"}:
             continue
         text = _first_text(child)
         if text:
@@ -195,11 +206,17 @@ def _collect_section_blocks(body: ET.Element) -> list[str]:
 
     def visit(sec: ET.Element) -> None:
         sections.extend(_extract_section_blocks(sec))
-        for sub in sec.findall("sec"):
-            visit(sub)
+        for sub in list(sec):
+            tag = str(sub.tag)
+            name = tag.rsplit("}", 1)[-1] if "}" in tag else tag
+            if name == "sec":
+                visit(sub)
 
-    for sec in body.findall("sec"):
-        visit(sec)
+    for sec in list(body):
+        tag = str(sec.tag)
+        name = tag.rsplit("}", 1)[-1] if "}" in tag else tag
+        if name == "sec":
+            visit(sec)
 
     return sections
 
@@ -211,7 +228,13 @@ def _extract_pmc_text(xml_text: str) -> str | None:
         log.exception("Failed to parse PMC XML response")
         return None
 
-    body = root.find(".//body")
+    body = None
+    for el in root.iter():
+        tag = str(el.tag)
+        name = tag.rsplit("}", 1)[-1] if "}" in tag else tag
+        if name == "body":
+            body = el
+            break
     if body is None:
         return None
 
