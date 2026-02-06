@@ -94,6 +94,21 @@ PMC_XML = """<?xml version="1.0" encoding="UTF-8"?>
 </article>
 """
 
+PMC_XML_WITH_DEFAULT_NS = """<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://jats.nlm.nih.gov">
+  <body>
+    <sec>
+      <title>Intro</title>
+      <p>First paragraph.</p>
+      <sec>
+        <title>Methods</title>
+        <p>Second paragraph.</p>
+      </sec>
+    </sec>
+  </body>
+</article>
+"""
+
 
 class _StubHttpxClient:
     def __init__(self) -> None:
@@ -147,6 +162,11 @@ def test_parse_pubmed_xml_returns_none_on_invalid_xml() -> None:
 
 def test_extract_pmc_text_collects_sections() -> None:
     text = _extract_pmc_text(PMC_XML)
+    assert text == "Intro\n\nFirst paragraph.\n\nMethods\n\nSecond paragraph."
+
+
+def test_extract_pmc_text_collects_sections_with_default_namespace() -> None:
+    text = _extract_pmc_text(PMC_XML_WITH_DEFAULT_NS)
     assert text == "Intro\n\nFirst paragraph.\n\nMethods\n\nSecond paragraph."
 
 

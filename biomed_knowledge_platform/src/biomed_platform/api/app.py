@@ -24,12 +24,12 @@ from biomed_platform.common.middleware.request_context import (
 from biomed_platform.common.settings import load_settings
 from biomed_platform.core.errors.errors import SystemError
 from biomed_platform.core.services.ingestion.backpressure import SimpleBackpressurePolicy
-from biomed_platform.core.services.ingestion.in_memory_document_registry import (
-    InMemoryDocumentRegistry,
-)
 from biomed_platform.core.services.ingestion.in_memory_idempotency import InMemoryIdempotencyStore
 from biomed_platform.core.services.ingestion.in_memory_job_store import InMemoryIngestionJobStore
 from biomed_platform.core.services.ingestion.in_memory_queue import InMemoryIngestionQueue
+from biomed_platform.core.services.ingestion.vector_index_document_registry import (
+    VectorIndexDocumentRegistry,
+)
 from biomed_platform.core.use_cases.ingestion import IngestionUseCase
 from biomed_platform.core.services.ingestion.chunking import SectionAwareChunker
 from biomed_platform.core.services.ingestion.in_memory_payload_store import (
@@ -78,19 +78,8 @@ def create_app() -> FastAPI:
         ttl_seconds_after_completion=JOB_TTL_SECONDS, max_jobs=MAX_JOBS
     )
     idempotency = InMemoryIdempotencyStore(ttl_seconds=IDEMPOTENCY_TTL_SECONDS)
-    document_registry = InMemoryDocumentRegistry()
     payload_store = InMemoryIngestPayloadStore(ttl_seconds=PAYLOAD_TTL_SECONDS, max_jobs=MAX_JOBS)
     backpressure = SimpleBackpressurePolicy(worker_count=WORKER_COUNT)
-
-    service = IngestionUseCase(
-        queue=queue,
-        job_store=job_store,
-        idempotency_store=idempotency,
-        document_registry=document_registry,
-        payload_store=payload_store,
-        backpressure=backpressure,
-        worker_count=WORKER_COUNT,
-    )
 
     rag_cfg = settings.require_rag()
     qdrant_cfg = settings.require_qdrant()
@@ -144,6 +133,18 @@ def create_app() -> FastAPI:
         client=client,
         collection_name_prefix=str(collection_cfg.get("name_prefix", "docs")).strip() or "docs",
         distance=parse_distance(str(collection_cfg.get("distance", "COSINE"))),
+    )
+
+    document_registry = VectorIndexDocumentRegistry(vector_index=index)
+
+    service = IngestionUseCase(
+        queue=queue,
+        job_store=job_store,
+        idempotency_store=idempotency,
+        document_registry=document_registry,
+        payload_store=payload_store,
+        backpressure=backpressure,
+        worker_count=WORKER_COUNT,
     )
 
     pipeline = DefaultIngestionPipeline(
