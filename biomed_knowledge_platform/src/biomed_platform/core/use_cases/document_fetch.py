@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
-from biomed_platform.api.mappers.ingestion_mapper import to_ingest_job_accepted_response
-from biomed_platform.api.models.generated import schemas
 from biomed_platform.common.utils import compute_body_hash_from_items, normalize_doi
+from biomed_platform.core.domains.documents import ContentTextSource, DocumentFetchResponse
 from biomed_platform.core.domains.ingestion import IngestBatchCommand, IngestItem
 from biomed_platform.core.domains.pubmed import PubMedDocument
+from biomed_platform.core.domains.retrieval import Disease, SourceType
 from biomed_platform.core.errors.errors import business_error, SystemError
 from biomed_platform.core.ports.ingestion import IngestionService
 from biomed_platform.core.ports.pubmed import PubMedClient
 
-_DEFAULT_DISEASE = schemas.Disease.unknown.value
+_DEFAULT_DISEASE = Disease.unknown.value
 _THROMBOSIS_TERMS = (
     "thrombosis",
     "thromboembolism",
@@ -42,7 +42,7 @@ class DocumentFetchUseCase:
         doi: str | None,
         pmid: str | None,
         ingest_enabled: bool,
-    ) -> schemas.DocumentFetchResponse:
+    ) -> DocumentFetchResponse:
         if bool(doi) == bool(pmid):
             raise business_error(
                 code="validation_error",
@@ -81,7 +81,7 @@ class DocumentFetchUseCase:
                 content_text=response.content_text,
                 source_type=response.source_type,
             )
-            response.ingest = ingest_resp
+            response = replace(response, ingest=ingest_resp)
 
         return response
 
@@ -92,7 +92,7 @@ class DocumentFetchUseCase:
         doc: PubMedDocument,
         requested_doi: str | None,
         requested_pmid: str | None,
-    ) -> schemas.DocumentFetchResponse:
+    ) -> DocumentFetchResponse:
         return self._to_response(
             request_id=request_id,
             doc=doc,
@@ -106,7 +106,7 @@ class DocumentFetchUseCase:
         doc: PubMedDocument,
         doi_value: str | None,
         content_text: str,
-        source_type: schemas.SourceType,
+        source_type: SourceType,
     ) -> IngestItem:
         doi_value = doi_value or doc.doi or ""
         doi_normalized = normalize_doi(doi_value)
@@ -136,7 +136,7 @@ class DocumentFetchUseCase:
         doc: PubMedDocument,
         requested_doi: str | None,
         requested_pmid: str | None,
-    ) -> schemas.DocumentFetchResponse:
+    ) -> DocumentFetchResponse:
         content_text = doc.full_text or doc.abstract or ""
         if not content_text.strip():
             raise business_error(
@@ -147,20 +147,14 @@ class DocumentFetchUseCase:
 
         full_text_available = bool(doc.full_text)
         content_source = (
-            schemas.ContentTextSource.pmc
-            if full_text_available
-            else schemas.ContentTextSource.abstract
+            ContentTextSource.pmc if full_text_available else ContentTextSource.abstract
         )
-        source_type = (
-            schemas.SourceType.full_text
-            if full_text_available
-            else schemas.SourceType.pubmed_abstract
-        )
+        source_type = SourceType.full_text if full_text_available else SourceType.pubmed_abstract
 
         resolved_doi = doc.doi or requested_doi
         resolved_pmid = doc.pmid or requested_pmid
 
-        return schemas.DocumentFetchResponse(
+        return DocumentFetchResponse(
             request_id=request_id,
             doi=resolved_doi,
             pmid=resolved_pmid,
@@ -183,8 +177,9 @@ class DocumentFetchUseCase:
         doc: PubMedDocument,
         doi_value: str | None,
         content_text: str,
-        source_type: schemas.SourceType,
-    ) -> schemas.IngestJobAcceptedResponse:
+        source_type: SourceType | None,
+    ):
+        resolved_source_type = source_type or SourceType.pubmed_abstract
         doi_value = doi_value or doc.doi or ""
         doi_normalized = normalize_doi(doi_value)
         if not doi_normalized:
@@ -198,7 +193,7 @@ class DocumentFetchUseCase:
             doi_original=doi_value,
             doi_normalized=doi_normalized,
             disease=disease,
-            source_type=source_type.value,
+            source_type=resolved_source_type.value,
             content_text=content_text,
             year=doc.year,
             title=doc.title,
@@ -228,7 +223,7 @@ class DocumentFetchUseCase:
             )
 
         accepted = await self.ingestion_service.ingest_batch(cmd)
-        return to_ingest_job_accepted_response(accepted)
+        return accepted
 
     def _resolve_disease(self, doc: PubMedDocument) -> str:
         texts: list[str] = []
@@ -242,8 +237,8 @@ class DocumentFetchUseCase:
 
         joined = " ".join(texts)
         if any(token in joined for token in _THROMBOSIS_TERMS):
-            return schemas.Disease.thrombosis.value
+            return Disease.thrombosis.value
         if any(token in joined for token in _CANCER_TERMS):
-            return schemas.Disease.cancer.value
+            return Disease.cancer.value
 
         return _DEFAULT_DISEASE

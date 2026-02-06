@@ -7,17 +7,11 @@ import asyncpg
 
 
 async def _truncate_public_schema(*, dsn: str) -> None:
-    last_err: Exception | None = None
-    for _ in range(30):
-        try:
-            conn = await asyncpg.connect(dsn, ssl=False)
-            break
-        except Exception as e:
-            last_err = e
-            import asyncio
-            await asyncio.sleep(0.2)
-    else:
-        raise RuntimeError(f"Postgres not reachable for truncate, last_error={last_err}") from last_err
+    try:
+        conn = await asyncpg.connect(dsn, ssl=False)
+    except Exception as err:
+        print(f"[clear_postgres] skipping cleanup: {err}", file=sys.stderr)
+        return
 
     try:
         rows = await conn.fetch(

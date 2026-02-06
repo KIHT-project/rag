@@ -1,0 +1,22 @@
+[
+  {
+    "metric": "mrr",
+    "value": 1.0
+  },
+  {
+    "metric": "precision@5",
+    "value": 0.9199999999999999
+  },
+  {
+    "metric": "precision@10",
+    "value": 0.45999999999999996
+  },
+  {
+    "metric": "precision@20",
+    "value": 0.22999999999999998
+  },
+  {
+    "metric": "queries_with_any_relevant_rate",
+    "value": 1.0
+  }
+]

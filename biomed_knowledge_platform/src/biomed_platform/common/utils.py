@@ -2,8 +2,8 @@ import hashlib
 import re
 from typing import Iterable
 
-from biomed_platform.api.models.generated.schemas import IngestItem
 from biomed_platform.common.logging import get_logger
+from biomed_platform.core.domains.ingestion import IngestItem
 
 log = get_logger(__name__)
 _DOI_RE = re.compile(r"(10\.\d{4,9}/[^\s\"<>]+)", re.IGNORECASE)

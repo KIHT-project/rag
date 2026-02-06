@@ -4,13 +4,11 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Sequence
 
-from fastapi.exceptions import RequestValidationError
-
-from biomed_platform.api.models.generated import schemas
 from biomed_platform.common.logging import get_logger
 from biomed_platform.core.domains.hyde import HybridChunkCandidate
-from biomed_platform.core.domains.retrieval import ChunkCandidate
-from biomed_platform.core.errors.errors import SystemError
+from biomed_platform.core.domains.retrieval import ChunkCandidate, SearchFilters
+from biomed_platform.core.domains.synthesis import AskResponseEnvelope
+from biomed_platform.core.errors.errors import SystemError, business_error
 from biomed_platform.core.ports.ingestion import EmbeddingProvider
 from biomed_platform.core.ports.llm import LlmClientPort
 from biomed_platform.core.ports.retrieval import VectorSearcher
@@ -22,19 +20,6 @@ from biomed_platform.core.services.hyde.hybrid_retrieval import union_dedupe_ord
 from biomed_platform.core.services.retrieval.hybrid_ranker import rerank_hybrid_candidates
 
 log = get_logger(__name__)
-
-
-def _to_request_validation_error(*, message: str) -> RequestValidationError:
-    return RequestValidationError(
-        [
-            {
-                "type": "value_error",
-                "loc": ("body", "ask"),
-                "msg": message,
-                "input": None,
-            }
-        ]
-    )
 
 
 _ALLOWED_FILTER_KEYS: set[str] = {
@@ -51,13 +36,13 @@ _STR_KEYS: set[str] = {"disease", "source_type", "doi", "doi_normalized"}
 _INT_KEYS: set[str] = {"year_min", "year_max", "year"}
 
 
-def _filters_from_schema(filters: schemas.SearchFilters) -> dict[str, object] | None:
+def _filters_from_domain(filters: SearchFilters) -> dict[str, object] | None:
     out: dict[str, object] = {}
 
     if filters.disease is not None:
-        out["disease"] = filters.disease.value
+        out["disease"] = str(filters.disease.value)
     if filters.source_type is not None:
-        out["source_type"] = filters.source_type.value
+        out["source_type"] = str(filters.source_type.value)
     if filters.year_min is not None:
         out["year_min"] = int(filters.year_min)
     if filters.year_max is not None:
@@ -123,15 +108,24 @@ def _normalize_filters(filters: object | None) -> dict[str, object] | None:
     if filters is None:
         return None
 
-    if isinstance(filters, schemas.SearchFilters):
-        return _filters_from_schema(filters)
+    if isinstance(filters, SearchFilters):
+        return _filters_from_domain(filters)
+
+    if all(hasattr(filters, attr) for attr in ("disease", "source_type", "year_min", "year_max")):
+        mapped = SearchFilters(
+            disease=getattr(filters, "disease", None),
+            source_type=getattr(filters, "source_type", None),
+            year_min=getattr(filters, "year_min", None),
+            year_max=getattr(filters, "year_max", None),
+        )
+        return _filters_from_domain(mapped)
 
     if isinstance(filters, dict):
         return _filters_from_dict(filters)
 
     raise SystemError(
         code="validation_error",
-        message="filters must be a mapping or SearchFilters",
+        message="filters must be a mapping or domain SearchFilters",
         details={"type": str(type(filters))},
         retryable=False,
     )
@@ -222,7 +216,7 @@ class AskUseCase:
         ask_max_context_chars: int,
         ask_llm_max_retries: int,
         debug_enabled: bool = False,
-    ) -> schemas.AskResponseEnvelope:
+    ) -> AskResponseEnvelope:
         start_ts = time.perf_counter()
 
         question_normalized = _validate_question(
@@ -313,7 +307,11 @@ class AskUseCase:
         )
 
         if not selected_hybrid_chunks or not included_chunk_ids:
-            raise _to_request_validation_error(message="no_context_available")
+            raise business_error(
+                code="validation_error",
+                message="no_context_available",
+                details=None,
+            )
 
         selected_chunks: list[ChunkCandidate] = [
             _to_chunk_candidate(c) for c in selected_hybrid_chunks
@@ -352,7 +350,7 @@ class AskUseCase:
                 "included_chunk_ids": sorted(included_chunk_ids),
             }
 
-        return schemas.AskResponseEnvelope(
+        return AskResponseEnvelope(
             request_id=request_id,
             effective_hyde_enabled=bool(hyde_enabled),
             answer=synthesis.answer,

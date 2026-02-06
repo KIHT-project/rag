@@ -2,9 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from biomed_platform.api.models.generated import schemas
 from biomed_platform.common.logging import get_logger
-from biomed_platform.core.domains.retrieval import ChunkPart, DocBest
+from biomed_platform.core.domains.retrieval import (
+    ChunkPart,
+    ChunkSection,
+    DocBest,
+    SearchHit,
+    SearchFilters,
+    SearchRequest,
+    SearchResponse,
+    SourceType,
+)
 from biomed_platform.core.errors.errors import SystemError
 from biomed_platform.core.ports.ingestion import EmbeddingProvider
 from biomed_platform.core.ports.retrieval import ChunkStore, VectorSearcher
@@ -82,9 +90,22 @@ def _assemble_full_text(parts: list[ChunkPart]) -> str:
     return "".join(out_parts)
 
 
-def _to_filter_payload(filters: schemas.SearchFilters | None) -> dict[str, object] | None:
+def _to_filter_payload(filters: SearchFilters | object | None) -> dict[str, object] | None:
     if filters is None:
         return None
+
+    if not isinstance(filters, SearchFilters):
+        if all(
+            hasattr(filters, attr) for attr in ("disease", "source_type", "year_min", "year_max")
+        ):
+            filters = SearchFilters(
+                disease=getattr(filters, "disease", None),
+                source_type=getattr(filters, "source_type", None),
+                year_min=getattr(filters, "year_min", None),
+                year_max=getattr(filters, "year_max", None),
+            )
+        else:
+            return None
 
     out: dict[str, object] = {}
 
@@ -124,10 +145,10 @@ def _select_best_docs(
         parsed_journal = str(journal) if isinstance(journal, str) else None
         parsed_authors = _parse_authors(authors_raw)
 
-        parsed_source_type: schemas.SourceType | None = None
+        parsed_source_type: SourceType | None = None
         if isinstance(source_type, str):
             try:
-                parsed_source_type = schemas.SourceType(source_type)
+                parsed_source_type = SourceType(source_type)
             except Exception:
                 parsed_source_type = None
 
@@ -151,7 +172,7 @@ def _select_best_docs(
 
 def _assemble_chunks(
     chunks: list,
-) -> tuple[dict[str, str], dict[str, list[str]], dict[str, list[schemas.ChunkSection]]]:
+) -> tuple[dict[str, str], dict[str, list[str]], dict[str, list[ChunkSection]]]:
     assembled_text_by_doc: dict[str, str] = {}
     chunk_ids_by_doc: dict[str, list[str]] = {}
     parts_by_doc: dict[str, list[ChunkPart]] = {}
@@ -193,15 +214,15 @@ def _assemble_chunks(
         assembled_text_by_doc[did] = _assemble_full_text(parts)
         chunk_ids_by_doc[did] = [p.chunk_id for p in sorted(parts, key=lambda p: p.chunk_index)]
 
-    sections_by_doc: dict[str, list[schemas.ChunkSection]] = {}
+    sections_by_doc: dict[str, list[ChunkSection]] = {}
     for did, parts in section_parts_by_doc.items():
         sorted_parts = sorted(parts, key=lambda p: p[0])
         sections_by_doc[did] = [
-            schemas.ChunkSection(chunk_id=cid, section=section) for _, cid, section in sorted_parts
+            ChunkSection(chunk_id=cid, section=section) for _, cid, section in sorted_parts
         ]
     for did, fallbacks in section_fallback_by_doc.items():
         sections_by_doc.setdefault(did, []).extend(
-            schemas.ChunkSection(chunk_id=cid, section=section) for cid, section in fallbacks
+            ChunkSection(chunk_id=cid, section=section) for cid, section in fallbacks
         )
 
     return assembled_text_by_doc, chunk_ids_by_doc, sections_by_doc
@@ -218,8 +239,8 @@ class SearchUseCase:
         *,
         request_id: str,
         embedding_model_id: str,
-        req: schemas.SearchRequest,
-    ) -> schemas.SearchResponse:
+        req: SearchRequest,
+    ) -> SearchResponse:
         top_k = int(getattr(req, "top_k", None) or 20)
 
         overfetch_factor = 8
@@ -269,7 +290,7 @@ class SearchUseCase:
 
         assembled_text_by_doc: dict[str, str] = {}
         chunk_ids_by_doc: dict[str, list[str]] = {}
-        sections_by_doc: dict[str, list[schemas.ChunkSection]] = {}
+        sections_by_doc: dict[str, list[ChunkSection]] = {}
 
         if doc_ids:
             all_chunks = await self.chunks.fetch_by_doc_ids(
@@ -281,14 +302,14 @@ class SearchUseCase:
 
             assembled_text_by_doc, chunk_ids_by_doc, sections_by_doc = _assemble_chunks(all_chunks)
 
-        hits: list[schemas.SearchHit] = []
+        hits: list[SearchHit] = []
         for d in selected_docs:
             full_text = assembled_text_by_doc.get(d.doc_id) if d.doc_id else None
             chunk_ids = chunk_ids_by_doc.get(d.doc_id) if d.doc_id else None
             sections = sections_by_doc.get(d.doc_id) if d.doc_id else None
 
             hits.append(
-                schemas.SearchHit(
+                SearchHit(
                     chunk_ids=chunk_ids or [],
                     sections=sections or [],
                     doc_id=d.doc_id,
@@ -297,13 +318,14 @@ class SearchUseCase:
                     journal=d.journal,
                     score=float(d.score),
                     year=d.year,
+                    disease=None,
                     source_type=d.source_type,
                     title=d.title,
                     content_text=full_text,
                 )
             )
 
-        return schemas.SearchResponse(
+        return SearchResponse(
             request_id=request_id,
             effective_embedding_model_id=embedding_model_id,
             next_cursor=None,
