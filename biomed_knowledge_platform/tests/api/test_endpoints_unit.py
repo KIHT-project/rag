@@ -194,6 +194,7 @@ async def test_get_document_endpoint_calls_use_case(monkeypatch) -> None:
                 doc_id="doc",
                 doi=doi,
                 chunk_ids=["c1"],
+                sections=[schemas.ChunkSection(chunk_id="c1", section="Introduction")],
                 chunk_total=1,
                 authors=None,
                 journal=None,

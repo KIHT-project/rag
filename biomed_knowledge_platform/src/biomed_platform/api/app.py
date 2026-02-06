@@ -31,7 +31,7 @@ from biomed_platform.core.services.ingestion.in_memory_idempotency import InMemo
 from biomed_platform.core.services.ingestion.in_memory_job_store import InMemoryIngestionJobStore
 from biomed_platform.core.services.ingestion.in_memory_queue import InMemoryIngestionQueue
 from biomed_platform.core.use_cases.ingestion import IngestionUseCase
-from biomed_platform.core.services.ingestion.chunking import SimpleCharChunker
+from biomed_platform.core.services.ingestion.chunking import SectionAwareChunker
 from biomed_platform.core.services.ingestion.in_memory_payload_store import (
     InMemoryIngestPayloadStore,
 )
@@ -129,7 +129,7 @@ def create_app() -> FastAPI:
         timeout=timeout_seconds,
     )
 
-    chunker = SimpleCharChunker(
+    chunker = SectionAwareChunker(
         chunk_size=int(chunk_cfg.get("chunk_size", 1200)),
         overlap=int(chunk_cfg.get("overlap", 150)),
     )

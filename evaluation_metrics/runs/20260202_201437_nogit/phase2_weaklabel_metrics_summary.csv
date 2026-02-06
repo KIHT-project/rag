@@ -1,6 +1,0 @@
-metric,value
-mrr,0.9
-precision@5,0.9199999999999999
-precision@10,0.45999999999999996
-precision@20,0.22999999999999998
-queries_with_any_relevant_rate,1.0

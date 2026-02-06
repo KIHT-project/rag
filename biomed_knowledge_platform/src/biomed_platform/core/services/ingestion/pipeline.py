@@ -164,6 +164,8 @@ class DefaultIngestionPipeline(IngestionPipeline):
                         "chunk_start": c.start,
                         "chunk_end": c.end,
                         "text": c.text,
+                        "section": c.section,
+                        "subsection": c.subsection,
                         "title": item.title,
                         "journal": item.journal,
                         "year": item.year,

@@ -1,4 +1,4 @@
-ollama_base_url: "http://192.168.2.24:11434"
+ollama_base_url: "http://192.168.2.3:11434"
 generator_model_id: "llama3.1:8b-instruct-q4_K_M"
 
 hyde_enabled: false
@@ -8,7 +8,7 @@ reranker_mode: "off"
 reranker_model_id: "llama3.1:8b-instruct-q4_K_M"
 
 ask_max_question_chars: 1200
-ask_max_context_chars: 4000
+ask_max_context_chars: 60000
 ask_max_chunks_candidate: 30
 ask_max_chunks_final: 4
 

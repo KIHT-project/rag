@@ -1127,6 +1127,11 @@ components:
           type: array
           items:
             type: string
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChunkSection'
+          description: Section mapping for chunks in this document
         chunk_total:
           type: integer
           minimum: 1
@@ -1156,6 +1161,7 @@ components:
       - doc_id
       - doi
       - chunk_ids
+      - sections
       - chunk_total
       - content_text
       - updated_at
@@ -1312,6 +1318,11 @@ components:
           type: array
           items:
             type: string
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChunkSection'
+          description: Section mapping for chunks in this document
         doc_id:
           type: string
         doi:
@@ -1339,6 +1350,7 @@ components:
             DOI. Basically is the full DOI.
       required:
       - chunk_ids
+      - sections
       - doc_id
       - doi
       - score
@@ -1388,6 +1400,11 @@ components:
           type: string
         year:
           type: integer
+        section:
+          type:
+          - string
+          - 'null'
+          description: Section title for the cited chunk, if available
         snippet:
           type: string
           description: Excerpt of the chunk text used as evidence
@@ -1493,6 +1510,11 @@ components:
           type: array
           items:
             type: string
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChunkSection'
+          description: Section mapping for chunks in this document
         chunk_total:
           type: integer
           minimum: 1
@@ -1521,9 +1543,24 @@ components:
       - doc_id
       - doi
       - chunk_ids
+      - sections
       - chunk_total
       - content_text
       - updated_at
+    ChunkSection:
+      type: object
+      additionalProperties: false
+      properties:
+        chunk_id:
+          type: string
+        section:
+          type:
+          - string
+          - 'null'
+          description: Section title for the chunk, if available
+      required:
+      - chunk_id
+      - section
     DoiListSimpleResponse:
       type: object
       additionalProperties: false

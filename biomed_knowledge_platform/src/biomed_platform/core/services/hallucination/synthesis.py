@@ -20,7 +20,7 @@ log = get_logger(__name__)
 # Tunables
 # ----------------------------
 
-DEFAULT_MAX_CONTEXT_CHARS = 12000
+DEFAULT_MAX_CONTEXT_CHARS = 60000
 DEFAULT_NUM_PREDICT = 450
 
 LOG_INVALID_JSON_MAX_CHARS = 1200
@@ -30,7 +30,8 @@ RATIONALE_MAX_CHARS = 600
 
 SUMMARY_HARD_CAP = 900
 RATIONALE_HARD_CAP = 260
-SNIPPET_HARD_CAP = 160
+# Research mode: avoid truncating evidence snippets so evaluators can access full context.
+SNIPPET_HARD_CAP = 12000
 
 MAX_RISK_FACTORS = 3
 MAX_CITATIONS = 4
@@ -246,7 +247,9 @@ def _build_context(chunks: Sequence[ChunkCandidate], max_chars: int) -> tuple[st
         if not chunk_id or not chunk_text:
             continue
 
-        prefix = f"\nCHUNK {chunk_id}\n"
+        section = (c.section or "").strip()
+        section_tag = f" | SECTION: {section}" if section else ""
+        prefix = f"\nCHUNK {chunk_id}{section_tag}\n"
         suffix = "\nENDCHUNK\n"
 
         remaining = limit - used
@@ -434,6 +437,9 @@ def _expand_citations(
         year_val = _as_int(getattr(meta, "year", None))
         year = int(year_val) if year_val is not None else 0
 
+        section_val = _as_str(getattr(meta, "section", ""))
+        section = section_val or None
+
         snippet = _truncate(_as_str(getattr(meta, "chunk_text", "")), SNIPPET_HARD_CAP)
 
         out.append(
@@ -442,6 +448,7 @@ def _expand_citations(
                 "doi": doi,
                 "title": title,
                 "year": year,
+                "section": section,
                 "snippet": snippet,
             }
         )

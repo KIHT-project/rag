@@ -19,6 +19,7 @@ from biomed_platform.core.services.hallucination.synthesis import synthesize_ans
 from biomed_platform.core.services.hyde.hyde import generate_hypothetical_answer_document
 from biomed_platform.core.services.hyde.hybrid_retrieval import embed_text
 from biomed_platform.core.services.hyde.hybrid_retrieval import union_dedupe_order_candidates
+from biomed_platform.core.services.retrieval.hybrid_ranker import rerank_hybrid_candidates
 
 log = get_logger(__name__)
 
@@ -291,7 +292,12 @@ class AskUseCase:
             dropped_no_text,
         )
 
-        ranked_candidates = merged_usable
+        ranked_candidates = rerank_hybrid_candidates(
+            question=question_normalized,
+            question_candidates=question_candidates,
+            hyde_candidates=hyde_candidates,
+        )
+        ranked_candidates = [c for c in ranked_candidates if _is_usable_for_context(c)]
 
         selected_hybrid_chunks, included_chunk_ids = _select_chunks_for_context(
             ranked=ranked_candidates,
@@ -340,7 +346,7 @@ class AskUseCase:
                 ],
                 "merged_candidates_usable": [
                     {"chunk_id": c.chunk_id, "score": float(c.score), "origin": c.origin.value}
-                    for c in merged_usable
+                    for c in ranked_candidates
                 ],
                 "selected_chunk_ids": [c.chunk_id for c in selected_hybrid_chunks],
                 "included_chunk_ids": sorted(included_chunk_ids),

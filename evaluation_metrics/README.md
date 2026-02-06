@@ -114,7 +114,7 @@ Phase 2.1 Label inspection
 python -m evaluation_metrics.src.eval_cli \
   --config evaluation_metrics/config/eval.yaml \
   phase2_overlap \
-  --phase1-pool-jsonl evaluation_metrics/runs/20260202_201408_nogit/phase1_pool.jsonl \
+  --phase1-pool-jsonl evaluation_metrics/runs/20260205_181732_nogit/phase1_pool.jsonl \
   --tasks-clean-json evaluation_metrics/tasks_clean.json \
   --list-labels
 ```
@@ -125,7 +125,7 @@ Phase 2.2 Positive label evaluation
 python -m evaluation_metrics.src.eval_cli \
   --config evaluation_metrics/config/eval.yaml \
   phase2_overlap \
-  --phase1-pool-jsonl evaluation_metrics/runs/20260202_201408_nogit/phase1_pool.jsonl \
+  --phase1-pool-jsonl evaluation_metrics/runs/20260205_230000_nogit/phase1_pool.jsonl \
   --tasks-clean-json evaluation_metrics/tasks_clean.json \
   --positive-label-field related_to_vte \
   --positive-yes-value Yes
@@ -191,7 +191,7 @@ Command examples
 
 ```shell
 CFG=/Users/nchaikalis/IdeaProjects/rag/evaluation_metrics/config/eval.yaml
-RUN=/Users/nchaikalis/IdeaProjects/rag/evaluation_metrics/runs/20260202_201500_nogit
+RUN=/Users/nchaikalis/IdeaProjects/rag/evaluation_metrics/runs/20260205_230158_nogit
 
 python -m evaluation_metrics.src.eval_cli --config "$CFG" phase4 --input-jsonl "$RUN/phase3_answers_rag_no_hyde.jsonl"
 python -m evaluation_metrics.src.eval_cli --config "$CFG" phase4 --input-jsonl "$RUN/phase3_answers_rag_hyde.jsonl"
@@ -232,7 +232,7 @@ Command
 
 ```shell
 CFG=/Users/nchaikalis/IdeaProjects/rag/evaluation_metrics/config/eval.yaml
-RUN=/Users/nchaikalis/IdeaProjects/rag/evaluation_metrics/runs/20260202_201500_nogit
+RUN=/Users/nchaikalis/IdeaProjects/rag/evaluation_metrics/runs/20260205_182010_nogit
 
 python -m evaluation_metrics.src.eval_cli \
   --config "$CFG" \

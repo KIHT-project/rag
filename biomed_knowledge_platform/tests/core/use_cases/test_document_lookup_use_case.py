@@ -28,6 +28,7 @@ async def test_get_by_doi_returns_document_response() -> None:
                     "doi_original": "10.1000/xyz123",
                     "chunk_index": 1,
                     "text": "world",
+                    "section": "Results",
                     "created_at": "2026-01-18T14:32:05Z",
                 },
             ),
@@ -38,6 +39,7 @@ async def test_get_by_doi_returns_document_response() -> None:
                     "doi_original": "10.1000/xyz123",
                     "chunk_index": 0,
                     "text": "hello",
+                    "section": "Introduction",
                     "created_at": "2026-01-18T14:32:04Z",
                 },
             ),
@@ -57,6 +59,7 @@ async def test_get_by_doi_returns_document_response() -> None:
     assert res.request_id == "rid"
     assert res.doi == "10.1000/xyz123"
     assert res.chunk_ids == ["c0", "c1"]
+    assert [s.section for s in res.sections] == ["Introduction", "Results"]
     assert res.content_text == "hello\nworld"
 
 
@@ -139,6 +142,7 @@ async def test_list_dois_expanded() -> None:
                     "doi_original": "10.1000/xyz123",
                     "chunk_index": 0,
                     "text": "hello",
+                    "section": "Introduction",
                     "created_at": "2026-01-18T14:32:05Z",
                 },
             )
@@ -155,3 +159,4 @@ async def test_list_dois_expanded() -> None:
     assert res.request_id == "rid"
     assert len(res.documents) == 1
     assert res.documents[0].doi == "10.1000/xyz123"
+    assert res.documents[0].sections[0].section == "Introduction"
