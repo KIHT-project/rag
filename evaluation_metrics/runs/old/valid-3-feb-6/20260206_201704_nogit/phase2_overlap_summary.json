@@ -1,0 +1,8 @@
+{
+  "tasks_unique_dois": 1288,
+  "phase1_pool_unique_dois": 24,
+  "intersection_unique_dois": 24,
+  "tasks_covered_by_pool_rate": 0.018633540372670808,
+  "pool_covered_by_tasks_rate": 1.0,
+  "positive_label_field": "related_to_vte"
+}

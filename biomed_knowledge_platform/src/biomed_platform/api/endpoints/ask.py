@@ -4,6 +4,7 @@ from typing import Any, Mapping, Optional
 
 from fastapi import APIRouter, Header, Request
 
+from biomed_platform.api.mappers.ask_mapper import to_api_ask_response, to_domain_ask_filters
 from biomed_platform.api.models.generated import schemas
 from biomed_platform.common.logging import get_logger
 from biomed_platform.common.middleware.trace import get_request_id
@@ -108,9 +109,9 @@ async def ask(
         if ask_max_question_chars <= 0:
             ask_max_question_chars = None
 
-    filters = _get_optional_attr(payload, "filters")
+    filters = to_domain_ask_filters(_get_optional_attr(payload, "filters"))
 
-    return await use_case.execute(
+    result = await use_case.execute(
         request_id=get_request_id(),
         question=payload.question,
         filters=filters,
@@ -126,3 +127,6 @@ async def ask(
         ask_llm_max_retries=int(synthesis_max_retries),
         debug_enabled=debug_enabled,
     )
+    if isinstance(result, schemas.AskResponseEnvelope):
+        return result
+    return to_api_ask_response(result)

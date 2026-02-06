@@ -5,13 +5,17 @@ import json
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-from fastapi.exceptions import RequestValidationError
-from pydantic import ValidationError
-
 from biomed_platform.common.logging import get_logger
 from biomed_platform.core.domains.llm import LlmChatMessage
 from biomed_platform.core.domains.retrieval import ChunkCandidate
-from biomed_platform.core.domains.synthesis import SynthesisResult, SynthesisOutput
+from biomed_platform.core.domains.synthesis import (
+    AnswerPayload,
+    Citation,
+    RiskFactor,
+    SynthesisResult,
+    SynthesisOutput,
+)
+from biomed_platform.core.errors.errors import business_error
 from biomed_platform.core.ports.llm import LlmCallError, LlmClientPort
 
 log = get_logger(__name__)
@@ -104,10 +108,8 @@ def _truncate(text: str, max_chars: int) -> str:
     return s[: max(0, max_chars - 3)].rstrip() + "..."
 
 
-def _to_request_error(message: str) -> RequestValidationError:
-    return RequestValidationError(
-        [{"type": "value_error", "loc": ("body", "llm_output"), "msg": message, "input": None}]
-    )
+def _to_request_error(message: str):
+    return business_error(code="validation_error", message=message, details=None)
 
 
 def _looks_like_truncated_json(text: str) -> bool:
@@ -508,15 +510,62 @@ class _ParseResult:
 
 
 def _build_fallback_output(*, reason: str) -> SynthesisOutput:
-    payload = {
-        "answer": {
-            "summary": "No evidence grounded answer could be produced.",
-            "risk_factors": [],
-            "limitations": [reason],
-        },
-        "citations": [],
-    }
-    return SynthesisOutput.model_validate(payload)
+    return SynthesisOutput(
+        answer=AnswerPayload(
+            summary="No evidence grounded answer could be produced.",
+            risk_factors=[],
+            limitations=[reason],
+        ),
+        citations=[],
+    )
+
+
+def _to_synthesis_output(payload: dict[str, Any]) -> SynthesisOutput:
+    answer_obj = payload.get("answer")
+    answer = answer_obj if isinstance(answer_obj, dict) else {}
+
+    risk_factors_raw = answer.get("risk_factors")
+    risk_factors_list = risk_factors_raw if isinstance(risk_factors_raw, list) else []
+    risk_factors: list[RiskFactor] = []
+    for rf in risk_factors_list:
+        if not isinstance(rf, dict):
+            continue
+        risk_factors.append(
+            RiskFactor(
+                rank=int(_as_int(rf.get("rank")) or 0),
+                normalized_name=_as_str(rf.get("normalized_name")),
+                aliases=_dedupe_keep_order(_as_str_list(rf.get("aliases"))),
+                confidence=float(_as_float(rf.get("confidence")) or 0.0),
+                rationale=_as_str(rf.get("rationale")),
+                citations=_dedupe_keep_order(_as_str_list(rf.get("citations"))),
+            )
+        )
+
+    citations_raw = payload.get("citations")
+    citations_list = citations_raw if isinstance(citations_raw, list) else []
+    citations: list[Citation] = []
+    for c in citations_list:
+        if not isinstance(c, dict):
+            continue
+        citations.append(
+            Citation(
+                chunk_id=_as_str(c.get("chunk_id")),
+                doi=_as_str(c.get("doi")),
+                title=_as_str(c.get("title")) or None,
+                year=_as_int(c.get("year")),
+                section=_as_str(c.get("section")) or None,
+                snippet=_as_str(c.get("snippet")),
+            )
+        )
+
+    return SynthesisOutput(
+        answer=AnswerPayload(
+            summary=_as_str(answer.get("summary")),
+            risk_factors=risk_factors,
+            limitations=_dedupe_keep_order(_as_str_list(answer.get("limitations"))),
+        ),
+        citations=citations,
+    )
 
 
 def _parse_and_validate(
@@ -602,9 +651,9 @@ def _parse_and_validate(
     }
 
     try:
-        out = SynthesisOutput.model_validate(normalized_out)
+        out = _to_synthesis_output(normalized_out)
         return _ParseResult(ok=True, output=out, grounded=grounded, code="")
-    except (ValidationError, Exception):
+    except Exception:
         log.warning(
             "Synthesis schema validate failed | model_id=%s | excerpt=%s", model_id, excerpt
         )

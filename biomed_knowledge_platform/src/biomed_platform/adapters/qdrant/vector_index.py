@@ -16,10 +16,9 @@ from qdrant_client.http.models import (
     Range,
 )
 
-from biomed_platform.api.models.generated import schemas
 from biomed_platform.common.logging import get_logger
 from biomed_platform.core.domains.ingestion import VectorPoint
-from biomed_platform.core.domains.retrieval import ChunkCandidate, VectorSearchHit
+from biomed_platform.core.domains.retrieval import ChunkCandidate, SourceType, VectorSearchHit
 from biomed_platform.core.errors.errors import SystemError
 from biomed_platform.core.ports.ingestion import VectorWriter
 
@@ -667,7 +666,7 @@ class QdrantVectorIndex(VectorWriter):
         parsed_source_type = None
         if isinstance(source_type, str):
             try:
-                parsed_source_type = schemas.SourceType(source_type)
+                parsed_source_type = SourceType(source_type)
             except Exception:
                 parsed_source_type = None
 

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+
+from biomed_platform.core.domains.retrieval import SourceType
 
 
 class RetrievalOrigin(str, Enum):
@@ -17,7 +18,7 @@ class HybridChunkCandidate:
     title: str | None
     year: int | None
     section: str | None
-    source_type: Any
+    source_type: SourceType | None
     score: float
     chunk_text: str | None
     origin: RetrievalOrigin

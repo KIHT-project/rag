@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request, status
 
+from biomed_platform.api.mappers.retrieval_mapper import (
+    to_api_search_response,
+    to_domain_search_request,
+)
 from biomed_platform.api.models.generated import schemas
 from biomed_platform.common.logging import get_logger
 from biomed_platform.common.middleware.trace import get_request_id
@@ -60,8 +64,11 @@ async def search(request: Request, body: schemas.SearchRequest) -> schemas.Searc
             retryable=False,
         )
 
-    return await use_case.execute(
+    result = await use_case.execute(
         request_id=request_id,
         embedding_model_id=embedding_model_id,
-        req=body,
+        req=to_domain_search_request(body),
     )
+    if isinstance(result, schemas.SearchResponse):
+        return result
+    return to_api_search_response(result)

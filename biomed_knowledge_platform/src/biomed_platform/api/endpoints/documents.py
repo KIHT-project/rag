@@ -5,10 +5,16 @@ import uuid
 
 from fastapi import APIRouter, Header, Request, Response, status
 
+from biomed_platform.api.mappers.documents_mapper import (
+    to_api_document_fetch_response,
+    to_api_document_response,
+    to_api_doi_list_response,
+)
 from biomed_platform.api.models.generated import schemas
 from biomed_platform.common.logging import get_logger
 from biomed_platform.common.middleware.trace import get_request_id
 from biomed_platform.common.utils import compute_body_hash_from_items
+from biomed_platform.core.domains.documents import DocumentFetchResponse
 from biomed_platform.core.domains.ingestion import IngestBatchCommand
 from biomed_platform.core.errors.errors import SystemError, business_error
 from biomed_platform.core.use_cases.document_fetch import DocumentFetchUseCase
@@ -90,7 +96,7 @@ async def _build_ingest_items(
                     message="DOI or PMID not found",
                     details={"doi": doi, "pmid": pmid},
                 )
-            fetch_resp = use_case.build_fetch_response(
+            fetch_resp: DocumentFetchResponse = use_case.build_fetch_response(
                 request_id=request_id,
                 doc=doc,
                 requested_doi=doi,
@@ -204,13 +210,16 @@ async def fetch_document(
     doi = getattr(root, "doi", None)
     pmid = getattr(root, "pmid", None)
 
-    return await use_case.fetch_one(
+    result = await use_case.fetch_one(
         request_id=request_id,
         embedding_model_id=embedding_model_id,
         doi=doi,
         pmid=pmid,
         ingest_enabled=ingest_enabled,
     )
+    if isinstance(result, schemas.DocumentFetchResponse):
+        return result
+    return to_api_document_fetch_response(result)
 
 
 @router.get(
@@ -241,11 +250,14 @@ async def list_dois(
 
     include_info = bool(x_include_document_info) if x_include_document_info is not None else False
     use_case = DocumentLookupUseCase(vector_index=vector_index)
-    return await use_case.list_dois(
+    result = await use_case.list_dois(
         request_id=request_id,
         embedding_model_id=embedding_model_id,
         include_document_info=include_info,
     )
+    if isinstance(result, (schemas.DoiListSimpleResponse, schemas.DoiListExpandedResponse)):
+        return result
+    return to_api_doi_list_response(result)
 
 
 @router.post(
@@ -373,8 +385,11 @@ async def get_document(request: Request, doi: str) -> schemas.DocumentResponse:
         )
 
     use_case = DocumentLookupUseCase(vector_index=vector_index)
-    return await use_case.get_by_doi(
+    result = await use_case.get_by_doi(
         request_id=request_id,
         embedding_model_id=embedding_model_id,
         doi=doi,
     )
+    if isinstance(result, schemas.DocumentResponse):
+        return result
+    return to_api_document_response(result)

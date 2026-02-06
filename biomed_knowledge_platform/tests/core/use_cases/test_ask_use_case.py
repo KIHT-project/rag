@@ -7,10 +7,10 @@ from typing import Any, Mapping, Sequence
 from unittest.mock import AsyncMock
 
 import pytest
-from fastapi.exceptions import RequestValidationError
 
 from biomed_platform.api.models.generated import schemas
 from biomed_platform.core.domains.retrieval import ChunkCandidate
+from biomed_platform.core.errors.errors import BusinessError
 from biomed_platform.core.services.hallucination.synthesis import synthesize_answer
 from biomed_platform.core.use_cases.ask import AskUseCase
 
@@ -327,7 +327,7 @@ async def test_context_selection_limits_allowed_citations() -> None:
         synthesizer=synthesize_answer,
     )
 
-    with pytest.raises(RequestValidationError) as exc:
+    with pytest.raises(BusinessError) as exc:
         await uc.execute(
             request_id="r",
             question="q",
@@ -345,4 +345,5 @@ async def test_context_selection_limits_allowed_citations() -> None:
             debug_enabled=False,
         )
 
-    assert "no_context_available" in str(exc.value)
+    assert exc.value.code == "validation_error"
+    assert exc.value.message == "no_context_available"

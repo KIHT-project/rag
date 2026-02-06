@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
+from pydantic import BaseModel
 from fastapi.testclient import TestClient
 
 from biomed_platform.api.error_handlers import _http_status_for_error, install_error_handlers
@@ -45,3 +46,54 @@ def test_app_error_handler_sets_retry_after_and_request_id() -> None:
         assert body["error"] == "too_many_requests"
     finally:
         request_id_ctx.reset(token)
+
+
+def test_request_validation_error_is_normalized_with_422() -> None:
+    app = FastAPI()
+    install_error_handlers(app)
+
+    class _Payload(BaseModel):
+        value: int
+
+    @app.post("/validate")
+    async def validate(payload: _Payload):
+        return {"value": payload.value}
+
+    client = TestClient(app)
+    r = client.post("/validate", json={"value": "not-int"})
+
+    assert r.status_code == 422
+    body = r.json()
+    assert body["error"] == "validation_error"
+    assert body["request_id"] == "none"
+    assert isinstance(body.get("details"), dict)
+    assert isinstance(body["details"].get("errors"), list)
+
+
+def test_not_found_http_exception_is_normalized() -> None:
+    app = FastAPI()
+    install_error_handlers(app)
+    client = TestClient(app)
+
+    r = client.get("/missing-route")
+    assert r.status_code == 404
+    body = r.json()
+    assert body["error"] == "not_found"
+    assert body["message"] == "Resource not found"
+
+
+def test_unhandled_exception_returns_standard_500_error_envelope() -> None:
+    app = FastAPI()
+    install_error_handlers(app)
+
+    @app.get("/explode")
+    async def explode():
+        raise ValueError("boom")
+
+    client = TestClient(app, raise_server_exceptions=False)
+    r = client.get("/explode")
+    assert r.status_code == 500
+    body = r.json()
+    assert body["error"] == "system_error"
+    assert body["message"] == "Internal server error"
+    assert body["status_code"] == 500

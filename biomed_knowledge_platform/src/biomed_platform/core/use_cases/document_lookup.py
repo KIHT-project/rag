@@ -3,10 +3,18 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Iterable, Sequence
 
-from biomed_platform.api.models.generated import schemas
 from biomed_platform.common.logging import get_logger
 from biomed_platform.common.utils import compute_doc_id, normalize_doi
-from biomed_platform.core.domains.retrieval import VectorSearchHit
+from biomed_platform.core.domains.retrieval import (
+    ChunkSection,
+    Disease,
+    DocumentInfo,
+    DocumentResponse,
+    DoiListExpandedResponse,
+    DoiListSimpleResponse,
+    SourceType,
+    VectorSearchHit,
+)
 from biomed_platform.core.errors.errors import business_error
 from biomed_platform.core.ports.ingestion import VectorWriter
 
@@ -38,7 +46,7 @@ def _extract_document_info(
     *,
     doc_id: str,
     hits: Sequence[VectorSearchHit],
-) -> schemas.DocumentInfo:
+) -> DocumentInfo:
     payloads = [dict(h.payload) for h in hits if isinstance(h.payload, dict)]
     payload_first = payloads[0] if payloads else {}
 
@@ -70,11 +78,9 @@ def _extract_document_info(
     section_parts.sort(key=lambda item: item[0])
     chunk_ids = [cid for _, cid, _ in chunk_parts] + chunk_ids
     content_text = "\n".join(text for _, _, text in chunk_parts)
-    sections = [
-        schemas.ChunkSection(chunk_id=cid, section=section) for _, cid, section in section_parts
-    ]
+    sections = [ChunkSection(chunk_id=cid, section=section) for _, cid, section in section_parts]
     sections.extend(
-        schemas.ChunkSection(chunk_id=cid, section=section) for cid, section in section_fallback
+        ChunkSection(chunk_id=cid, section=section) for cid, section in section_fallback
     )
 
     authors_val = payload_first.get("authors")
@@ -84,13 +90,21 @@ def _extract_document_info(
     disease_raw = payload_first.get("disease")
     if isinstance(disease_raw, str) and disease_raw:
         try:
-            disease = schemas.Disease(disease_raw)
+            disease = Disease(disease_raw)
         except Exception:
             disease = None
 
+    source_type = None
+    source_type_raw = payload_first.get("source_type")
+    if isinstance(source_type_raw, str) and source_type_raw:
+        try:
+            source_type = SourceType(source_type_raw)
+        except Exception:
+            source_type = None
+
     updated_at = _select_updated_at(payloads)
 
-    return schemas.DocumentInfo(
+    return DocumentInfo(
         doc_id=doc_id,
         doi=doi,
         chunk_ids=chunk_ids,
@@ -100,7 +114,7 @@ def _extract_document_info(
         journal=payload_first.get("journal"),
         year=payload_first.get("year"),
         disease=disease,
-        source_type=payload_first.get("source_type"),
+        source_type=source_type,
         title=payload_first.get("title"),
         content_text=content_text,
         updated_at=updated_at,
@@ -128,7 +142,7 @@ class DocumentLookupUseCase:
         request_id: str,
         embedding_model_id: str,
         doi: str,
-    ) -> schemas.DocumentResponse:
+    ) -> DocumentResponse:
         doi_normalized = normalize_doi(doi)
         if not doi_normalized:
             raise business_error(
@@ -151,7 +165,7 @@ class DocumentLookupUseCase:
             )
 
         info = _extract_document_info(doc_id=doc_id, hits=hits)
-        return schemas.DocumentResponse(
+        return DocumentResponse(
             request_id=request_id,
             doc_id=info.doc_id,
             doi=info.doi,
@@ -174,7 +188,7 @@ class DocumentLookupUseCase:
         request_id: str,
         embedding_model_id: str,
         include_document_info: bool,
-    ) -> schemas.DoiListSimpleResponse | schemas.DoiListExpandedResponse:
+    ) -> DoiListSimpleResponse | DoiListExpandedResponse:
         hits = await self._vector_index.fetch_all(
             embedding_model_id=embedding_model_id,
         )
@@ -198,7 +212,7 @@ class DocumentLookupUseCase:
                     dois.append(doi)
 
             dois_sorted = sorted(set(dois))
-            return schemas.DoiListSimpleResponse(
+            return DoiListSimpleResponse(
                 request_id=request_id,
                 dois=dois_sorted,
             )
@@ -208,7 +222,7 @@ class DocumentLookupUseCase:
             for doc_id, doc_hits in grouped.items()
         ]
 
-        return schemas.DoiListExpandedResponse(
+        return DoiListExpandedResponse(
             request_id=request_id,
             documents=documents,
         )
