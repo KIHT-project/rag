@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Iterable, List, Tuple
 
 from datasets import Dataset
-from openai import AsyncOpenAI, OpenAI
+from openai import OpenAI
 from ragas import evaluate
 from ragas.llms import llm_factory
 from ragas.metrics import AnswerRelevancy, Faithfulness, LLMContextPrecisionWithoutReference
@@ -18,6 +18,13 @@ from ragas.metrics import AnswerRelevancy, Faithfulness, LLMContextPrecisionWith
 from evaluation_metrics.src.utils.output_writer import write_outputs
 
 log = logging.getLogger(__name__)
+
+_VALID_METRIC_NAMES = {
+    "faithfulness",
+    "answer_relevancy",
+    "llm_context_precision_wo_ref",
+    "llm_context_precision_without_reference",
+}
 
 
 def _require_env(name: str) -> str:
@@ -164,6 +171,7 @@ def run_ragas(
     embeddings_model: str,
     embeddings_device: str,
     embeddings_local_only: bool = False,
+    metric_names: list[str] | None = None,
 ) -> Path:
     log.info("phase4 start input=%s", input_jsonl)
 
@@ -230,7 +238,7 @@ def run_ragas(
 
     timeout_seconds = float(os.environ.get("RAGAS_EVAL_TIMEOUT_SEC", "240"))
 
-    evaluator_client = AsyncOpenAI(
+    evaluator_client = OpenAI(
         base_url=base_url,
         api_key=api_key,
         timeout=timeout_seconds,
@@ -251,15 +259,45 @@ def run_ragas(
         local_only=embeddings_local_only,
     )
 
-    # Choose metrics based on data availability.
-    # If contexts are missing, context based metrics are undefined and will just produce NaNs.
+    # Choose metrics based on config and data availability.
     all_empty_contexts = all((r.get("contexts") or []) == [] for r in records)
+    requested = [m.strip().lower() for m in (metric_names or []) if str(m).strip()]
+    if not requested:
+        if all_empty_contexts:
+            requested = ["answer_relevancy"]
+        else:
+            requested = ["faithfulness", "answer_relevancy", "llm_context_precision_wo_ref"]
+
+    unknown = [m for m in requested if m not in _VALID_METRIC_NAMES]
+    if unknown:
+        raise ValueError(f"phase4 unknown ragas metrics: {unknown}. valid={sorted(_VALID_METRIC_NAMES)}")
+
+    canonical: list[str] = []
+    for name in requested:
+        if name == "llm_context_precision_without_reference":
+            name = "llm_context_precision_wo_ref"
+        if name not in canonical:
+            canonical.append(name)
+
     if all_empty_contexts:
-        metrics = [AnswerRelevancy(llm=evaluator_llm)]
-        log.info("phase4 metrics=answer_relevancy only (no contexts in input)")
-    else:
-        metrics = [Faithfulness(llm=evaluator_llm), AnswerRelevancy(llm=evaluator_llm), LLMContextPrecisionWithoutReference(llm=evaluator_llm)]
-        log.info("phase4 metrics=faithfulness, answer_relevancy, llm_context_precision_wo_ref")
+        filtered = [m for m in canonical if m == "answer_relevancy"]
+        dropped = [m for m in canonical if m != "answer_relevancy"]
+        if dropped:
+            log.warning("phase4 dropping context-based metrics (no contexts): %s", ",".join(dropped))
+        canonical = filtered
+
+    if not canonical:
+        raise RuntimeError("phase4 no valid metrics selected")
+
+    metrics = []
+    for name in canonical:
+        if name == "faithfulness":
+            metrics.append(Faithfulness(llm=evaluator_llm))
+        elif name == "answer_relevancy":
+            metrics.append(AnswerRelevancy(llm=evaluator_llm))
+        elif name == "llm_context_precision_wo_ref":
+            metrics.append(LLMContextPrecisionWithoutReference(llm=evaluator_llm))
+    log.info("phase4 metrics=%s", ", ".join(canonical))
 
     run_config = None
     try:

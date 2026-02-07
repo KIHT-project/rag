@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import os
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,26 @@ from evaluation_metrics.src.phases.phase3_generate import run_phase3_generate
 from evaluation_metrics.src.phases.phase4_ragas import run_ragas
 from evaluation_metrics.src.phases.phase5_audit import build_audit_sample
 from evaluation_metrics.src.schemas.models import RunContext
+
+
+def _run_async(coro: Any) -> Any:
+    """
+    Run a coroutine in an isolated event loop.
+
+    We intentionally avoid asyncio.run() because Python 3.14 + nest_asyncio can
+    raise during shutdown_default_executor() in CLI teardown.
+    """
+    loop = asyncio.new_event_loop()
+    try:
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(coro)
+    finally:
+        try:
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        except Exception:
+            pass
+        asyncio.set_event_loop(None)
+        loop.close()
 
 
 def _load_config(path: Path) -> dict[str, Any]:
@@ -39,6 +60,45 @@ def _init_run(config: dict[str, Any]) -> RunContext:
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "config_snapshot.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
     return RunContext(run_id=run_id, run_dir=str(run_dir))
+
+
+def _init_sub_run(parent: RunContext, *, name: str) -> RunContext:
+    run_dir = Path(parent.run_dir) / name
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return RunContext(run_id=f"{parent.run_id}_{name}", run_dir=str(run_dir))
+
+
+def _summarize_phase4_json(path: Path) -> dict[str, float]:
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(rows, list):
+        raise RuntimeError(f"phase4 output is not a list: {path}")
+
+    sums: dict[str, float] = defaultdict(float)
+    counts: dict[str, int] = defaultdict(int)
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        for k, v in row.items():
+            if isinstance(v, (int, float)):
+                sums[k] += float(v)
+                counts[k] += 1
+
+    out: dict[str, float] = {}
+    for k, total in sums.items():
+        n = counts.get(k, 0)
+        if n > 0:
+            out[k] = total / n
+    return out
+
+
+def _mean_std(values: list[float]) -> tuple[float, float]:
+    if not values:
+        return 0.0, 0.0
+    mean = sum(values) / len(values)
+    if len(values) == 1:
+        return mean, 0.0
+    var = sum((v - mean) ** 2 for v in values) / (len(values) - 1)
+    return mean, var**0.5
 
 
 async def _cmd_phase1(args: argparse.Namespace) -> None:
@@ -64,6 +124,20 @@ async def _cmd_phase3(args: argparse.Namespace) -> None:
         timeout_seconds=float(config["rag_api"]["timeout_seconds"]),
     )
     ollama = OllamaClient(base_url=config["ollama"]["base_url"])
+    try:
+        await rag.probe()
+    except Exception as e:
+        raise RuntimeError(
+            f"RAG API unreachable at {config['rag_api']['base_url']}. "
+            "Start the API service and retry."
+        ) from e
+    try:
+        await ollama.probe()
+    except Exception as e:
+        raise RuntimeError(
+            f"Ollama API unreachable at {config['ollama']['base_url']}. "
+            "Start/reach Ollama and retry."
+        ) from e
     await run_phase3_generate(
         ctx=ctx,
         rag=rag,
@@ -141,6 +215,7 @@ def _cmd_phase4(args: argparse.Namespace) -> None:
     embeddings_model = str(config["ragas"]["embeddings_model"])
     embeddings_device = str(config["ragas"]["embeddings_device"])
     embeddings_local_only = bool(config["ragas"].get("embeddings_local_only", False))
+    ragas_metrics = config["ragas"].get("metrics")
 
     run_ragas(
         input_jsonl=in_path,
@@ -148,7 +223,139 @@ def _cmd_phase4(args: argparse.Namespace) -> None:
         embeddings_model=embeddings_model,
         embeddings_device=embeddings_device,
         embeddings_local_only=embeddings_local_only,
+        metric_names=[str(m) for m in ragas_metrics] if isinstance(ragas_metrics, list) else None,
     )
+
+
+def _run_phase4_for_outputs(
+    *,
+    config: dict[str, Any],
+    outputs: dict[str, Path],
+    out_dir: Path,
+) -> dict[str, dict[str, float]]:
+    os.environ.setdefault("OPENAI_API_KEY", "ollama")
+    os.environ["OPENAI_BASE_URL"] = str(config["ollama"]["base_url"]).rstrip("/") + "/v1"
+    os.environ["EVAL_OLLAMA_MODEL"] = str(config["ollama"]["model"])
+
+    embeddings_model = str(config["ragas"]["embeddings_model"])
+    embeddings_device = str(config["ragas"]["embeddings_device"])
+    embeddings_local_only = bool(config["ragas"].get("embeddings_local_only", False))
+    ragas_metrics = config["ragas"].get("metrics")
+
+    per_mode_summary: dict[str, dict[str, float]] = {}
+    for mode, in_path in outputs.items():
+        out_csv = out_dir / f"phase4_ragas_{in_path.stem}.csv"
+        run_ragas(
+            input_jsonl=in_path,
+            out_csv=out_csv,
+            embeddings_model=embeddings_model,
+            embeddings_device=embeddings_device,
+            embeddings_local_only=embeddings_local_only,
+            metric_names=[str(m) for m in ragas_metrics] if isinstance(ragas_metrics, list) else None,
+        )
+        per_mode_summary[mode] = _summarize_phase4_json(out_csv.with_suffix(".json"))
+    return per_mode_summary
+
+
+async def _cmd_paper(args: argparse.Namespace) -> None:
+    config = _load_config(Path(args.config))
+    ctx = _init_run(config)
+    rag = RagApiClient(
+        base_url=config["rag_api"]["base_url"],
+        timeout_seconds=float(config["rag_api"]["timeout_seconds"]),
+    )
+    ollama = OllamaClient(base_url=config["ollama"]["base_url"])
+    try:
+        await rag.probe()
+    except Exception as e:
+        raise RuntimeError(
+            f"RAG API unreachable at {config['rag_api']['base_url']}. "
+            "Start the API service and retry."
+        ) from e
+    try:
+        await ollama.probe()
+    except Exception as e:
+        raise RuntimeError(
+            f"Ollama API unreachable at {config['ollama']['base_url']}. "
+            "Start/reach Ollama and retry."
+        ) from e
+
+    paper_cfg = config.get("paper", {})
+    primary_seed = paper_cfg.get("primary_seed")
+    primary_temperature = float(paper_cfg.get("primary_temperature", 0.0))
+    robustness_temperature = float(paper_cfg.get("robustness_temperature", 0.2))
+    robustness_seeds = list(paper_cfg.get("robustness_seeds", [11, 22, 33, 44, 55]))
+
+    primary_ctx = _init_sub_run(ctx, name="primary_deterministic")
+    primary_outputs = await run_phase3_generate(
+        ctx=primary_ctx,
+        rag=rag,
+        ollama=ollama,
+        queries_jsonl=Path(config["paths"]["queries_jsonl"]),
+        search_top_k_context=int(config["rag_api"]["search_top_k_context"]),
+        hyde_header_name=str(config["ask"]["hyde_header_name"]),
+        hyde_header_value=str(config["ask"]["hyde_header_value"]),
+        ollama_model=str(config["ollama"]["model"]),
+        ollama_temperature=primary_temperature,
+        ollama_num_predict=int(config["ollama"]["num_predict"]),
+        ollama_seed=int(primary_seed) if primary_seed is not None else None,
+    )
+    primary_summary = _run_phase4_for_outputs(
+        config=config, outputs=primary_outputs, out_dir=Path(primary_ctx.run_dir)
+    )
+
+    robust_root = _init_sub_run(ctx, name="robustness")
+    all_runs: list[dict[str, Any]] = []
+    metrics_acc: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+
+    for seed_raw in robustness_seeds:
+        seed = int(seed_raw)
+        seed_ctx = _init_sub_run(robust_root, name=f"seed_{seed}")
+        outputs = await run_phase3_generate(
+            ctx=seed_ctx,
+            rag=rag,
+            ollama=ollama,
+            queries_jsonl=Path(config["paths"]["queries_jsonl"]),
+            search_top_k_context=int(config["rag_api"]["search_top_k_context"]),
+            hyde_header_name=str(config["ask"]["hyde_header_name"]),
+            hyde_header_value=str(config["ask"]["hyde_header_value"]),
+            ollama_model=str(config["ollama"]["model"]),
+            ollama_temperature=robustness_temperature,
+            ollama_num_predict=int(config["ollama"]["num_predict"]),
+            ollama_seed=seed,
+        )
+        run_summary = _run_phase4_for_outputs(config=config, outputs=outputs, out_dir=Path(seed_ctx.run_dir))
+        all_runs.append({"seed": seed, "summary": run_summary, "run_dir": seed_ctx.run_dir})
+        for mode, metrics in run_summary.items():
+            for metric, value in metrics.items():
+                metrics_acc[mode][metric].append(float(value))
+
+    aggregate: dict[str, dict[str, dict[str, Any]]] = {}
+    for mode, metric_vals in metrics_acc.items():
+        aggregate[mode] = {}
+        for metric, values in metric_vals.items():
+            mean, std = _mean_std(values)
+            aggregate[mode][metric] = {"mean": mean, "std": std, "n": len(values)}
+
+    out_summary = {
+        "primary_deterministic": {
+            "seed": primary_seed,
+            "temperature": primary_temperature,
+            "summary": primary_summary,
+            "run_dir": primary_ctx.run_dir,
+        },
+        "robustness": {
+            "temperature": robustness_temperature,
+            "seeds": [int(s) for s in robustness_seeds],
+            "runs": all_runs,
+            "aggregate": aggregate,
+            "run_dir": robust_root.run_dir,
+        },
+    }
+
+    out_path = Path(ctx.run_dir) / "paper_benchmark_summary.json"
+    out_path.write_text(json.dumps(out_summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    logging.info("paper benchmark summary written %s", out_path)
 
 
 def _cmd_phase5(args: argparse.Namespace) -> None:
@@ -178,10 +385,10 @@ def main() -> None:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s3 = sub.add_parser("phase1")
-    s3.set_defaults(func=lambda a: asyncio.run(_cmd_phase1(a)))
+    s3.set_defaults(func=lambda a: _run_async(_cmd_phase1(a)))
 
     s6 = sub.add_parser("phase3")
-    s6.set_defaults(func=lambda a: asyncio.run(_cmd_phase3(a)))
+    s6.set_defaults(func=lambda a: _run_async(_cmd_phase3(a)))
 
     s5 = sub.add_parser("phase2")
     s5.add_argument("--pool-jsonl", required=True)
@@ -206,6 +413,9 @@ def main() -> None:
     s8.add_argument("--rag-hyde", required=True)
     s8.add_argument("--llm-only", required=True)
     s8.set_defaults(func=_cmd_phase5)
+
+    s9 = sub.add_parser("paper")
+    s9.set_defaults(func=lambda a: _run_async(_cmd_paper(a)))
 
     args = p.parse_args()
     args.func(args)
