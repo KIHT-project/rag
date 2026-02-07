@@ -21,6 +21,7 @@ from biomed_platform.common.middleware.request_context import (
     AccessLogMiddleware,
     RequestContextMiddleware,
 )
+from biomed_platform.common.middleware.audit import AuditMiddleware
 from biomed_platform.common.settings import load_settings
 from biomed_platform.core.errors.errors import SystemError
 from biomed_platform.core.services.ingestion.backpressure import SimpleBackpressurePolicy
@@ -178,6 +179,9 @@ def create_app() -> FastAPI:
         db_engine, db_sessionmaker = create_engine_and_sessionmaker(pg_cfg=pg_cfg)
         app.state.db_engine = db_engine
         app.state.db_sessionmaker = db_sessionmaker
+        from biomed_platform.audit.service import PostgresAuditService
+
+        app.state.audit_service = PostgresAuditService(session_maker=db_sessionmaker)
 
         await run_migrations(pg_cfg=pg_cfg)
 
@@ -255,6 +259,7 @@ def create_app() -> FastAPI:
     app.include_router(ask_router)
 
     app.add_middleware(AccessLogMiddleware)
+    app.add_middleware(AuditMiddleware)
     app.add_middleware(RequestContextMiddleware)
 
     return app

@@ -91,6 +91,8 @@ async def run_phase3_generate(
     ollama_num_predict: int,
     ollama_seed: int | None = None,
     filters: Optional[dict[str, Any]] = None,
+    enabled_modes: set[str] | None = None,
+    max_queries: int | None = None,
 ) -> dict[str, Path]:
     out_rag = Path(ctx.run_dir) / "phase3_answers_rag_no_hyde.jsonl"
     out_hyde = Path(ctx.run_dir) / "phase3_answers_rag_hyde.jsonl"
@@ -98,12 +100,26 @@ async def run_phase3_generate(
 
     out_rag.parent.mkdir(parents=True, exist_ok=True)
 
+    valid_modes = {"rag_no_hyde", "rag_hyde", "llm_only"}
+    modes = set(enabled_modes) if enabled_modes else set(valid_modes)
+    unknown = modes - valid_modes
+    if unknown:
+        raise ValueError(f"Unknown phase3 mode(s): {sorted(unknown)}")
+    if not modes:
+        raise ValueError("No phase3 modes enabled")
+
+    query_limit = None
+    if max_queries is not None and int(max_queries) > 0:
+        query_limit = int(max_queries)
+
     log.info(
-        "phase3 | start | run_id=%s | queries=%s | ctx_top_k=%d | model=%s",
+        "phase3 | start | run_id=%s | queries=%s | ctx_top_k=%d | model=%s | modes=%s | max_queries=%s",
         ctx.run_id,
         str(queries_jsonl),
         search_top_k_context,
         ollama_model,
+        sorted(modes),
+        query_limit,
     )
 
     total = 0
@@ -118,6 +134,8 @@ async def run_phase3_generate(
             line = line.strip()
             if not line:
                 continue
+            if query_limit is not None and total >= query_limit:
+                break
 
             q = QueryItem.model_validate_json(line)
             total += 1
@@ -131,111 +149,114 @@ async def run_phase3_generate(
                 # actually used by the server during answer generation. Never mix in a separate
                 # /search call, because that produces different hits and breaks faithfulness.
 
-                t2 = time.perf_counter()
-                rag_resp = await rag.ask(
-                    question=question,
-                    filters=filters,
-                    hyde_enabled=False,
-                    hyde_header_name=hyde_header_name,
-                    hyde_header_value=hyde_header_value,
-                )
-                t3 = time.perf_counter()
+                if "rag_no_hyde" in modes:
+                    t2 = time.perf_counter()
+                    rag_resp = await rag.ask(
+                        question=question,
+                        filters=filters,
+                        hyde_enabled=False,
+                        hyde_header_name=hyde_header_name,
+                        hyde_header_value=hyde_header_value,
+                    )
+                    t3 = time.perf_counter()
 
-                contexts_rag = _extract_contexts_from_ask_raw(rag_resp.raw)
+                    contexts_rag = _extract_contexts_from_ask_raw(rag_resp.raw)
 
-                rec_rag = {
-                    "query_id": qid,
-                    "question": question,
-                    "mode": "rag_no_hyde",
-                    "answer_raw": rag_resp.raw,
-                    "contexts": contexts_rag,
-                    "contexts_source": "ask",
-                }
-                f_rag.write(json.dumps(rec_rag, ensure_ascii=False) + "\n")
+                    rec_rag = {
+                        "query_id": qid,
+                        "question": question,
+                        "mode": "rag_no_hyde",
+                        "answer_raw": rag_resp.raw,
+                        "contexts": contexts_rag,
+                        "contexts_source": "ask",
+                    }
+                    f_rag.write(json.dumps(rec_rag, ensure_ascii=False) + "\n")
 
-                preview = ""
-                if isinstance(rag_resp.raw, dict):
-                    ans = rag_resp.raw.get("answer")
-                    if isinstance(ans, dict):
-                        preview = ans.get("summary") or ""
-                    elif isinstance(ans, str):
-                        preview = ans
-                log.info(
-                    "phase3 | query_id=%s | rag_no_hyde_ms=%.2f | answer_preview=%s",
-                    qid,
-                    (t3 - t2) * 1000.0,
-                    _cap(preview),
-                )
+                    preview = ""
+                    if isinstance(rag_resp.raw, dict):
+                        ans = rag_resp.raw.get("answer")
+                        if isinstance(ans, dict):
+                            preview = ans.get("summary") or ""
+                        elif isinstance(ans, str):
+                            preview = ans
+                    log.info(
+                        "phase3 | query_id=%s | rag_no_hyde_ms=%.2f | answer_preview=%s",
+                        qid,
+                        (t3 - t2) * 1000.0,
+                        _cap(preview),
+                    )
 
-                t4 = time.perf_counter()
-                hyde_resp = await rag.ask(
-                    question=question,
-                    filters=filters,
-                    hyde_enabled=True,
-                    hyde_header_name=hyde_header_name,
-                    hyde_header_value=hyde_header_value,
-                )
-                t5 = time.perf_counter()
+                if "rag_hyde" in modes:
+                    t4 = time.perf_counter()
+                    hyde_resp = await rag.ask(
+                        question=question,
+                        filters=filters,
+                        hyde_enabled=True,
+                        hyde_header_name=hyde_header_name,
+                        hyde_header_value=hyde_header_value,
+                    )
+                    t5 = time.perf_counter()
 
-                contexts_hyde = _extract_contexts_from_ask_raw(hyde_resp.raw)
+                    contexts_hyde = _extract_contexts_from_ask_raw(hyde_resp.raw)
 
-                rec_hyde = {
-                    "query_id": qid,
-                    "question": question,
-                    "mode": "rag_hyde",
-                    "answer_raw": hyde_resp.raw,
-                    "contexts": contexts_hyde,
-                    "contexts_source": "ask",
-                }
-                f_hyde.write(json.dumps(rec_hyde, ensure_ascii=False) + "\n")
+                    rec_hyde = {
+                        "query_id": qid,
+                        "question": question,
+                        "mode": "rag_hyde",
+                        "answer_raw": hyde_resp.raw,
+                        "contexts": contexts_hyde,
+                        "contexts_source": "ask",
+                    }
+                    f_hyde.write(json.dumps(rec_hyde, ensure_ascii=False) + "\n")
 
-                preview = ""
-                if isinstance(hyde_resp.raw, dict):
-                    ans = hyde_resp.raw.get("answer")
-                    if isinstance(ans, dict):
-                        preview = ans.get("summary") or ""
-                    elif isinstance(ans, str):
-                        preview = ans
-                log.info(
-                    "phase3 | query_id=%s | rag_hyde_ms=%.2f | answer_preview=%s",
-                    qid,
-                    (t5 - t4) * 1000.0,
-                    _cap(preview),
-                )
+                    preview = ""
+                    if isinstance(hyde_resp.raw, dict):
+                        ans = hyde_resp.raw.get("answer")
+                        if isinstance(ans, dict):
+                            preview = ans.get("summary") or ""
+                        elif isinstance(ans, str):
+                            preview = ans
+                    log.info(
+                        "phase3 | query_id=%s | rag_hyde_ms=%.2f | answer_preview=%s",
+                        qid,
+                        (t5 - t4) * 1000.0,
+                        _cap(preview),
+                    )
 
-                t6 = time.perf_counter()
-                llm_text = await ollama.chat(
-                    model=ollama_model,
-                    system=LLM_ONLY_SYSTEM_PROMPT,
-                    user=question,
-                    temperature=ollama_temperature,
-                    num_predict=ollama_num_predict,
-                    seed=ollama_seed,
-                )
-                t7 = time.perf_counter()
+                if "llm_only" in modes:
+                    t6 = time.perf_counter()
+                    llm_text = await ollama.chat(
+                        model=ollama_model,
+                        system=LLM_ONLY_SYSTEM_PROMPT,
+                        user=question,
+                        temperature=ollama_temperature,
+                        num_predict=ollama_num_predict,
+                        seed=ollama_seed,
+                    )
+                    t7 = time.perf_counter()
 
-                rec_llm = {
-                    "query_id": qid,
-                    "question": question,
-                    "mode": "llm_only",
-                    "answer_text": llm_text,
-                    "contexts": [],
-                    "contexts_source": "none",
-                    "generation": {
-                        "model": ollama_model,
-                        "temperature": ollama_temperature,
-                        "num_predict": ollama_num_predict,
-                        "seed": ollama_seed,
-                    },
-                }
-                f_llm.write(json.dumps(rec_llm, ensure_ascii=False) + "\n")
+                    rec_llm = {
+                        "query_id": qid,
+                        "question": question,
+                        "mode": "llm_only",
+                        "answer_text": llm_text,
+                        "contexts": [],
+                        "contexts_source": "none",
+                        "generation": {
+                            "model": ollama_model,
+                            "temperature": ollama_temperature,
+                            "num_predict": ollama_num_predict,
+                            "seed": ollama_seed,
+                        },
+                    }
+                    f_llm.write(json.dumps(rec_llm, ensure_ascii=False) + "\n")
 
-                log.info(
-                    "phase3 | query_id=%s | llm_only_ms=%.2f | answer_preview=%s",
-                    qid,
-                    (t7 - t6) * 1000.0,
-                    _cap(llm_text),
-                )
+                    log.info(
+                        "phase3 | query_id=%s | llm_only_ms=%.2f | answer_preview=%s",
+                        qid,
+                        (t7 - t6) * 1000.0,
+                        _cap(llm_text),
+                    )
 
                 if total % 5 == 0:
                     log.info("phase3 | progress | done=%d", total)
@@ -257,4 +278,11 @@ async def run_phase3_generate(
             "phase3 failed for all queries; upstream services appear unavailable or misconfigured"
         )
 
-    return {"rag_no_hyde": out_rag, "rag_hyde": out_hyde, "llm_only": out_llm}
+    outputs: dict[str, Path] = {}
+    if "rag_no_hyde" in modes:
+        outputs["rag_no_hyde"] = out_rag
+    if "rag_hyde" in modes:
+        outputs["rag_hyde"] = out_hyde
+    if "llm_only" in modes:
+        outputs["llm_only"] = out_llm
+    return outputs
