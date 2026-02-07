@@ -103,6 +103,32 @@ def _mean_std(values: list[float]) -> tuple[float, float]:
     return mean, var**0.5
 
 
+def _resolve_enabled_modes(paper_cfg: dict[str, Any]) -> set[str]:
+    raw = paper_cfg.get("modes")
+    default = {"rag_no_hyde", "rag_hyde", "llm_only"}
+    if raw is None:
+        return default
+    if not isinstance(raw, list):
+        raise RuntimeError("paper.modes must be a list of mode names")
+    out = {str(v).strip() for v in raw if str(v).strip()}
+    if not out:
+        raise RuntimeError("paper.modes cannot be empty")
+    return out
+
+
+def _resolve_max_queries(paper_cfg: dict[str, Any]) -> int | None:
+    raw = paper_cfg.get("max_queries")
+    if raw is None:
+        return None
+    try:
+        val = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("paper.max_queries must be an integer") from exc
+    if val <= 0:
+        return None
+    return val
+
+
 def _audit_dsn(config: dict[str, Any]) -> str:
     env = os.environ.get("EVAL_AUDIT_POSTGRES_DSN", "").strip()
     if env:
@@ -284,6 +310,8 @@ async def _cmd_paper(args: argparse.Namespace) -> None:
     primary_temperature = float(paper_cfg.get("primary_temperature", 0.0))
     robustness_temperature = float(paper_cfg.get("robustness_temperature", 0.2))
     robustness_seeds = list(paper_cfg.get("robustness_seeds", [11, 22, 33, 44, 55]))
+    enabled_modes = _resolve_enabled_modes(paper_cfg)
+    max_queries = _resolve_max_queries(paper_cfg)
     model_name = str(config["ollama"]["model"])
     queries_path = str(config["paths"]["queries_jsonl"])
 
@@ -302,6 +330,8 @@ async def _cmd_paper(args: argparse.Namespace) -> None:
             "primary_temperature": primary_temperature,
             "robustness_temperature": robustness_temperature,
             "robustness_seeds": robustness_seeds,
+            "enabled_modes": sorted(enabled_modes),
+            "max_queries": max_queries,
             "num_predict": int(config["ollama"]["num_predict"]),
         },
         seed=int(primary_seed) if primary_seed is not None else None,
@@ -344,7 +374,7 @@ async def _cmd_paper(args: argparse.Namespace) -> None:
             status="STARTED",
             phase="PRIMARY",
             message="primary deterministic run started",
-            payload=None,
+            payload={"modes": sorted(enabled_modes), "max_queries": max_queries},
         )
 
         primary_ctx = _init_sub_run(ctx, name="primary_deterministic")
@@ -360,6 +390,8 @@ async def _cmd_paper(args: argparse.Namespace) -> None:
             ollama_temperature=primary_temperature,
             ollama_num_predict=int(config["ollama"]["num_predict"]),
             ollama_seed=int(primary_seed) if primary_seed is not None else None,
+            enabled_modes=enabled_modes,
+            max_queries=max_queries,
         )
         primary_summary = _run_phase4_for_outputs(
             config=config, outputs=primary_outputs, out_dir=Path(primary_ctx.run_dir)
@@ -414,6 +446,8 @@ async def _cmd_paper(args: argparse.Namespace) -> None:
                 ollama_temperature=robustness_temperature,
                 ollama_num_predict=int(config["ollama"]["num_predict"]),
                 ollama_seed=seed,
+                enabled_modes=enabled_modes,
+                max_queries=max_queries,
             )
             run_summary = _run_phase4_for_outputs(
                 config=config, outputs=outputs, out_dir=Path(seed_ctx.run_dir)

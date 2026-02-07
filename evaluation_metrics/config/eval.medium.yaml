@@ -10,19 +10,21 @@ ollama:
   base_url: http://192.168.2.3:11434
   model: llama3.1:8b-instruct-q4_K_M
   temperature: 0.2
-  # Lower generation length for faster phase3 llm_only responses.
-  num_predict: 320
+  num_predict: 700
 paper:
-  # Keep deterministic primary run.
+  # Medium profile: keep deterministic primary run.
   primary_seed: 42
   primary_temperature: 0.0
-  # Skip robustness seeds for nightly smoke checks.
+  # Disable robustness seeds to keep runtime around ~40 minutes.
   robustness_temperature: 0.2
   robustness_seeds: []
-  # Smoke profile: one query and one mode to keep runtime around a few minutes.
-  max_queries: 1
+  # Process default query count from queries file (currently 5).
+  max_queries: 5
+  # Keep all three generation modes in primary run.
   modes:
     - rag_no_hyde
+    - rag_hyde
+    - llm_only
 paths:
   queries_jsonl: evaluation_metrics/queries/queries.jsonl
   runs_dir: evaluation_metrics/runs
@@ -30,7 +32,7 @@ ragas:
   embeddings_model: sentence-transformers/all-MiniLM-L6-v2
   embeddings_device: cpu
   embeddings_local_only: true
-  # Fast grading: one metric only.
+  # One metric for medium-speed scoring.
   metrics:
     - answer_relevancy
 metrics:

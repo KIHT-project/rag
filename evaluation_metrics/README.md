@@ -266,14 +266,13 @@ Run both:
 2. A stochastic robustness benchmark over multiple seeds (report mean and std)
 
 Command
-It takes around 8h:
+* eval.yaml: very slow ultra 
 ```shell
 python -m evaluation_metrics.src.eval_cli --config evaluation_metrics/config/eval.yaml paper
-```
-IT takes around 40-45m:
-```shell
+python -m evaluation_metrics.src.eval_cli --config evaluation_metrics/config/eval.medium.yaml paper
 python -m evaluation_metrics.src.eval_cli --config evaluation_metrics/config/eval.fast.yaml paper
 ```
+
 
 Configuration (in `evaluation_metrics/config/eval.yaml`)
 
