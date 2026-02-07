@@ -89,6 +89,7 @@ async def run_phase3_generate(
     ollama_model: str,
     ollama_temperature: float,
     ollama_num_predict: int,
+    ollama_seed: int | None = None,
     filters: Optional[dict[str, Any]] = None,
 ) -> dict[str, Path]:
     out_rag = Path(ctx.run_dir) / "phase3_answers_rag_no_hyde.jsonl"
@@ -209,6 +210,7 @@ async def run_phase3_generate(
                     user=question,
                     temperature=ollama_temperature,
                     num_predict=ollama_num_predict,
+                    seed=ollama_seed,
                 )
                 t7 = time.perf_counter()
 
@@ -219,6 +221,12 @@ async def run_phase3_generate(
                     "answer_text": llm_text,
                     "contexts": [],
                     "contexts_source": "none",
+                    "generation": {
+                        "model": ollama_model,
+                        "temperature": ollama_temperature,
+                        "num_predict": ollama_num_predict,
+                        "seed": ollama_seed,
+                    },
                 }
                 f_llm.write(json.dumps(rec_llm, ensure_ascii=False) + "\n")
 
@@ -243,5 +251,10 @@ async def run_phase3_generate(
         failures,
         ctx.run_dir,
     )
+
+    if total > 0 and failures == total:
+        raise RuntimeError(
+            "phase3 failed for all queries; upstream services appear unavailable or misconfigured"
+        )
 
     return {"rag_no_hyde": out_rag, "rag_hyde": out_hyde, "llm_only": out_llm}

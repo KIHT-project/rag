@@ -10,19 +10,15 @@ ollama:
   base_url: http://192.168.2.3:11434
   model: llama3.1:8b-instruct-q4_K_M
   temperature: 0.2
-  num_predict: 700
+  # Lower generation length for faster phase3 llm_only responses.
+  num_predict: 320
 paper:
-  # Primary benchmark (deterministic): this is what you should report as main table.
+  # Keep deterministic primary run.
   primary_seed: 42
   primary_temperature: 0.0
-  # Robustness benchmark (stochastic): report mean/std across these seeds.
+  # Skip robustness seeds for nightly smoke checks.
   robustness_temperature: 0.2
-  robustness_seeds:
-    - 11
-    - 22
-    - 33
-    - 44
-    - 55
+  robustness_seeds: []
 paths:
   queries_jsonl: evaluation_metrics/queries/queries.jsonl
   runs_dir: evaluation_metrics/runs
@@ -30,6 +26,9 @@ ragas:
   embeddings_model: sentence-transformers/all-MiniLM-L6-v2
   embeddings_device: cpu
   embeddings_local_only: true
+  # Fast grading: one metric only.
+  metrics:
+    - answer_relevancy
 metrics:
   k_values:
   - 5

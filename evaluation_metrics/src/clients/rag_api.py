@@ -48,3 +48,13 @@ class RagApiClient:
             except Exception:
                 parsed = AskResponse(answer=None, citations=[], raw=data)
             return parsed
+
+    async def probe(self) -> None:
+        """
+        Lightweight connectivity check for the RAG API.
+        Raises on connection/auth/server issues.
+        """
+        payload = SearchRequest(query="connectivity probe", top_k=1, filters=None).model_dump()
+        async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
+            r = await client.post(f"{self._base_url}/v1/search", json=payload)
+            r.raise_for_status()

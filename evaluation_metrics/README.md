@@ -169,6 +169,10 @@ Why it exists
 
 Separates answer generation from evaluation. This allows repeated evaluation without rerunning generation.
 
+Determinism note
+
+`phase3` now supports deterministic generation for `llm_only` when a seed is provided (from config key `paper.seed` if set). For strict reproducibility in a thesis, use the `paper` command below.
+
 ---
 
 ## Phase 4 Behavioral Evaluation with RAGAS
@@ -249,6 +253,42 @@ phase5_audit_sample.jsonl
 Why it exists
 
 Metrics alone are insufficient. This phase enables qualitative inspection and paper ready comparison.
+
+---
+
+## Paper Mode (Best Practice)
+
+Purpose
+
+Run both:
+
+1. A deterministic primary benchmark (for the main paper table)
+2. A stochastic robustness benchmark over multiple seeds (report mean and std)
+
+Command
+It takes around 8h:
+```shell
+python -m evaluation_metrics.src.eval_cli --config evaluation_metrics/config/eval.yaml paper
+```
+IT takes around 40-45m:
+```shell
+python -m evaluation_metrics.src.eval_cli --config evaluation_metrics/config/eval.fast.yaml paper
+```
+
+Configuration (in `evaluation_metrics/config/eval.yaml`)
+
+- `paper.primary_seed`
+- `paper.primary_temperature` (recommended `0.0`)
+- `paper.robustness_temperature` (e.g. `0.2`)
+- `paper.robustness_seeds` (e.g. 5 seeds)
+
+Outputs
+
+- `paper_benchmark_summary.json` under the run directory
+- Includes:
+  - deterministic summary by mode (`rag_no_hyde`, `rag_hyde`, `llm_only`)
+  - per-seed stochastic summaries
+  - aggregate mean/std across robustness seeds per mode and metric
 
 ---
 
