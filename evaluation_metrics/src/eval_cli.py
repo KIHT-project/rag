@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import os
+import traceback
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,6 +13,7 @@ from typing import Any
 
 import yaml
 
+from evaluation_metrics.src.audit import EvaluationPostgresAudit
 from evaluation_metrics.src.clients.ollama_api import OllamaClient
 from evaluation_metrics.src.clients.rag_api import RagApiClient
 from evaluation_metrics.src.phases.phase1_pool import run_phase1_pool
@@ -99,6 +101,19 @@ def _mean_std(values: list[float]) -> tuple[float, float]:
         return mean, 0.0
     var = sum((v - mean) ** 2 for v in values) / (len(values) - 1)
     return mean, var**0.5
+
+
+def _audit_dsn(config: dict[str, Any]) -> str:
+    env = os.environ.get("EVAL_AUDIT_POSTGRES_DSN", "").strip()
+    if env:
+        return env
+    audit_cfg = config.get("audit", {})
+    dsn = str(audit_cfg.get("postgres_dsn", "")).strip() if isinstance(audit_cfg, dict) else ""
+    if not dsn:
+        raise RuntimeError(
+            "Missing audit Postgres DSN. Set EVAL_AUDIT_POSTGRES_DSN or audit.postgres_dsn in eval.yaml."
+        )
+    return dsn
 
 
 async def _cmd_phase1(args: argparse.Namespace) -> None:
@@ -260,59 +275,81 @@ def _run_phase4_for_outputs(
 async def _cmd_paper(args: argparse.Namespace) -> None:
     config = _load_config(Path(args.config))
     ctx = _init_run(config)
-    rag = RagApiClient(
-        base_url=config["rag_api"]["base_url"],
-        timeout_seconds=float(config["rag_api"]["timeout_seconds"]),
-    )
-    ollama = OllamaClient(base_url=config["ollama"]["base_url"])
-    try:
-        await rag.probe()
-    except Exception as e:
-        raise RuntimeError(
-            f"RAG API unreachable at {config['rag_api']['base_url']}. "
-            "Start the API service and retry."
-        ) from e
-    try:
-        await ollama.probe()
-    except Exception as e:
-        raise RuntimeError(
-            f"Ollama API unreachable at {config['ollama']['base_url']}. "
-            "Start/reach Ollama and retry."
-        ) from e
+    request_id = os.environ.get("EVAL_REQUEST_ID")
+    audit = EvaluationPostgresAudit(dsn=_audit_dsn(config))
+    await audit.start()
 
     paper_cfg = config.get("paper", {})
     primary_seed = paper_cfg.get("primary_seed")
     primary_temperature = float(paper_cfg.get("primary_temperature", 0.0))
     robustness_temperature = float(paper_cfg.get("robustness_temperature", 0.2))
     robustness_seeds = list(paper_cfg.get("robustness_seeds", [11, 22, 33, 44, 55]))
+    model_name = str(config["ollama"]["model"])
+    queries_path = str(config["paths"]["queries_jsonl"])
 
-    primary_ctx = _init_sub_run(ctx, name="primary_deterministic")
-    primary_outputs = await run_phase3_generate(
-        ctx=primary_ctx,
-        rag=rag,
-        ollama=ollama,
-        queries_jsonl=Path(config["paths"]["queries_jsonl"]),
-        search_top_k_context=int(config["rag_api"]["search_top_k_context"]),
-        hyde_header_name=str(config["ask"]["hyde_header_name"]),
-        hyde_header_value=str(config["ask"]["hyde_header_value"]),
-        ollama_model=str(config["ollama"]["model"]),
-        ollama_temperature=primary_temperature,
-        ollama_num_predict=int(config["ollama"]["num_predict"]),
-        ollama_seed=int(primary_seed) if primary_seed is not None else None,
+    await audit.create_run(
+        run_id=ctx.run_id,
+        request_id=request_id,
+        run_type="PAPER",
+        trigger_source="CLI",
+        dataset_name=queries_path,
+        dataset_version=None,
+        config_snapshot=config,
+        model_provider="ollama",
+        model_name=model_name,
+        model_params={
+            "primary_seed": primary_seed,
+            "primary_temperature": primary_temperature,
+            "robustness_temperature": robustness_temperature,
+            "robustness_seeds": robustness_seeds,
+            "num_predict": int(config["ollama"]["num_predict"]),
+        },
+        seed=int(primary_seed) if primary_seed is not None else None,
     )
-    primary_summary = _run_phase4_for_outputs(
-        config=config, outputs=primary_outputs, out_dir=Path(primary_ctx.run_dir)
+    await audit.create_event(
+        run_id=ctx.run_id,
+        request_id=request_id,
+        event_type="EVAL_RUN_STARTED",
+        status="STARTED",
+        phase="PAPER",
+        message="paper evaluation run started",
+        payload={"run_dir": ctx.run_dir},
     )
 
-    robust_root = _init_sub_run(ctx, name="robustness")
-    all_runs: list[dict[str, Any]] = []
-    metrics_acc: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    rag = RagApiClient(
+        base_url=config["rag_api"]["base_url"],
+        timeout_seconds=float(config["rag_api"]["timeout_seconds"]),
+    )
+    ollama = OllamaClient(base_url=config["ollama"]["base_url"])
+    try:
+        try:
+            await rag.probe()
+        except Exception as e:
+            raise RuntimeError(
+                f"RAG API unreachable at {config['rag_api']['base_url']}. "
+                "Start the API service and retry."
+            ) from e
+        try:
+            await ollama.probe()
+        except Exception as e:
+            raise RuntimeError(
+                f"Ollama API unreachable at {config['ollama']['base_url']}. "
+                "Start/reach Ollama and retry."
+            ) from e
 
-    for seed_raw in robustness_seeds:
-        seed = int(seed_raw)
-        seed_ctx = _init_sub_run(robust_root, name=f"seed_{seed}")
-        outputs = await run_phase3_generate(
-            ctx=seed_ctx,
+        await audit.create_event(
+            run_id=ctx.run_id,
+            request_id=request_id,
+            event_type="EVAL_PHASE_STARTED",
+            status="STARTED",
+            phase="PRIMARY",
+            message="primary deterministic run started",
+            payload=None,
+        )
+
+        primary_ctx = _init_sub_run(ctx, name="primary_deterministic")
+        primary_outputs = await run_phase3_generate(
+            ctx=primary_ctx,
             rag=rag,
             ollama=ollama,
             queries_jsonl=Path(config["paths"]["queries_jsonl"]),
@@ -320,42 +357,170 @@ async def _cmd_paper(args: argparse.Namespace) -> None:
             hyde_header_name=str(config["ask"]["hyde_header_name"]),
             hyde_header_value=str(config["ask"]["hyde_header_value"]),
             ollama_model=str(config["ollama"]["model"]),
-            ollama_temperature=robustness_temperature,
+            ollama_temperature=primary_temperature,
             ollama_num_predict=int(config["ollama"]["num_predict"]),
-            ollama_seed=seed,
+            ollama_seed=int(primary_seed) if primary_seed is not None else None,
         )
-        run_summary = _run_phase4_for_outputs(config=config, outputs=outputs, out_dir=Path(seed_ctx.run_dir))
-        all_runs.append({"seed": seed, "summary": run_summary, "run_dir": seed_ctx.run_dir})
-        for mode, metrics in run_summary.items():
+        primary_summary = _run_phase4_for_outputs(
+            config=config, outputs=primary_outputs, out_dir=Path(primary_ctx.run_dir)
+        )
+        for mode, metrics in primary_summary.items():
             for metric, value in metrics.items():
-                metrics_acc[mode][metric].append(float(value))
+                await audit.create_metric(
+                    run_id=ctx.run_id,
+                    request_id=request_id,
+                    phase="PRIMARY",
+                    metric_name=f"{mode}.{metric}",
+                    metric_value=float(value),
+                    seed=int(primary_seed) if primary_seed is not None else None,
+                    aggregation="mean",
+                    metadata={"run_type": "primary_deterministic"},
+                )
+        await audit.create_event(
+            run_id=ctx.run_id,
+            request_id=request_id,
+            event_type="EVAL_PHASE_COMPLETED",
+            status="COMPLETED",
+            phase="PRIMARY",
+            message="primary deterministic run completed",
+            payload={"summary": primary_summary},
+        )
 
-    aggregate: dict[str, dict[str, dict[str, Any]]] = {}
-    for mode, metric_vals in metrics_acc.items():
-        aggregate[mode] = {}
-        for metric, values in metric_vals.items():
-            mean, std = _mean_std(values)
-            aggregate[mode][metric] = {"mean": mean, "std": std, "n": len(values)}
+        robust_root = _init_sub_run(ctx, name="robustness")
+        all_runs: list[dict[str, Any]] = []
+        metrics_acc: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
 
-    out_summary = {
-        "primary_deterministic": {
-            "seed": primary_seed,
-            "temperature": primary_temperature,
-            "summary": primary_summary,
-            "run_dir": primary_ctx.run_dir,
-        },
-        "robustness": {
-            "temperature": robustness_temperature,
-            "seeds": [int(s) for s in robustness_seeds],
-            "runs": all_runs,
-            "aggregate": aggregate,
-            "run_dir": robust_root.run_dir,
-        },
-    }
+        await audit.create_event(
+            run_id=ctx.run_id,
+            request_id=request_id,
+            event_type="EVAL_PHASE_STARTED",
+            status="STARTED",
+            phase="ROBUSTNESS",
+            message="robustness runs started",
+            payload={"seeds": [int(s) for s in robustness_seeds]},
+        )
+        for seed_raw in robustness_seeds:
+            seed = int(seed_raw)
+            seed_ctx = _init_sub_run(robust_root, name=f"seed_{seed}")
+            outputs = await run_phase3_generate(
+                ctx=seed_ctx,
+                rag=rag,
+                ollama=ollama,
+                queries_jsonl=Path(config["paths"]["queries_jsonl"]),
+                search_top_k_context=int(config["rag_api"]["search_top_k_context"]),
+                hyde_header_name=str(config["ask"]["hyde_header_name"]),
+                hyde_header_value=str(config["ask"]["hyde_header_value"]),
+                ollama_model=str(config["ollama"]["model"]),
+                ollama_temperature=robustness_temperature,
+                ollama_num_predict=int(config["ollama"]["num_predict"]),
+                ollama_seed=seed,
+            )
+            run_summary = _run_phase4_for_outputs(
+                config=config, outputs=outputs, out_dir=Path(seed_ctx.run_dir)
+            )
+            all_runs.append({"seed": seed, "summary": run_summary, "run_dir": seed_ctx.run_dir})
+            for mode, metrics in run_summary.items():
+                for metric, value in metrics.items():
+                    metrics_acc[mode][metric].append(float(value))
 
-    out_path = Path(ctx.run_dir) / "paper_benchmark_summary.json"
-    out_path.write_text(json.dumps(out_summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    logging.info("paper benchmark summary written %s", out_path)
+        aggregate: dict[str, dict[str, dict[str, Any]]] = {}
+        for mode, metric_vals in metrics_acc.items():
+            aggregate[mode] = {}
+            for metric, values in metric_vals.items():
+                mean, std = _mean_std(values)
+                aggregate[mode][metric] = {"mean": mean, "std": std, "n": len(values)}
+                await audit.create_metric(
+                    run_id=ctx.run_id,
+                    request_id=request_id,
+                    phase="ROBUSTNESS",
+                    metric_name=f"{mode}.{metric}",
+                    metric_value=mean,
+                    seed=None,
+                    aggregation="mean",
+                    metadata={"std": std, "n": len(values)},
+                )
+
+        await audit.create_event(
+            run_id=ctx.run_id,
+            request_id=request_id,
+            event_type="EVAL_PHASE_COMPLETED",
+            status="COMPLETED",
+            phase="ROBUSTNESS",
+            message="robustness runs completed",
+            payload={"aggregate": aggregate},
+        )
+
+        out_summary = {
+            "primary_deterministic": {
+                "seed": primary_seed,
+                "temperature": primary_temperature,
+                "summary": primary_summary,
+                "run_dir": primary_ctx.run_dir,
+            },
+            "robustness": {
+                "temperature": robustness_temperature,
+                "seeds": [int(s) for s in robustness_seeds],
+                "runs": all_runs,
+                "aggregate": aggregate,
+                "run_dir": robust_root.run_dir,
+            },
+        }
+
+        out_path = Path(ctx.run_dir) / "paper_benchmark_summary.json"
+        content_raw = json.dumps(out_summary, ensure_ascii=False, indent=2)
+        out_path.write_text(content_raw, encoding="utf-8")
+        await audit.create_artifact(
+            run_id=ctx.run_id,
+            request_id=request_id,
+            artifact_type="REPORT",
+            artifact_name=out_path.name,
+            mime_type="application/json",
+            content_raw=content_raw,
+            metadata={"path": str(out_path)},
+        )
+        await audit.create_event(
+            run_id=ctx.run_id,
+            request_id=request_id,
+            event_type="EVAL_ARTIFACT_SAVED",
+            status="COMPLETED",
+            phase="SUMMARY",
+            message="paper summary saved",
+            payload={"path": str(out_path)},
+        )
+        await audit.complete_run(run_id=ctx.run_id, status="SUCCESS")
+        await audit.create_event(
+            run_id=ctx.run_id,
+            request_id=request_id,
+            event_type="EVAL_RUN_COMPLETED",
+            status="COMPLETED",
+            phase="PAPER",
+            message="paper evaluation run completed",
+            payload={"run_dir": ctx.run_dir},
+        )
+        logging.info("paper benchmark summary written %s", out_path)
+    except Exception as exc:
+        event_id = await audit.create_event(
+            run_id=ctx.run_id,
+            request_id=request_id,
+            event_type="EXCEPTION_RAISED",
+            status="ERROR",
+            phase="PAPER",
+            message=str(exc),
+            payload={"exception": type(exc).__name__},
+            stacktrace_raw="".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+        )
+        error_id = await audit.create_error(
+            run_id=ctx.run_id,
+            request_id=request_id,
+            event_id=event_id,
+            exc=exc,
+            phase="PAPER",
+            error_code="paper_run_failed",
+        )
+        await audit.complete_run(run_id=ctx.run_id, status="ERROR", error_id=error_id)
+        raise
+    finally:
+        await audit.close()
 
 
 def _cmd_phase5(args: argparse.Namespace) -> None:

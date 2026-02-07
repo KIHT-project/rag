@@ -9,6 +9,24 @@ from biomed_platform.common.middleware.trace import request_id_ctx
 from biomed_platform.core.errors.errors import AppError
 
 
+class _FakeAuditService:
+    def __init__(self) -> None:
+        self.events: list[dict] = []
+        self.errors: list[dict] = []
+        self.marked: list[dict] = []
+
+    async def create_event(self, **kwargs):
+        self.events.append(kwargs)
+        return "event-1"
+
+    async def create_error(self, **kwargs):
+        self.errors.append(kwargs)
+        return "error-1"
+
+    async def mark_request_error(self, **kwargs):
+        self.marked.append(kwargs)
+
+
 def test_http_status_for_error_mapping() -> None:
     # Given
     assert _http_status_for_error("validation_error") == 400
@@ -97,3 +115,24 @@ def test_unhandled_exception_returns_standard_500_error_envelope() -> None:
     assert body["error"] == "system_error"
     assert body["message"] == "Internal server error"
     assert body["status_code"] == 500
+
+
+def test_error_handlers_emit_audit_rows_when_service_present() -> None:
+    app = FastAPI()
+    install_error_handlers(app)
+    app.state.audit_service = _FakeAuditService()
+
+    @app.get("/explode")
+    async def explode():
+        raise ValueError("boom")
+
+    client = TestClient(app, raise_server_exceptions=False)
+    r = client.get("/explode")
+
+    assert r.status_code == 500
+    svc = app.state.audit_service
+    assert len(svc.events) == 1
+    assert svc.events[0]["event_type"] == "EXCEPTION_RAISED"
+    assert len(svc.errors) == 1
+    assert isinstance(svc.errors[0]["exc"], ValueError)
+    assert len(svc.marked) == 1

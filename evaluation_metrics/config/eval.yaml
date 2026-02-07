@@ -38,3 +38,4 @@ metrics:
 audit:
   sample_size: 12
   seed: 42
+  postgres_dsn: postgresql://user:password@localhost:5432/biomed_knowledge_platform
