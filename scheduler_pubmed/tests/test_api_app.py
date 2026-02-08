@@ -149,3 +149,6 @@ def test_health_routes_are_tagged_health() -> None:
     assert schema["paths"]["/health/ready"]["get"]["tags"] == ["Health"]
     assert schema["paths"]["/v1/pubmed/scheduler/run"]["post"]["tags"] == ["Scheduler"]
     assert schema["paths"]["/v1/pubmed/scheduler/status"]["get"]["tags"] == ["Scheduler"]
+    assert schema["paths"]["/v1/pubmed/runs"]["get"]["tags"] == ["Runs"]
+    assert schema["paths"]["/v1/pubmed/runs/{runId}"]["get"]["tags"] == ["Runs"]
+    assert schema["paths"]["/v1/pubmed/runs/{runId}/dois"]["get"]["tags"] == ["Runs"]

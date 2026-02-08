@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from scheduler_pubmed.src.adapters.pubmed.query_client import PubMedQueryClient
 from scheduler_pubmed.src.adapters.rag.documents_client import RagDocumentsClient
 from scheduler_pubmed.src.api.endpoints.pubmed_queries import router as pubmed_queries_router
+from scheduler_pubmed.src.api.endpoints.runs import router as runs_router
 from scheduler_pubmed.src.api.endpoints.scheduler import router as scheduler_router
 from scheduler_pubmed.src.api.error_handlers import install_error_handlers
 from scheduler_pubmed.src.api.endpoints.health import router as health_router
@@ -112,6 +113,7 @@ def create_app() -> FastAPI:
     install_error_handlers(app)
     app.include_router(pubmed_queries_router)
     app.include_router(scheduler_router)
+    app.include_router(runs_router)
     app.include_router(health_router)
 
     return app

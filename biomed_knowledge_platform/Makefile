@@ -24,7 +24,6 @@ test: clean $(REPORT_DIR)
 		--junitxml=$(JUNIT_XML) \
 		--html=$(HTML_REPORT) \
 		--self-contained-html
-	coverage-badge -o $(COV_BADGE) -f
 
 $(REPORT_DIR):
 	mkdir -p $(COV_DIR)

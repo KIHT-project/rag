@@ -5,7 +5,12 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from scheduler_pubmed.src.core.domains.scheduler import DoiExecutionStatus, RunStatus, TriggerType
+from scheduler_pubmed.src.core.domains.scheduler import (
+    DoiExecutionStatus,
+    QueryExecution,
+    RunStatus,
+    TriggerType,
+)
 from scheduler_pubmed.src.db.models.scheduler import (
     PubMedQuery as DbPubMedQuery,
     QueryExecution as DbQueryExecution,
@@ -16,11 +21,18 @@ from scheduler_pubmed.src.db.repositories.scheduler_repository import SqlAlchemy
 
 
 class _FakeExecuteResult:
-    def __init__(self, scalar_value):
+    def __init__(self, scalar_value=None, scalars_values: list[object] | None = None):
         self._scalar_value = scalar_value
+        self._scalars_values = scalars_values or []
 
     def scalar_one_or_none(self):
         return self._scalar_value
+
+    def scalars(self):
+        return self
+
+    def all(self):
+        return list(self._scalars_values)
 
 
 class _FakeSession:
@@ -29,9 +41,11 @@ class _FakeSession:
         *,
         get_items: dict[tuple[type, UUID], object] | None = None,
         execute_scalar=None,
+        execute_scalars: list[object] | None = None,
     ) -> None:
         self.get_items = get_items or {}
         self.execute_scalar = execute_scalar
+        self.execute_scalars = execute_scalars or []
         self.added: list[object] = []
         self.commits = 0
         self.flushes = 0
@@ -65,7 +79,10 @@ class _FakeSession:
 
     async def execute(self, stmt):
         self.last_stmt = stmt
-        return _FakeExecuteResult(self.execute_scalar)
+        return _FakeExecuteResult(
+            scalar_value=self.execute_scalar,
+            scalars_values=self.execute_scalars,
+        )
 
     async def get(self, model_cls, item_id: UUID):
         return self.get_items.get((model_cls, item_id))
@@ -318,3 +335,146 @@ async def test_set_query_last_successful_run_at_noop_when_missing() -> None:
     await repository.set_query_last_successful_run_at(query_id=uuid4(), value=datetime.now(UTC))
 
     assert session.commits == 0
+
+
+@pytest.mark.asyncio
+async def test_list_runs_maps_models_and_applies_filters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = uuid4()
+    run_model = DbSchedulerRun(
+        id=run_id,
+        trigger_type="MANUAL",
+        status="SUCCESS",
+        started_at=datetime.now(UTC),
+        finished_at=datetime.now(UTC),
+        created_at=datetime.now(UTC),
+    )
+    session = _FakeSession(execute_scalars=[run_model])
+    repository = SqlAlchemySchedulerRepository(session_maker=_FakeSessionMaker(session))  # type: ignore[arg-type]
+
+    mapped_query = QueryExecution(
+        query_execution_id=uuid4(),
+        query_id=uuid4(),
+        status=RunStatus.SUCCESS,
+        pubmed_result_count=1,
+        doi_resolved_count=1,
+        doi_skipped_exists_count=0,
+        doi_enqueued_count=1,
+        doi_failed_count=0,
+        ingest_job_id=None,
+    )
+
+    async def _fake_queries_by_run_id(*, session, run_ids):  # noqa: ARG001
+        return {run_id: [mapped_query]}
+
+    monkeypatch.setattr(repository, "_queries_by_run_id", _fake_queries_by_run_id)
+
+    result = await repository.list_runs(
+        status=RunStatus.SUCCESS,
+        from_at=datetime(2026, 2, 8, 0, 0, tzinfo=UTC),
+        to_at=datetime(2026, 2, 8, 23, 59, tzinfo=UTC),
+    )
+
+    assert len(result) == 1
+    assert result[0].run_id == run_id
+    assert result[0].status == RunStatus.SUCCESS
+    assert result[0].queries[0].query_execution_id == mapped_query.query_execution_id
+    assert "ORDER BY" in str(session.last_stmt)
+    assert "WHERE" in str(session.last_stmt)
+
+
+@pytest.mark.asyncio
+async def test_get_run_returns_none_when_missing() -> None:
+    session = _FakeSession()
+    repository = SqlAlchemySchedulerRepository(session_maker=_FakeSessionMaker(session))  # type: ignore[arg-type]
+
+    result = await repository.get_run(run_id=uuid4())
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_run_maps_model_and_queries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = uuid4()
+    run_model = DbSchedulerRun(
+        id=run_id,
+        trigger_type="SCHEDULED",
+        status="RUNNING",
+        started_at=datetime.now(UTC),
+        finished_at=None,
+        created_at=datetime.now(UTC),
+    )
+    session = _FakeSession(get_items={(DbSchedulerRun, run_id): run_model})
+    repository = SqlAlchemySchedulerRepository(session_maker=_FakeSessionMaker(session))  # type: ignore[arg-type]
+
+    mapped_query = QueryExecution(
+        query_execution_id=uuid4(),
+        query_id=uuid4(),
+        status=RunStatus.RUNNING,
+        pubmed_result_count=0,
+        doi_resolved_count=0,
+        doi_skipped_exists_count=0,
+        doi_enqueued_count=0,
+        doi_failed_count=0,
+        ingest_job_id=None,
+    )
+
+    async def _fake_queries_by_run_id(*, session, run_ids):  # noqa: ARG001
+        return {run_id: [mapped_query]}
+
+    monkeypatch.setattr(repository, "_queries_by_run_id", _fake_queries_by_run_id)
+
+    result = await repository.get_run(run_id=run_id)
+
+    assert result is not None
+    assert result.run_id == run_id
+    assert result.status == RunStatus.RUNNING
+    assert len(result.queries) == 1
+
+
+@pytest.mark.asyncio
+async def test_list_run_dois_returns_none_when_run_missing() -> None:
+    session = _FakeSession()
+    repository = SqlAlchemySchedulerRepository(session_maker=_FakeSessionMaker(session))  # type: ignore[arg-type]
+
+    result = await repository.list_run_dois(run_id=uuid4())
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_list_run_dois_maps_rows() -> None:
+    run_id = uuid4()
+    run_model = DbSchedulerRun(
+        id=run_id,
+        trigger_type="MANUAL",
+        status="SUCCESS",
+        started_at=datetime.now(UTC),
+        finished_at=datetime.now(UTC),
+        created_at=datetime.now(UTC),
+    )
+    doi_row = DbQueryExecutionDoi(
+        id=uuid4(),
+        query_execution_id=uuid4(),
+        run_id=run_id,
+        doi="10.1000/a",
+        status="FAILED",
+        error_message="boom",
+        created_at=datetime.now(UTC),
+    )
+    session = _FakeSession(
+        get_items={(DbSchedulerRun, run_id): run_model},
+        execute_scalars=[doi_row],
+    )
+    repository = SqlAlchemySchedulerRepository(session_maker=_FakeSessionMaker(session))  # type: ignore[arg-type]
+
+    result = await repository.list_run_dois(run_id=run_id)
+
+    assert result is not None
+    assert len(result) == 1
+    assert result[0].doi == "10.1000/a"
+    assert result[0].status == DoiExecutionStatus.FAILED
+    assert result[0].error_message == "boom"
