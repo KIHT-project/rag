@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from scheduler_pubmed.src.api.endpoints.pubmed_queries import router as pubmed_queries_router
+from scheduler_pubmed.src.api.error_handlers import install_error_handlers
 from scheduler_pubmed.src.api.endpoints.health import router as health_router
 from scheduler_pubmed.src.common.logging import configure_logging
 from scheduler_pubmed.src.common.settings import load_settings
@@ -44,12 +46,14 @@ def create_app() -> FastAPI:
         description=str(
             api_cfg.get(
                 "description",
-                "Dummy application exposing only healthcheck endpoints.",
+                "PubMed Scheduler API service.",
             )
         ),
         version=str(api_cfg.get("version", "1.0.0")),
         lifespan=lifespan,
     )
+    install_error_handlers(app)
+    app.include_router(pubmed_queries_router)
     app.include_router(health_router)
 
     return app
