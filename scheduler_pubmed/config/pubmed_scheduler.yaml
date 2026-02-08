@@ -2,9 +2,9 @@ enabled: true
 
 schedule:
   utc_times:
-    - "02:00"
-    - "08:00"
-    - "14:00"
+    - "14:23"
+    - "14:27"
+    - "14:29"
 
 api:
   base_url: http://localhost:8000

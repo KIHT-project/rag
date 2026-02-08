@@ -106,6 +106,7 @@ def bdd_config_env(bdd_target: str, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PUBMED_SCHEDULER_CONFIG_DIR", str(_SCHEDULER_CONFIG_DIR))
         # Scheduler health BDD should not require database availability.
         monkeypatch.setenv("PUBMED_SCHEDULER_RUN_MIGRATIONS_ON_STARTUP", "false")
+        monkeypatch.setenv("PUBMED_SCHEDULER_ENABLE_AUTOMATIC_RUNS", "false")
 
         monkeypatch.setenv("BDD_POSTGRES_DSN", _SCHEDULER_POSTGRES_DSN)
         monkeypatch.setenv("BDD_POSTGRES_SCHEMA", "pubmed_scheduler")
@@ -119,6 +120,7 @@ def bdd_config_env(bdd_target: str, monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.delenv("PUBMED_SCHEDULER_CONFIG_DIR", raising=False)
     monkeypatch.delenv("PUBMED_SCHEDULER_RUN_MIGRATIONS_ON_STARTUP", raising=False)
+    monkeypatch.delenv("PUBMED_SCHEDULER_ENABLE_AUTOMATIC_RUNS", raising=False)
 
 
 @pytest.fixture(autouse=True)

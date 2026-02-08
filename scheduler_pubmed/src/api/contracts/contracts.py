@@ -8,6 +8,7 @@ from scheduler_pubmed.src.api.models.schemas import (
     PubMedQueryUpdate,
     SchedulerRun,
     SchedulerRunCreated,
+    SchedulerRunRequest,
     SchedulerStatus,
     RunDoiResult,
 )
@@ -25,6 +26,7 @@ DisablePubMedQueryResponse: TypeAlias = PubMedQuery
 EnablePubMedQueryResponse: TypeAlias = PubMedQuery
 
 GetSchedulerStatusResponse: TypeAlias = SchedulerStatus
+RunSchedulerRequest: TypeAlias = SchedulerRunRequest
 RunSchedulerResponse: TypeAlias = SchedulerRunCreated
 GetSchedulerRunResponse: TypeAlias = SchedulerRun
 ListSchedulerRunsResponse: TypeAlias = list[SchedulerRun]

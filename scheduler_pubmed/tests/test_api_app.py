@@ -11,6 +11,11 @@ def test_migrations_enabled_flag_defaults_true(monkeypatch: pytest.MonkeyPatch) 
     assert app_mod._migrations_enabled_on_startup() is True
 
 
+def test_automatic_runs_enabled_flag_defaults_true(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(app_mod.AUTO_RUNS_ON_STARTUP_ENV, raising=False)
+    assert app_mod._automatic_runs_enabled_on_startup() is True
+
+
 @pytest.mark.parametrize("value", ["0", "false", "False", "no"])
 def test_migrations_enabled_flag_false_values(
     value: str,
@@ -18,6 +23,15 @@ def test_migrations_enabled_flag_false_values(
 ) -> None:
     monkeypatch.setenv(app_mod.MIGRATIONS_ON_STARTUP_ENV, value)
     assert app_mod._migrations_enabled_on_startup() is False
+
+
+@pytest.mark.parametrize("value", ["0", "false", "False", "no"])
+def test_automatic_runs_enabled_flag_false_values(
+    value: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(app_mod.AUTO_RUNS_ON_STARTUP_ENV, value)
+    assert app_mod._automatic_runs_enabled_on_startup() is False
 
 
 def test_create_app_runs_migrations_and_disposes_engine(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -33,6 +47,19 @@ def test_create_app_runs_migrations_and_disposes_engine(monkeypatch: pytest.Monk
         @staticmethod
         def require_postgres() -> dict[str, object]:
             return {"postgres_user": "u", "postgres_password": "p", "postgres_db": "d"}
+
+        @staticmethod
+        def require_scheduler() -> dict[str, object]:
+            return {
+                "enabled": False,
+                "schedule": {"utc_times": ["02:00"]},
+                "api": {
+                    "base_url": "http://localhost:8000",
+                    "documents_get": "/v1/documents/",
+                    "documents_post_batch": "/v1/documents/fetch/batch",
+                    "ingest_jobs_get": "/v1/ingest/jobs/",
+                },
+            }
 
     class FakeEngine:
         async def dispose(self) -> None:
@@ -76,6 +103,19 @@ def test_create_app_skips_migrations_when_disabled(monkeypatch: pytest.MonkeyPat
         def require_postgres() -> dict[str, object]:
             return {"postgres_user": "u", "postgres_password": "p", "postgres_db": "d"}
 
+        @staticmethod
+        def require_scheduler() -> dict[str, object]:
+            return {
+                "enabled": False,
+                "schedule": {"utc_times": ["02:00"]},
+                "api": {
+                    "base_url": "http://localhost:8000",
+                    "documents_get": "/v1/documents/",
+                    "documents_post_batch": "/v1/documents/fetch/batch",
+                    "ingest_jobs_get": "/v1/ingest/jobs/",
+                },
+            }
+
     class FakeEngine:
         async def dispose(self) -> None:
             return None
@@ -107,3 +147,5 @@ def test_health_routes_are_tagged_health() -> None:
     assert schema["paths"]["/health"]["get"]["tags"] == ["Health"]
     assert schema["paths"]["/health/live"]["get"]["tags"] == ["Health"]
     assert schema["paths"]["/health/ready"]["get"]["tags"] == ["Health"]
+    assert schema["paths"]["/v1/pubmed/scheduler/run"]["post"]["tags"] == ["Scheduler"]
+    assert schema["paths"]["/v1/pubmed/scheduler/status"]["get"]["tags"] == ["Scheduler"]

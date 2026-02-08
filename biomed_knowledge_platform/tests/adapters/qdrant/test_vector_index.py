@@ -18,8 +18,13 @@ from biomed_platform.core.errors.errors import SystemError
 def _unexpected_response_with_status(status_code: int) -> UnexpectedResponse:
     # Create instance without calling __init__ to avoid signature drift.
     exc = UnexpectedResponse.__new__(UnexpectedResponse)  # type: ignore[misc]
-    exc.status_code = status_code  # qdrant_client uses this in some versions
-    exc.response = SimpleNamespace(status_code=status_code)  # your code may read response.status_code
+    exc.status_code = status_code
+    return exc
+
+
+def _unexpected_response_with_response_status(status_code: int) -> UnexpectedResponse:
+    exc = UnexpectedResponse.__new__(UnexpectedResponse)  # type: ignore[misc]
+    exc.response = SimpleNamespace(status_code=status_code)
     return exc
 
 
@@ -627,3 +632,22 @@ async def test_fetch_by_doc_ids_handles_404_and_errors(monkeypatch) -> None:
     with pytest.raises(SystemError) as exc2:
         await idx.fetch_by_doc_ids(embedding_model_id="m", doc_ids=["d1"], base_filter=None, limit=10)
     assert exc2.value.code == "qdrant_fetch_failed"
+
+
+@pytest.mark.anyio
+async def test_fetch_by_doc_ids_handles_404_when_status_only_on_response(monkeypatch) -> None:
+    # Given
+    client = MagicMock(spec_set=["scroll"])
+    idx = QdrantVectorIndex(client=client, collection_name_prefix="docs", distance=Distance.COSINE)
+
+    async def _to_thread(fn):
+        return fn()
+
+    monkeypatch.setattr("biomed_platform.adapters.qdrant.vector_index.asyncio.to_thread", _to_thread, raising=True)
+
+    # When
+    client.scroll.side_effect = _unexpected_response_with_response_status(404)
+    out = await idx.fetch_by_doc_ids(embedding_model_id="m", doc_ids=["d1"], base_filter=None, limit=10)
+
+    # Then
+    assert out == []

@@ -178,6 +178,12 @@ paths:
       tags: [Scheduler]
       summary: Manually trigger scheduler
       operationId: triggerSchedulerRun
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SchedulerRunRequest"
       responses:
         "202":
           description: Scheduler run started
@@ -362,12 +368,23 @@ components:
 
     PubMedQueryUpdate:
       type: object
-      required: [pubmed_query, description, enabled]
       properties:
         pubmed_query:
           type: string
         description:
           type: string
+
+    SchedulerRunRequest:
+      type: object
+      properties:
+        reldate_days:
+          type: integer
+          minimum: 1
+          maximum: 36500
+          default: 1
+          description: |
+            Optional manual override for PubMed ESearch `reldate` window in days.
+            Use larger values for first-time backfill runs.
 
     SchedulerStatus:
       type: object

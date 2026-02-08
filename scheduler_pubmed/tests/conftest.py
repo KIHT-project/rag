@@ -11,3 +11,4 @@ if str(REPO_ROOT) not in sys.path:
 
 # Default test mode should skip startup migrations unless a test opts in.
 os.environ.setdefault("PUBMED_SCHEDULER_RUN_MIGRATIONS_ON_STARTUP", "false")
+os.environ.setdefault("PUBMED_SCHEDULER_ENABLE_AUTOMATIC_RUNS", "false")
