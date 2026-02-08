@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from db.models.scheduler import (
+from scheduler_pubmed.src.db.models.scheduler import (
     PubMedQuery,
     QueryExecution,
     QueryExecutionDoi,
     SchedulerRun,
 )
-from db.models.schema_version import SchemaVersion
+from scheduler_pubmed.src.db.models.schema_version import SchemaVersion
 
 
 def test_model_tablenames() -> None:

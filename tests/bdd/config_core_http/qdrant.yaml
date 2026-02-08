@@ -1,0 +1,14 @@
+qdrant:
+  url: "http://qdrant:6333"
+  grpc_url: "http://qdrant:6334"
+  api_key: null
+  timeout_seconds: 3.0
+
+  prefer_grpc: false
+
+  collection:
+    name_prefix: "docs_"
+    distance: "COSINE"
+
+  telemetry:
+    enabled: true

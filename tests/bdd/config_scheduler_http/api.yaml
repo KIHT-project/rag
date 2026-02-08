@@ -1,0 +1,3 @@
+title: "BDD Testing - PubMed Scheduler"
+description: "BDD HTTP configuration for scheduler API"
+version: "0.1.0-BDD-HTTP"
