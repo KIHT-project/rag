@@ -25,7 +25,7 @@ log = get_logger(__name__)
 # ----------------------------
 
 DEFAULT_MAX_CONTEXT_CHARS = 60000
-DEFAULT_NUM_PREDICT = 450
+DEFAULT_NUM_PREDICT = 800
 
 LOG_INVALID_JSON_MAX_CHARS = 1200
 
