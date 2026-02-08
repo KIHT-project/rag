@@ -1,4 +1,15 @@
-# Root README
+Author
+Nikolaos Chaikalis
+
+Supervising Professor
+Eleni Kaldoudi
+
+Supervising PhD Candidate
+Nikolaos Portoakalidis
+
+This software was developed as part of an MSc thesis, Democritus University of Thrace, School of Medicine MSc in Bioinformatics.
+Reuse in academic research requires proper attribution.
+See CITATION.cff.
 
 ## Short Description of the Projects
 - `biomed_knowledge_platform`: Main biomedical RAG API and core platform service.
