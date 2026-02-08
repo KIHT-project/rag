@@ -7,12 +7,20 @@ from typing import Any
 import asyncpg
 
 
+def _schema_name() -> str:
+    return (os.getenv("BDD_POSTGRES_SCHEMA") or "core_db").strip() or "core_db"
+
+
 async def _fetch_rows(*, sql: str, args: tuple[Any, ...]) -> list[dict[str, Any]]:
     dsn = os.getenv("BDD_POSTGRES_DSN", "")
     if not dsn:
         raise RuntimeError("BDD_POSTGRES_DSN is not set")
 
-    conn = await asyncpg.connect(dsn, ssl=False)
+    conn = await asyncpg.connect(
+        dsn,
+        ssl=False,
+        server_settings={"search_path": _schema_name()},
+    )
     try:
         rows = await conn.fetch(sql, *args)
         return [dict(r) for r in rows]

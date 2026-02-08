@@ -1,0 +1,477 @@
+openapi: 3.0.3
+info:
+  title: PubMed Scheduler API
+  description: Scheduler service responsible for executing stored PubMed queries.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:9000
+
+tags:
+  - name: PubMed Queries
+  - name: Scheduler
+  - name: Runs
+  - name: Health
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /v1/pubmed/queries:
+    post:
+      tags: [PubMed Queries]
+      summary: Create a PubMed query
+      operationId: createPubMedQuery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PubMedQueryCreate"
+      responses:
+        "201":
+          description: Query created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PubMedQuery"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      tags: [PubMed Queries]
+      summary: List PubMed queries
+      operationId: listPubMedQueries
+      parameters:
+        - name: enabled
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of queries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PubMedQuery"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/pubmed/queries/{queryId}:
+    get:
+      tags: [PubMed Queries]
+      summary: Get PubMed query by id
+      operationId: getPubMedQuery
+      parameters:
+        - $ref: "#/components/parameters/QueryId"
+      responses:
+        "200":
+          description: Query details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PubMedQuery"
+        "404":
+          description: Query not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      tags: [PubMed Queries]
+      summary: Partially Update PubMed query
+      operationId: updatePubMedQuery
+      parameters:
+        - $ref: "#/components/parameters/QueryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PubMedQueryUpdate"
+      responses:
+        "200":
+          description: Query updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PubMedQuery"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Query not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/pubmed/queries/{queryId}/enable:
+    patch:
+      tags: [PubMed Queries]
+      summary: Enable PubMed query
+      operationId: enablePubMedQuery
+      parameters:
+        - $ref: "#/components/parameters/QueryId"
+      responses:
+        "200":
+          description: Query enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PubMedQuery"
+        "404":
+          description: Query not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/pubmed/queries/{queryId}/disable:
+    patch:
+      tags: [PubMed Queries]
+      summary: Disable PubMed query
+      operationId: disablePubMedQuery
+      parameters:
+        - $ref: "#/components/parameters/QueryId"
+      responses:
+        "200":
+          description: Query disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PubMedQuery"
+        "404":
+          description: Query not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/pubmed/scheduler/run:
+    post:
+      tags: [Scheduler]
+      summary: Manually trigger scheduler
+      operationId: triggerSchedulerRun
+      responses:
+        "202":
+          description: Scheduler run started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchedulerRunCreated"
+
+  /v1/pubmed/scheduler/status:
+    get:
+      tags: [Scheduler]
+      summary: Get scheduler status
+      operationId: getSchedulerStatus
+      responses:
+        "200":
+          description: Scheduler status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchedulerStatus"
+
+  /v1/pubmed/runs:
+    get:
+      tags: [Runs]
+      summary: List scheduler runs
+      operationId: listSchedulerRuns
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/RunStatus"
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: List of runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SchedulerRun"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/pubmed/runs/{runId}:
+    get:
+      tags: [Runs]
+      summary: Get scheduler run by id
+      operationId: getSchedulerRun
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: Run details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchedulerRun"
+        "404":
+          description: Run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/pubmed/runs/{runId}/dois:
+    get:
+      tags: [Runs]
+      summary: DOI results for a run
+      operationId: listRunDois
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: DOI execution results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RunDoiResult"
+        "404":
+          description: Run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  parameters:
+    QueryId:
+      name: queryId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+
+    ErrorResponse:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          example: bad_request
+        message:
+          type: string
+          example: Invalid request payload
+        details:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    PubMedQuery:
+      type: object
+      required: [id, pubmed_query, description, enabled, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        pubmed_query:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        last_successful_run_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PubMedQueryCreate:
+      type: object
+      required: [pubmed_query, description]
+      properties:
+        pubmed_query:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+          default: true
+
+    PubMedQueryUpdate:
+      type: object
+      required: [pubmed_query, description, enabled]
+      properties:
+        pubmed_query:
+          type: string
+        description:
+          type: string
+
+    SchedulerStatus:
+      type: object
+      required: [enabled, utc_schedule, next_run_at]
+      properties:
+        enabled:
+          type: boolean
+        utc_schedule:
+          type: array
+          items:
+            type: string
+            example: "14:00"
+        next_run_at:
+          type: string
+          format: date-time
+        last_run_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_run_status:
+          $ref: "#/components/schemas/RunStatus"
+
+    SchedulerRunCreated:
+      type: object
+      required: [run_id, status, started_at]
+      properties:
+        run_id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/RunStatus"
+        started_at:
+          type: string
+          format: date-time
+
+    SchedulerRun:
+      type: object
+      required: [run_id, status, started_at, queries]
+      properties:
+        run_id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/RunStatus"
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        queries:
+          type: array
+          items:
+            $ref: "#/components/schemas/QueryExecution"
+
+    QueryExecution:
+      type: object
+      required: [query_execution_id, query_id, status]
+      properties:
+        query_execution_id:
+          type: string
+          format: uuid
+        query_id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/RunStatus"
+        pubmed_result_count:
+          type: integer
+          nullable: true
+        doi_resolved_count:
+          type: integer
+          nullable: true
+        doi_skipped_exists_count:
+          type: integer
+          nullable: true
+        doi_enqueued_count:
+          type: integer
+          nullable: true
+        doi_failed_count:
+          type: integer
+          nullable: true
+        ingest_job_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    RunDoiResult:
+      type: object
+      required: [doi, status]
+      properties:
+        doi:
+          type: string
+        status:
+          $ref: "#/components/schemas/DoiStatus"
+        error_message:
+          type: string
+          nullable: true
+
+    RunStatus:
+      type: string
+      enum: [RUNNING, SUCCESS, PARTIAL_SUCCESS, FAILED]
+
+    DoiStatus:
+      type: string
+      enum: [SKIPPED_EXISTS, ENQUEUED, INGESTED, FAILED]

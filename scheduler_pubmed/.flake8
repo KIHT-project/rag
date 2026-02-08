@@ -1,0 +1,5 @@
+[flake8]
+ignore = F541
+exclude =
+    src/api/contracts/contracts.py/*
+    src/api/models/schemas.py/*

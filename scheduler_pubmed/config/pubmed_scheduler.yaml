@@ -1,0 +1,13 @@
+enabled: true
+
+schedule:
+  utc_times:
+    - "02:00"
+    - "08:00"
+    - "14:00"
+
+api:
+  base_url: http://localhost:8000
+  documents_get: /v1/documents/
+  documents_post_batch: /v1/documents/fetch/batch
+  ingest_jobs_get: /v1/ingest/jobs/

@@ -19,6 +19,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    op.execute("CREATE SCHEMA IF NOT EXISTS core_db;")
+
     op.create_table(
         "schema_version",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True, nullable=False),
@@ -30,8 +32,10 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
         ),
         sa.UniqueConstraint("key", name="uq_schema_version_key"),
+        schema="core_db",
     )
 
 
 def downgrade() -> None:
-    op.drop_table("schema_version")
+    op.drop_table("schema_version", schema="core_db")
+

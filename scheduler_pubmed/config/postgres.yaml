@@ -1,0 +1,7 @@
+postgres:
+  host: "localhost"
+  postgres_port: 5432
+  postgres_user: user
+  postgres_password: password
+  postgres_db: biomed_knowledge_platform
+  postgres_schema: pubmed_scheduler

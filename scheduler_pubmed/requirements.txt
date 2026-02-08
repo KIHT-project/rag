@@ -1,0 +1,26 @@
+# Runtime
+fastapi==0.128.0
+uvicorn==0.40.0
+httpx==0.28.1
+pyyaml==6.0.3
+SQLAlchemy==2.0.45
+asyncpg==0.31.0
+greenlet==3.3.0
+alembic==1.18.1
+python-dotenv==1.2.1
+
+# API contract tooling
+pydantic==2.12.0
+datamodel-code-generator==0.52.2
+
+# Test
+pytest==9.0.2
+pytest-asyncio==1.3.0
+pytest-cov==7.0.0
+pytest-html==4.1.1
+coverage==7.13.1
+coverage-badge==1.1.2
+
+# Lint/format
+black==25.12.0
+flake8==7.3.0
