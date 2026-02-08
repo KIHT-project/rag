@@ -9,6 +9,7 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from biomed_platform.db.engine import build_async_connect_args
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = PROJECT_ROOT / "src"
@@ -19,7 +20,6 @@ from biomed_platform.common.settings import load_settings  # noqa: E402
 from biomed_platform.db.base import Base  # noqa: E402
 from biomed_platform.db.engine import build_async_database_url  # noqa: E402
 
-# IMPORTANT: force model imports so Base.metadata contains all tables
 from biomed_platform.db import models  # noqa: F401,E402
 
 config = context.config
@@ -37,38 +37,60 @@ def _get_url() -> str:
 
 
 def run_migrations_offline() -> None:
-    url = _get_url()
+    settings = load_settings()
+    pg_cfg = settings.require_postgres()
+    url = build_async_database_url(pg_cfg)
+
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        include_schemas=True,
     )
 
     with context.begin_transaction():
         context.run_migrations()
 
 
+
 def do_run_migrations(connection: Connection) -> None:
+    settings = load_settings()
+    pg_cfg = settings.require_postgres()
+    schema = str(pg_cfg.get("postgres_schema", "")).strip() or None
+
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
         compare_type=True,
+        include_schemas=True,
+        version_table_schema=schema,
     )
 
     with context.begin_transaction():
         context.run_migrations()
 
 
+
 async def run_migrations_online() -> None:
-    url = _get_url()
-    connectable: AsyncEngine = create_async_engine(url, poolclass=pool.NullPool)
+    settings = load_settings()
+    pg_cfg = settings.require_postgres()
+
+    url = build_async_database_url(pg_cfg)
+    connect_args = build_async_connect_args(pg_cfg)
+
+    connectable: AsyncEngine = create_async_engine(
+        url,
+        poolclass=pool.NullPool,
+        connect_args=connect_args,
+    )
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
 
     await connectable.dispose()
+
 
 
 if context.is_offline_mode():

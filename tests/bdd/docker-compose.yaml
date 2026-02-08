@@ -29,8 +29,28 @@ services:
     restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U user -d test_biomed_knowledge_platform" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres_scheduler:
+    image: postgres:17.7
+    hostname: scheduler-rdbms
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: test_pubmed_scheduler
+    ports:
+      - "5434:5432"
+    restart: unless-stopped
+    volumes:
+      - scheduler_postgres_data:/var/lib/postgresql/data
+      - ./postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U user -d test_pubmed_scheduler" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -48,7 +68,41 @@ services:
       retries: 5
       start_period: 60s
 
+  core_api:
+    profiles: ["http"]
+    build:
+      context: ../../biomed_knowledge_platform
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+      - qdrant
+      - ollama
+    environment:
+      BIOMED_CONFIG_DIR: /service/configs
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config_core_http:/service/configs:ro
+    restart: unless-stopped
+
+  scheduler_api:
+    profiles: ["http"]
+    build:
+      context: ../../scheduler_pubmed
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres_scheduler
+    environment:
+      PUBMED_SCHEDULER_CONFIG_DIR: /service/scheduler_pubmed/config
+      PUBMED_SCHEDULER_RUN_MIGRATIONS_ON_STARTUP: "true"
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./config_scheduler_http:/service/scheduler_pubmed/config:ro
+    restart: unless-stopped
+
 volumes:
   qdrant_test_storage:
   ollama_test_models:
   postgres_data:
+  scheduler_postgres_data:

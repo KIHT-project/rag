@@ -26,3 +26,11 @@ def then_status_200(ctx):
 @then("the response body contains status ok")
 def then_body_ok(ctx):
     assert ctx["res"].json() == {"status": "ok"}
+
+
+@then("the core OpenAPI title is BDD Testing - Biomedical Knowledge Platform")
+def then_core_openapi_title(client):
+    res = client.get("/openapi.json")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["info"]["title"] == "BDD Testing - Biomedical Knowledge Platform"

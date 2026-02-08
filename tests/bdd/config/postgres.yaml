@@ -4,3 +4,4 @@ postgres:
   postgres_user: user
   postgres_password: password
   postgres_db: test_biomed_knowledge_platform
+  postgres_schema: core_db
