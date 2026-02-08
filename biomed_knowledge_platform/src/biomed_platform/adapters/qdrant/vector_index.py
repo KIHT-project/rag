@@ -27,6 +27,16 @@ log = get_logger(__name__)
 _T = TypeVar("_T")
 
 
+def _unexpected_response_status_code(exc: UnexpectedResponse) -> int | None:
+    status_code = getattr(exc, "status_code", None)
+    if isinstance(status_code, int):
+        return status_code
+
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    return status_code if isinstance(status_code, int) else None
+
+
 def parse_distance(value: str) -> Distance:
     v = (value or "").strip().upper()
     log.debug("Parsing qdrant distance, raw_value=%s", value)
@@ -61,6 +71,22 @@ class QdrantVectorIndex(VectorWriter):
     async def _call_blocking(self, fn: Callable[[], _T]) -> _T:
         try:
             return await asyncio.to_thread(fn)
+        except UnexpectedResponse as exc:
+            status_code = _unexpected_response_status_code(exc)
+            op_name = getattr(fn, "__name__", "unknown")
+            if status_code in {404, 409}:
+                log.debug(
+                    "Qdrant blocking call returned expected status, op=%s, status_code=%s",
+                    op_name,
+                    status_code,
+                )
+            else:
+                log.exception(
+                    "Qdrant blocking call failed, op=%s, status_code=%s",
+                    op_name,
+                    status_code,
+                )
+            raise
         except Exception:
             log.exception("Qdrant blocking call failed, op=%s", getattr(fn, "__name__", "unknown"))
             raise
@@ -140,7 +166,7 @@ class QdrantVectorIndex(VectorWriter):
             await self._call_blocking(_create)
 
         except UnexpectedResponse as exc:
-            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            status_code = _unexpected_response_status_code(exc)
             if status_code == 409:
                 log.info("Qdrant collection already exists after concurrent create, name=%s", name)
                 return
@@ -249,7 +275,7 @@ class QdrantVectorIndex(VectorWriter):
             return (await self._call_blocking(_count)) > 0
 
         except UnexpectedResponse as exc:
-            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            status_code = _unexpected_response_status_code(exc)
             if status_code == 404 or (status_code is None and "not found" in str(exc).lower()):
                 log.debug(
                     "Qdrant collection missing during exists check, treating as not found, name=%s",
@@ -316,7 +342,7 @@ class QdrantVectorIndex(VectorWriter):
             ) from exc
 
         except UnexpectedResponse as exc:
-            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            status_code = _unexpected_response_status_code(exc)
             if status_code == 404:
                 log.debug(
                     "Qdrant collection missing during delete_by_doc_id, name=%s",
@@ -423,11 +449,7 @@ class QdrantVectorIndex(VectorWriter):
             ) from exc
 
         except UnexpectedResponse as exc:
-
-            status_code = getattr(exc, "status_code", None)
-
-            if status_code is None:
-                status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            status_code = _unexpected_response_status_code(exc)
 
             if status_code == 404:
                 log.debug(
@@ -538,7 +560,7 @@ class QdrantVectorIndex(VectorWriter):
             )
 
         except UnexpectedResponse as exc:
-            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            status_code = _unexpected_response_status_code(exc)
             if status_code == 404:
                 log.debug(
                     "Qdrant collection missing during fetch_by_doc_ids, returning empty, name=%s",
@@ -581,7 +603,7 @@ class QdrantVectorIndex(VectorWriter):
             )
 
         except UnexpectedResponse as exc:
-            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            status_code = _unexpected_response_status_code(exc)
             if status_code == 404:
                 log.debug(
                     "Qdrant collection missing during fetch_all, returning empty, name=%s",
@@ -747,7 +769,7 @@ class QdrantVectorIndex(VectorWriter):
             ) from exc
 
         except UnexpectedResponse as exc:
-            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            status_code = _unexpected_response_status_code(exc)
             if status_code == 404:
                 log.debug(
                     "Qdrant collection missing during fetch_chunks_by_ids, returning empty,"

@@ -66,6 +66,38 @@ class AppSettings:
         return self.require("pubmed_scheduler")
 
 
+def _validate_utc_times(values: object) -> None:
+    if not isinstance(values, list):
+        raise ValueError("pubmed_scheduler.yaml must contain schedule.utc_times as a list")
+
+    for value in values:
+        if not isinstance(value, str):
+            raise ValueError("pubmed_scheduler.yaml schedule.utc_times entries must be strings")
+        parts = value.split(":")
+        if len(parts) != 2 or not parts[0].isdigit() or not parts[1].isdigit():
+            raise ValueError("pubmed_scheduler.yaml schedule.utc_times must be HH:MM")
+        hour = int(parts[0])
+        minute = int(parts[1])
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            raise ValueError("pubmed_scheduler.yaml schedule.utc_times must be HH:MM in UTC")
+
+
+def _validate_scheduler_api(value: object) -> None:
+    if not isinstance(value, dict):
+        raise ValueError("pubmed_scheduler.yaml must contain mapping key api")
+
+    required_api_fields = (
+        "base_url",
+        "documents_get",
+        "documents_post_batch",
+        "ingest_jobs_get",
+    )
+    for key in required_api_fields:
+        raw = value.get(key)
+        if not isinstance(raw, str) or not raw.strip():
+            raise ValueError(f"pubmed_scheduler.yaml api.{key} must be a non-empty string")
+
+
 def _validate_required(settings: AppSettings) -> None:
     settings.require_api()
     settings.require_postgres()
@@ -79,14 +111,8 @@ def _validate_required(settings: AppSettings) -> None:
     schedule = scheduler_cfg.get("schedule")
     if not isinstance(schedule, dict):
         raise ValueError("pubmed_scheduler.yaml must contain mapping key schedule")
-
-    utc_times = schedule.get("utc_times")
-    if not isinstance(utc_times, list):
-        raise ValueError("pubmed_scheduler.yaml must contain schedule.utc_times as a list")
-
-    api = scheduler_cfg.get("api")
-    if not isinstance(api, dict):
-        raise ValueError("pubmed_scheduler.yaml must contain mapping key api")
+    _validate_utc_times(schedule.get("utc_times"))
+    _validate_scheduler_api(scheduler_cfg.get("api"))
 
 
 def load_settings() -> AppSettings:

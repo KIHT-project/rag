@@ -20,7 +20,16 @@ def _create_valid_config_set(base: Path) -> None:
     )
     _write_yaml(
         base / "pubmed_scheduler.yaml",
-        "enabled: true\nschedule:\n  utc_times: ['02:00']\napi:\n  base_url: http://localhost:9000\n",
+        (
+            "enabled: true\n"
+            "schedule:\n"
+            "  utc_times: ['02:00']\n"
+            "api:\n"
+            "  base_url: http://localhost:9000\n"
+            "  documents_get: /v1/documents/\n"
+            "  documents_post_batch: /v1/documents/fetch/batch\n"
+            "  ingest_jobs_get: /v1/ingest/jobs/\n"
+        ),
     )
 
 
