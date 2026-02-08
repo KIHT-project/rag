@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software in academic work, please cite the original author."
+type: software
+title: "Biomed Knowledge Platform"
+authors:
+  - family-names: "Chaikalis"
+    given-names: "Nikolaos"
+year: 2026
+license: "Apache-2.0"
+repository-code: "https://github.com/KIHT-project/rag"
+
+contributors:
+  - family-names: "Kaldoudi"
+    given-names: "Eleni"
+    role: supervision
+  - family-names: "Portoakalidis"
+    given-names: "Nikolaos"
+    role: supervision
