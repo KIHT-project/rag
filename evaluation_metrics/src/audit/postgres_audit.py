@@ -59,7 +59,7 @@ class EvaluationPostgresAudit:
         conn = self._require_conn()
         await conn.execute(
             """
-            INSERT INTO audit_evaluation_run (
+            INSERT INTO core_db.audit_evaluation_run (
                 run_id, request_id, run_type, trigger_source, started_at, finished_at, duration_ms,
                 status, dataset_name, dataset_version, config_snapshot_raw, model_provider,
                 model_name, model_params_raw, seed, error_id, created_at, updated_at
@@ -86,14 +86,14 @@ class EvaluationPostgresAudit:
         now = _utc_now()
         conn = self._require_conn()
         row = await conn.fetchrow(
-            "SELECT started_at FROM audit_evaluation_run WHERE run_id = $1",
+            "SELECT started_at FROM core_db.audit_evaluation_run WHERE run_id = $1",
             run_id,
         )
         started_at = row["started_at"] if row is not None else now
         duration_ms = max(0, int((now - started_at).total_seconds() * 1000))
         await conn.execute(
             """
-            UPDATE audit_evaluation_run
+            UPDATE core_db.audit_evaluation_run
             SET finished_at = $2,
                 duration_ms = $3,
                 status = $4,
@@ -124,7 +124,7 @@ class EvaluationPostgresAudit:
         conn = self._require_conn()
         await conn.execute(
             """
-            INSERT INTO audit_event (
+            INSERT INTO core_db.audit_event (
                 event_id, request_id, run_id, parent_event_id, event_type, component, phase, status,
                 message, payload_raw, stacktrace_raw, created_at
             )
@@ -158,7 +158,7 @@ class EvaluationPostgresAudit:
         conn = self._require_conn()
         await conn.execute(
             """
-            INSERT INTO audit_error (
+            INSERT INTO core_db.audit_error (
                 error_id, request_id, run_id, event_id, exception_class, error_code, message,
                 stacktrace_raw, component, phase, is_fatal, created_at
             )
@@ -192,7 +192,7 @@ class EvaluationPostgresAudit:
         conn = self._require_conn()
         await conn.execute(
             """
-            INSERT INTO audit_evaluation_artifact (
+            INSERT INTO core_db.audit_evaluation_artifact (
                 artifact_id, run_id, request_id, artifact_type, artifact_name, mime_type, content_raw,
                 content_sha256, size_bytes, metadata_raw, created_at
             )
@@ -228,7 +228,7 @@ class EvaluationPostgresAudit:
         conn = self._require_conn()
         await conn.execute(
             """
-            INSERT INTO audit_metric_result (
+            INSERT INTO core_db.audit_metric_result (
                 metric_id, run_id, request_id, phase, metric_name, metric_value,
                 metric_unit, seed, aggregation, metadata_raw, created_at
             )
