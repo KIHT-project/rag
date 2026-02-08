@@ -1,4 +1,4 @@
-# Service X
+# Core Service
 
 ## Table of Contents
 1. [Architecture Overview](#architecture-overview)

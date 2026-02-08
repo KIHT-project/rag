@@ -1,6 +1,6 @@
-# Tests
+# Integration Tests
 
-## BDD:
+## BDD
 Set up the environment (containers):
 ```shell
 make bdd-up
