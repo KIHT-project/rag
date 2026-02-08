@@ -1,0 +1,5 @@
+{"query_id": "thrombosis_q021", "ctx": {"contexts_in": 1, "contexts_out": 1, "total_chars_out": 1200, "max_contexts": 5, "max_chars_per_context": 2000, "max_total_chars": 9000}, "contexts_source": "ask"}
+{"query_id": "thrombosis_q022", "ctx": {"contexts_in": 2, "contexts_out": 2, "total_chars_out": 2015, "max_contexts": 5, "max_chars_per_context": 2000, "max_total_chars": 9000}, "contexts_source": "ask"}
+{"query_id": "thrombosis_q023", "ctx": {"contexts_in": 2, "contexts_out": 2, "total_chars_out": 2399, "max_contexts": 5, "max_chars_per_context": 2000, "max_total_chars": 9000}, "contexts_source": "ask"}
+{"query_id": "thrombosis_q024", "ctx": {"contexts_in": 2, "contexts_out": 2, "total_chars_out": 2399, "max_contexts": 5, "max_chars_per_context": 2000, "max_total_chars": 9000}, "contexts_source": "ask"}
+{"query_id": "thrombosis_q025", "ctx": {"contexts_in": 3, "contexts_out": 3, "total_chars_out": 2895, "max_contexts": 5, "max_chars_per_context": 2000, "max_total_chars": 9000}, "contexts_source": "ask"}

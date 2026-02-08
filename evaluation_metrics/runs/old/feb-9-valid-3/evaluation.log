@@ -1,0 +1,142 @@
+(.venv) nchaikalis@hogwarts rag % python -m evaluation_metrics.src.eval_cli --config evaluation_metrics/config/eval.medium.yaml paper
+/Users/nchaikalis/IdeaProjects/rag/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:26: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+2026-02-09 07:48:23,731 INFO httpx HTTP Request: POST http://127.0.0.1:8000/v1/search "HTTP/1.1 200 OK"
+2026-02-09 07:48:23,793 INFO httpx HTTP Request: GET http://192.168.2.3:11434/api/tags "HTTP/1.1 200 OK"
+2026-02-09 07:48:23,809 INFO evaluation_metrics.src.phases.phase3_generate phase3 | start | run_id=20260209_054817_nogit_primary_deterministic | queries=evaluation_metrics/queries/queries.jsonl | ctx_top_k=10 | model=llama3.1:8b-instruct-q4_K_M | modes=['llm_only', 'rag_hyde', 'rag_no_hyde'] | max_queries=5
+2026-02-09 07:48:23,811 INFO evaluation_metrics.src.phases.phase3_generate phase3 | q=1 | query_id=thrombosis_q021 | Which catheter related complications were significantly reduced by integrated short peripheral catheters compared with n…
+2026-02-09 07:49:31,197 INFO httpx HTTP Request: POST http://127.0.0.1:8000/v1/ask "HTTP/1.1 200 OK"
+2026-02-09 07:49:31,198 INFO evaluation_metrics.src.phases.phase3_generate phase3 | query_id=thrombosis_q021 | rag_no_hyde_ms=67390.49 | answer_preview=Integrated short peripheral catheters (ISPCs) significantly reduced the risk of occlusion and infiltration compared to non-integrated catheters, but evidence is…
+2026-02-09 07:50:44,928 INFO httpx HTTP Request: POST http://127.0.0.1:8000/v1/ask "HTTP/1.1 200 OK"
+2026-02-09 07:50:44,930 INFO evaluation_metrics.src.phases.phase3_generate phase3 | query_id=thrombosis_q021 | rag_hyde_ms=73731.52 | answer_preview=Integrated short peripheral catheters (ISPCs) significantly reduced the risk of occlusion and infiltration compared to non-integrated catheters, but insufficien…
+2026-02-09 07:51:10,991 INFO httpx HTTP Request: POST http://192.168.2.3:11434/api/chat "HTTP/1.1 200 OK"
+2026-02-09 07:51:10,993 INFO evaluation_metrics.src.phases.phase3_generate phase3 | query_id=thrombosis_q021 | llm_only_ms=26062.79 | answer_preview=According to various studies and reviews, integrated short peripheral catheters (ISPCs) have been shown to reduce certain catheter-related complications compare…
+2026-02-09 07:51:10,993 INFO evaluation_metrics.src.phases.phase3_generate phase3 | q=2 | query_id=thrombosis_q022 | Were there any safety signals indicating increased thromboembolic or cardiovascular risk associated with upadacitinib tr…
+2026-02-09 07:52:15,147 INFO httpx HTTP Request: POST http://127.0.0.1:8000/v1/ask "HTTP/1.1 200 OK"
+2026-02-09 07:52:15,149 INFO evaluation_metrics.src.phases.phase3_generate phase3 | query_id=thrombosis_q022 | rag_no_hyde_ms=64155.52 | answer_preview=No significant increase in thromboembolic events was observed with upadacitinib treatment, but some studies reported mixed results.
+2026-02-09 07:53:52,663 INFO httpx HTTP Request: POST http://127.0.0.1:8000/v1/ask "HTTP/1.1 200 OK"
+2026-02-09 07:53:52,665 INFO evaluation_metrics.src.phases.phase3_generate phase3 | query_id=thrombosis_q022 | rag_hyde_ms=97515.07 | answer_preview=Upadacitinib was associated with a higher risk of neutropenia and CK elevation, but not overall SAEs in IBD patients. However, the risks of thromboembolic event…
+2026-02-09 07:54:12,244 INFO httpx HTTP Request: POST http://192.168.2.3:11434/api/chat "HTTP/1.1 200 OK"
+2026-02-09 07:54:12,246 INFO evaluation_metrics.src.phases.phase3_generate phase3 | query_id=thrombosis_q022 | llm_only_ms=19580.47 | answer_preview=According to the available data and regulatory reviews, yes, there were safety signals indicating an increased risk of thromboembolic events (including venous t…
+2026-02-09 07:54:12,246 INFO evaluation_metrics.src.phases.phase3_generate phase3 | q=3 | query_id=thrombosis_q023 | How did MR black blood thrombus imaging compare with contrast enhanced MRI and noncontrast MR venography in diagnosing c…
+2026-02-09 07:55:27,316 INFO httpx HTTP Request: POST http://127.0.0.1:8000/v1/ask "HTTP/1.1 200 OK"
+2026-02-09 07:55:27,317 INFO evaluation_metrics.src.phases.phase3_generate phase3 | query_id=thrombosis_q023 | rag_no_hyde_ms=75070.62 | answer_preview=MR black-blood thrombus imaging (MRBTI) achieved significantly higher sensitivity and specificity than contrast-enhanced MRI (CE-MRI) and noncontrast-enhanced M…
+2026-02-09 07:56:56,517 INFO httpx HTTP Request: POST http://127.0.0.1:8000/v1/ask "HTTP/1.1 200 OK"
+2026-02-09 07:56:56,519 INFO evaluation_metrics.src.phases.phase3_generate phase3 | query_id=thrombosis_q023 | rag_hyde_ms=89201.39 | answer_preview=MR black-blood thrombus imaging (MRBTI) achieved significantly higher sensitivity and specificity than contrast-enhanced MRI (CE-MRI) and noncontrast-enhanced M…
+2026-02-09 07:57:47,385 INFO httpx HTTP Request: POST http://192.168.2.3:11434/api/chat "HTTP/1.1 200 OK"
+2026-02-09 07:57:47,388 INFO evaluation_metrics.src.phases.phase3_generate phase3 | query_id=thrombosis_q023 | llm_only_ms=50867.89 | answer_preview=MR black blood thrombus imaging (BBTI) has been compared to contrast-enhanced MRI (CE-MRI) and non-contrast MR venography (NCV) in the diagnosis of cerebral ven…
+2026-02-09 07:57:47,388 INFO evaluation_metrics.src.phases.phase3_generate phase3 | q=4 | query_id=thrombosis_q024 | Which thrombolytic strategies showed the best balance between mortality reduction and bleeding risk in submassive pulmon…
+2026-02-09 07:59:29,594 INFO httpx HTTP Request: POST http://127.0.0.1:8000/v1/ask "HTTP/1.1 200 OK"
+2026-02-09 07:59:29,596 INFO evaluation_metrics.src.phases.phase3_generate phase3 | query_id=thrombosis_q024 | rag_no_hyde_ms=102207.56 | answer_preview=Catheter-directed thrombolysis (CDT) combined with anticoagulant (AC) significantly reduced mortality in sub-massive PE, but increased major bleeding risk.
+2026-02-09 08:01:23,382 INFO httpx HTTP Request: POST http://127.0.0.1:8000/v1/ask "HTTP/1.1 200 OK"
+2026-02-09 08:01:23,384 INFO evaluation_metrics.src.phases.phase3_generate phase3 | query_id=thrombosis_q024 | rag_hyde_ms=113787.58 | answer_preview=Catheter-directed thrombolysis (CDT) combined with anticoagulant (AC) therapy showed a significant reduction in mortality for sub-massive PE, but increased majo…
+2026-02-09 08:02:16,490 INFO httpx HTTP Request: POST http://192.168.2.3:11434/api/chat "HTTP/1.1 200 OK"
+2026-02-09 08:02:16,492 INFO evaluation_metrics.src.phases.phase3_generate phase3 | query_id=thrombosis_q024 | llm_only_ms=53107.44 | answer_preview=A very specific and timely question!  Submassive pulmonary embolism (PE) is a condition where patients present with hemodynamic instability, but without evidenc…
+2026-02-09 08:02:16,493 INFO evaluation_metrics.src.phases.phase3_generate phase3 | q=5 | query_id=thrombosis_q025 | How reliable were existing risk prediction models for portal vein thrombosis after splenectomy, and what limitations wer…
+2026-02-09 08:03:58,328 INFO httpx HTTP Request: POST http://127.0.0.1:8000/v1/ask "HTTP/1.1 200 OK"
+2026-02-09 08:03:58,333 INFO evaluation_metrics.src.phases.phase3_generate phase3 | query_id=thrombosis_q025 | rag_no_hyde_ms=101837.18 | answer_preview=Existing risk prediction models for portal vein thrombosis (PVT) post-splenectomy have not been systematically evaluated. A systematic review and meta-analysis …
+2026-02-09 08:05:58,378 INFO httpx HTTP Request: POST http://127.0.0.1:8000/v1/ask "HTTP/1.1 200 OK"
+2026-02-09 08:05:58,380 INFO evaluation_metrics.src.phases.phase3_generate phase3 | query_id=thrombosis_q025 | rag_hyde_ms=120044.03 | answer_preview=Existing risk prediction models for portal vein thrombosis (PVT) post-splenectomy have not been systematically evaluated. A systematic review and meta-analysis …
+2026-02-09 08:06:38,771 INFO httpx HTTP Request: POST http://192.168.2.3:11434/api/chat "HTTP/1.1 200 OK"
+2026-02-09 08:06:38,776 INFO evaluation_metrics.src.phases.phase3_generate phase3 | query_id=thrombosis_q025 | llm_only_ms=40395.24 | answer_preview=Existing risk prediction models for portal vein thrombosis (PVT) after splenectomy have been evaluated in several studies, but their reliability is limited by v…
+2026-02-09 08:06:38,776 INFO evaluation_metrics.src.phases.phase3_generate phase3 | progress | done=5
+2026-02-09 08:06:38,780 INFO evaluation_metrics.src.phases.phase3_generate phase3 | done | total=5 | failures=0 | out_dir=evaluation_metrics/runs/20260209_054817_nogit/primary_deterministic
+2026-02-09 08:06:38,780 INFO evaluation_metrics.src.phases.phase4_ragas phase4 start input=evaluation_metrics/runs/20260209_054817_nogit/primary_deterministic/phase3_answers_rag_no_hyde.jsonl
+2026-02-09 08:06:38,781 INFO evaluation_metrics.src.phases.phase4_ragas phase4 loaded_records=5 empty_answer=0 empty_contexts=0
+2026-02-09 08:06:38,809 INFO evaluation_metrics.src.phases.phase4_ragas phase4 evaluator base_url=http://192.168.2.3:11434/v1 model=llama3.1:8b-instruct-q4_K_M
+2026-02-09 08:06:43,547 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-09 08:06:43,558 INFO evaluation_metrics.src.phases.phase4_ragas phase4 json_mode_probe ok
+2026-02-09 08:06:43,917 INFO evaluation_metrics.src.phases.phase4_ragas phase4 embeddings model=sentence-transformers/all-MiniLM-L6-v2 device=cpu local_only=True
+2026-02-09 08:06:45,702 INFO sentence_transformers.SentenceTransformer Load pretrained SentenceTransformer: sentence-transformers/all-MiniLM-L6-v2
+2026-02-09 08:06:45,795 INFO evaluation_metrics.src.phases.phase4_ragas phase4 metrics=answer_relevancy
+2026-02-09 08:06:45,796 INFO evaluation_metrics.src.phases.phase4_ragas phase4 running RAGAS
+Evaluating:   0%|                                                                                                                                                       | 0/5 [00:00<?, ?it/s]2026-02-09 08:07:09,190 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-09 08:07:09,542 WARNING ragas.prompt.pydantic_prompt LLM returned 1 generations instead of requested 3. Proceeding with 1 generations.
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 43.82it/s]
+Batches: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 112.85it/s]
+2026-02-09 08:07:14,423 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"                                                    | 0/1 [00:00<?, ?it/s]
+2026-02-09 08:07:14,759 WARNING ragas.prompt.pydantic_prompt LLM returned 1 generations instead of requested 3. Proceeding with 1 generations.
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 66.96it/s]
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 98.23it/s]
+2026-02-09 08:07:20,983 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"                                                    | 0/1 [00:00<?, ?it/s]
+2026-02-09 08:07:21,444 WARNING ragas.prompt.pydantic_prompt LLM returned 1 generations instead of requested 3. Proceeding with 1 generations.
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 69.36it/s]
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 87.03it/s]
+2026-02-09 08:07:26,866 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"                                                    | 0/1 [00:00<?, ?it/s]
+2026-02-09 08:07:27,210 WARNING ragas.prompt.pydantic_prompt LLM returned 1 generations instead of requested 3. Proceeding with 1 generations.
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 85.76it/s]
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 91.64it/s]
+2026-02-09 08:07:33,830 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"                                                    | 0/1 [00:00<?, ?it/s]
+2026-02-09 08:07:34,163 WARNING ragas.prompt.pydantic_prompt LLM returned 1 generations instead of requested 3. Proceeding with 1 generations.
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 77.10it/s]
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 76.09it/s]
+Evaluating: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 5/5 [00:48<00:00,  9.68s/it]
+2026-02-09 08:07:35,197 INFO evaluation_metrics.src.phases.phase4_ragas phase4 diagnostics written evaluation_metrics/runs/20260209_054817_nogit/primary_deterministic/phase4_ragas_phase3_answers_rag_no_hyde.diagnostics.jsonl
+2026-02-09 08:07:35,221 INFO evaluation_metrics.src.phases.phase4_ragas phase4 done duration_sec=49.39 rows=5 out=evaluation_metrics/runs/20260209_054817_nogit/primary_deterministic/phase4_ragas_phase3_answers_rag_no_hyde.csv
+2026-02-09 08:07:35,221 INFO evaluation_metrics.src.phases.phase4_ragas phase4 start input=evaluation_metrics/runs/20260209_054817_nogit/primary_deterministic/phase3_answers_rag_hyde.jsonl
+2026-02-09 08:07:35,222 INFO evaluation_metrics.src.phases.phase4_ragas phase4 loaded_records=5 empty_answer=0 empty_contexts=0
+2026-02-09 08:07:35,225 INFO evaluation_metrics.src.phases.phase4_ragas phase4 evaluator base_url=http://192.168.2.3:11434/v1 model=llama3.1:8b-instruct-q4_K_M
+2026-02-09 08:07:39,446 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-09 08:07:39,448 INFO evaluation_metrics.src.phases.phase4_ragas phase4 json_mode_probe ok
+2026-02-09 08:07:39,792 INFO evaluation_metrics.src.phases.phase4_ragas phase4 embeddings model=sentence-transformers/all-MiniLM-L6-v2 device=cpu local_only=True
+2026-02-09 08:07:39,795 INFO sentence_transformers.SentenceTransformer Load pretrained SentenceTransformer: sentence-transformers/all-MiniLM-L6-v2
+2026-02-09 08:07:39,850 INFO evaluation_metrics.src.phases.phase4_ragas phase4 metrics=answer_relevancy
+2026-02-09 08:07:39,850 INFO evaluation_metrics.src.phases.phase4_ragas phase4 running RAGAS
+Evaluating:   0%|                                                                                                                                                       | 0/5 [00:00<?, ?it/s]2026-02-09 08:08:04,039 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-09 08:08:04,390 WARNING ragas.prompt.pydantic_prompt LLM returned 1 generations instead of requested 3. Proceeding with 1 generations.
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 93.88it/s]
+Batches: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 137.04it/s]
+2026-02-09 08:08:09,874 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"                                                    | 0/1 [00:00<?, ?it/s]
+2026-02-09 08:08:10,207 WARNING ragas.prompt.pydantic_prompt LLM returned 1 generations instead of requested 3. Proceeding with 1 generations.
+Batches: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 129.84it/s]
+Batches: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 115.75it/s]
+2026-02-09 08:08:16,283 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"                                                    | 0/1 [00:00<?, ?it/s]
+2026-02-09 08:08:16,602 WARNING ragas.prompt.pydantic_prompt LLM returned 1 generations instead of requested 3. Proceeding with 1 generations.
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 71.86it/s]
+Batches: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 101.57it/s]
+2026-02-09 08:08:23,404 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"                                                    | 0/1 [00:00<?, ?it/s]
+2026-02-09 08:08:23,782 WARNING ragas.prompt.pydantic_prompt LLM returned 1 generations instead of requested 3. Proceeding with 1 generations.
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 73.89it/s]
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 70.80it/s]
+2026-02-09 08:08:29,914 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"                                                    | 0/1 [00:00<?, ?it/s]
+2026-02-09 08:08:30,239 WARNING ragas.prompt.pydantic_prompt LLM returned 1 generations instead of requested 3. Proceeding with 1 generations.
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 76.20it/s]
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 90.90it/s]
+Evaluating: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 5/5 [00:50<00:00, 10.09s/it]
+2026-02-09 08:08:31,306 INFO evaluation_metrics.src.phases.phase4_ragas phase4 diagnostics written evaluation_metrics/runs/20260209_054817_nogit/primary_deterministic/phase4_ragas_phase3_answers_rag_hyde.diagnostics.jsonl
+2026-02-09 08:08:31,314 INFO evaluation_metrics.src.phases.phase4_ragas phase4 done duration_sec=51.44 rows=5 out=evaluation_metrics/runs/20260209_054817_nogit/primary_deterministic/phase4_ragas_phase3_answers_rag_hyde.csv
+2026-02-09 08:08:31,314 INFO evaluation_metrics.src.phases.phase4_ragas phase4 start input=evaluation_metrics/runs/20260209_054817_nogit/primary_deterministic/phase3_answers_llm_only.jsonl
+2026-02-09 08:08:31,315 INFO evaluation_metrics.src.phases.phase4_ragas phase4 loaded_records=5 empty_answer=0 empty_contexts=5
+2026-02-09 08:08:31,322 INFO evaluation_metrics.src.phases.phase4_ragas phase4 evaluator base_url=http://192.168.2.3:11434/v1 model=llama3.1:8b-instruct-q4_K_M
+2026-02-09 08:08:35,681 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-09 08:08:35,682 INFO evaluation_metrics.src.phases.phase4_ragas phase4 json_mode_probe ok
+2026-02-09 08:08:36,016 INFO evaluation_metrics.src.phases.phase4_ragas phase4 embeddings model=sentence-transformers/all-MiniLM-L6-v2 device=cpu local_only=True
+2026-02-09 08:08:36,021 INFO sentence_transformers.SentenceTransformer Load pretrained SentenceTransformer: sentence-transformers/all-MiniLM-L6-v2
+2026-02-09 08:08:36,078 INFO evaluation_metrics.src.phases.phase4_ragas phase4 metrics=answer_relevancy
+2026-02-09 08:08:36,079 INFO evaluation_metrics.src.phases.phase4_ragas phase4 running RAGAS
+Evaluating:   0%|                                                                                                                                                       | 0/5 [00:00<?, ?it/s]2026-02-09 08:09:20,325 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-09 08:09:20,649 WARNING ragas.prompt.pydantic_prompt LLM returned 1 generations instead of requested 3. Proceeding with 1 generations.
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 60.46it/s]
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 88.56it/s]
+2026-02-09 08:09:37,120 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"                                                    | 0/1 [00:00<?, ?it/s]
+2026-02-09 08:09:37,442 WARNING ragas.prompt.pydantic_prompt LLM returned 1 generations instead of requested 3. Proceeding with 1 generations.
+Batches: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 110.36it/s]
+Batches: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 100.81it/s]
+2026-02-09 08:10:14,385 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"                                                    | 0/1 [00:00<?, ?it/s]
+2026-02-09 08:10:14,773 WARNING ragas.prompt.pydantic_prompt LLM returned 1 generations instead of requested 3. Proceeding with 1 generations.
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 71.08it/s]
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 81.92it/s]
+2026-02-09 08:10:48,511 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"                                                    | 0/1 [00:00<?, ?it/s]
+2026-02-09 08:10:48,850 WARNING ragas.prompt.pydantic_prompt LLM returned 1 generations instead of requested 3. Proceeding with 1 generations.
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 76.36it/s]
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 94.02it/s]
+2026-02-09 08:11:13,641 INFO httpx HTTP Request: POST http://192.168.2.3:11434/v1/chat/completions "HTTP/1.1 200 OK"                                                    | 0/1 [00:00<?, ?it/s]
+2026-02-09 08:11:14,013 WARNING ragas.prompt.pydantic_prompt LLM returned 1 generations instead of requested 3. Proceeding with 1 generations.
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 69.10it/s]
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 91.74it/s]
+Evaluating: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 5/5 [02:37<00:00, 31.59s/it]
+2026-02-09 08:11:15,229 INFO evaluation_metrics.src.phases.phase4_ragas phase4 diagnostics written evaluation_metrics/runs/20260209_054817_nogit/primary_deterministic/phase4_ragas_phase3_answers_llm_only.diagnostics.jsonl
+2026-02-09 08:11:15,237 INFO evaluation_metrics.src.phases.phase4_ragas phase4 done duration_sec=159.14 rows=5 out=evaluation_metrics/runs/20260209_054817_nogit/primary_deterministic/phase4_ragas_phase3_answers_llm_only.csv
+2026-02-09 08:11:15,694 INFO evaluation_metrics.src.phases.phase6_extraction phase6 extraction done | input=evaluation_metrics/runs/20260209_054817_nogit/primary_deterministic/phase3_answers_rag_no_hyde.jsonl | total=5 | evaluated=3 | micro_f1=0.5333 | macro_f1=0.4889
+2026-02-09 08:11:16,134 INFO evaluation_metrics.src.phases.phase6_extraction phase6 extraction done | input=evaluation_metrics/runs/20260209_054817_nogit/primary_deterministic/phase3_answers_rag_hyde.jsonl | total=5 | evaluated=4 | micro_f1=0.5000 | macro_f1=0.5167
+2026-02-09 08:11:16,417 INFO root paper benchmark summary written evaluation_metrics/runs/20260209_054817_nogit/paper_benchmark_summary.json

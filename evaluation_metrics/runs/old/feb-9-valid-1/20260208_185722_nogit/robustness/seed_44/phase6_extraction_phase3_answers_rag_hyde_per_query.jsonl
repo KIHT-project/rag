@@ -1,0 +1,1 @@
+{"query_id": "thrombosis_q022", "mode": "rag_hyde", "tp": 0, "fp": 6, "fn": 1, "precision": 0.0, "recall": 0.0, "f1": 0.0, "pred_factor_count": 6, "gold_factor_count": 1, "cited_doi_count": 2, "gold_doi_count": 1, "pred_factors": "ck elevation|creatine kinase|neutropenia|neutropenic|thromboembolic events|thromboembolism", "gold_factors": "trauma", "matched_factors": ""}

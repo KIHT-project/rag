@@ -1,0 +1,2 @@
+query_id,mode,tp,fp,fn,precision,recall,f1,pred_factor_count,gold_factor_count,cited_doi_count,gold_doi_count,pred_factors,gold_factors,matched_factors
+thrombosis_q021,rag_no_hyde,7,0,2,1.0,0.7777777777777778,0.8750000000000001,7,9,3,3,age|atrial fibrillation|diabetes|heart failure|hypertension|obesity|thromboembolism,age|atrial fibrillation|diabetes|heart failure|hypertension|obesity|surgery|thromboembolism|trauma,age|atrial fibrillation|diabetes|heart failure|hypertension|obesity|thromboembolism

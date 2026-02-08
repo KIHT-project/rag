@@ -10,9 +10,9 @@ reranker_model_id: "llama3.1:8b-instruct-q4_K_M"
 ask_max_question_chars: 1200
 ask_max_context_chars: 60000
 ask_max_chunks_candidate: 30
-ask_max_chunks_final: 4
+ask_max_chunks_final: 6
 
 llm_max_concurrency: 2
-ask_llm_max_retries: 0
+ask_llm_max_retries: 1
 
 timeout_seconds: 3600.0

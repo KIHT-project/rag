@@ -1,0 +1,6 @@
+query_id,mode,tp,fp,fn,precision,recall,f1,pred_factor_count,gold_factor_count,cited_doi_count,gold_doi_count,pred_factors,gold_factors,matched_factors
+thrombosis_q021,rag_hyde,3,1,4,0.75,0.42857142857142855,0.5454545454545454,4,7,2,2,age|diabetes|dm|obesity,age|atrial fibrillation|diabetes|heart failure|hypertension|obesity|surgery,age|diabetes|obesity
+thrombosis_q022,rag_hyde,2,2,4,0.5,0.3333333333333333,0.4,4,6,1,1,age|long term braking|prior vte|vte,age|heart failure|immobility|obesity|prior vte|trauma,age|prior vte
+thrombosis_q023,rag_hyde,3,1,2,0.75,0.6,0.6666666666666665,4,5,3,2,catheter|catheter infiltration|catheter occlusion|thrombophlebitis,catheter dislodgement|catheter infiltration|catheter occlusion|infection|thrombophlebitis,catheter infiltration|catheter occlusion|thrombophlebitis
+thrombosis_q024,rag_hyde,1,4,5,0.2,0.16666666666666666,0.1818181818181818,5,6,2,2,anesthesia duration|blood transfusion|prolonged anesthesia|surgery|transfusion,age|anticoagulation|catheter|obesity|surgery|trauma,surgery
+thrombosis_q025,rag_hyde,2,1,3,0.6666666666666666,0.4,0.5,3,5,1,1,age|hypertension|mechanical ventilation,age|cancer|diabetes|heart failure|hypertension,age|hypertension

@@ -1,0 +1,6 @@
+query_id,mode,tp,fp,fn,precision,recall,f1,pred_factor_count,gold_factor_count,cited_doi_count,gold_doi_count,pred_factors,gold_factors,matched_factors
+thrombosis_q021,rag_hyde,3,0,5,1.0,0.375,0.5454545454545454,3,8,2,2,age|diabetes|obesity,age|atrial fibrillation|diabetes|heart failure|hypertension|obesity|surgery|thromboembolism,age|diabetes|obesity
+thrombosis_q022,rag_hyde,3,0,3,1.0,0.5,0.6666666666666666,3,6,1,1,age|immobility|prior vte,age|heart failure|immobility|obesity|prior vte|trauma,age|immobility|prior vte
+thrombosis_q023,rag_hyde,3,1,2,0.75,0.6,0.6666666666666665,4,5,3,2,catheter|catheter infiltration|catheter occlusion|thrombophlebitis,catheter dislodgement|catheter infiltration|catheter occlusion|infection|thrombophlebitis,catheter infiltration|catheter occlusion|thrombophlebitis
+thrombosis_q024,rag_hyde,1,0,6,1.0,0.14285714285714285,0.25,1,7,2,2,surgery,age|anticoagulation|catheter|obesity|surgery|thromboembolism|trauma,surgery
+thrombosis_q025,rag_hyde,2,0,3,1.0,0.4,0.5714285714285715,2,5,1,1,age|hypertension,age|cancer|diabetes|heart failure|hypertension,age|hypertension

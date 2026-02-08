@@ -1,0 +1,43 @@
+{
+  "primary_deterministic": {
+    "seed": 42,
+    "temperature": 0.0,
+    "summary": {
+      "rag_no_hyde": {
+        "answer_relevancy": 0.6692437831220186,
+        "extraction_micro_precision": 0.0,
+        "extraction_micro_recall": 0.0,
+        "extraction_micro_f1": 0.0,
+        "extraction_macro_precision": 0.0,
+        "extraction_macro_recall": 0.0,
+        "extraction_macro_f1": 0.0,
+        "extraction_query_coverage_rate": 0.2,
+        "extraction_evaluated_queries": 1.0,
+        "extraction_skipped_no_gold": 4.0
+      },
+      "rag_hyde": {
+        "answer_relevancy": 0.798026102701155,
+        "extraction_micro_precision": 0.0,
+        "extraction_micro_recall": 0.0,
+        "extraction_micro_f1": 0.0,
+        "extraction_macro_precision": 0.0,
+        "extraction_macro_recall": 0.0,
+        "extraction_macro_f1": 0.0,
+        "extraction_query_coverage_rate": 0.2,
+        "extraction_evaluated_queries": 1.0,
+        "extraction_skipped_no_gold": 4.0
+      },
+      "llm_only": {
+        "answer_relevancy": 0.7815136461376578
+      }
+    },
+    "run_dir": "evaluation_metrics/runs/20260208_182346_nogit/primary_deterministic"
+  },
+  "robustness": {
+    "temperature": 0.2,
+    "seeds": [],
+    "runs": [],
+    "aggregate": {},
+    "run_dir": "evaluation_metrics/runs/20260208_182346_nogit/robustness"
+  }
+}

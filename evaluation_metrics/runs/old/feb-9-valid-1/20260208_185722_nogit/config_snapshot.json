@@ -1,0 +1,67 @@
+{
+  "rag_api": {
+    "base_url": "http://127.0.0.1:8000",
+    "timeout_seconds": 2000.0,
+    "search_top_k_pool": 5,
+    "search_top_k_context": 10
+  },
+  "ask": {
+    "hyde_header_name": "X-HyDE-Enabled",
+    "hyde_header_value": "true"
+  },
+  "ollama": {
+    "base_url": "http://192.168.2.3:11434",
+    "model": "llama3.1:8b-instruct-q4_K_M",
+    "temperature": 0.2,
+    "num_predict": 700
+  },
+  "paper": {
+    "primary_seed": 42,
+    "primary_temperature": 0.0,
+    "robustness_temperature": 0.2,
+    "robustness_seeds": [
+      11,
+      22,
+      33,
+      44,
+      55
+    ]
+  },
+  "paths": {
+    "queries_jsonl": "evaluation_metrics/queries/queries.jsonl",
+    "runs_dir": "evaluation_metrics/runs"
+  },
+  "ragas": {
+    "embeddings_model": "sentence-transformers/all-MiniLM-L6-v2",
+    "embeddings_device": "cpu",
+    "embeddings_local_only": true
+  },
+  "extraction": {
+    "enabled": true,
+    "tasks_clean_json": "evaluation_metrics/tasks_clean.json",
+    "include_modes": [
+      "rag_no_hyde",
+      "rag_hyde"
+    ],
+    "reports_risk_field": "reports_risk_factors",
+    "reports_positive_value": "Yes",
+    "reports_confidence_field": "confidence_reports_risk_factors",
+    "min_confidence": 3,
+    "allow_missing_confidence": true,
+    "factor_source_field": "reason_label",
+    "factor_source_fallback_to_abstract": true,
+    "no_gold_policy": "skip"
+  },
+  "metrics": {
+    "k_values": [
+      5,
+      10,
+      20
+    ]
+  },
+  "audit": {
+    "sample_size": 12,
+    "seed": 42,
+    "postgres_dsn": "postgresql://user:password@localhost:5432/biomed_knowledge_platform"
+  }
+}

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
@@ -25,7 +26,7 @@ log = get_logger(__name__)
 # ----------------------------
 
 DEFAULT_MAX_CONTEXT_CHARS = 60000
-DEFAULT_NUM_PREDICT = 800
+DEFAULT_NUM_PREDICT = 1200
 
 LOG_INVALID_JSON_MAX_CHARS = 1200
 
@@ -37,7 +38,7 @@ RATIONALE_HARD_CAP = 260
 # Research mode: avoid truncating evidence snippets so evaluators can access full context.
 SNIPPET_HARD_CAP = 12000
 
-MAX_RISK_FACTORS = 3
+MAX_RISK_FACTORS = 8
 MAX_CITATIONS = 4
 
 RISK_FACTOR_FALLBACK_CITATIONS = 2
@@ -59,6 +60,12 @@ Hard rules
 
 Acronyms
 On first mention, write the full term followed by the acronym in parentheses. Then use the acronym only.
+
+Risk factor naming
+Use concise clinical factor labels in answer.risk_factors.normalized_name.
+Prefer canonical terms (for example: age, obesity, prior vte, surgery, trauma, immobility,
+anticoagulation, major bleeding, catheter occlusion, catheter infiltration, hypertension, diabetes, cancer).
+Do not use sentence fragments, vague phrases, or chunk IDs as factor names.
 
 Output constraints
 1. answer.summary max {summary_hard_cap} characters.
@@ -235,6 +242,32 @@ def _dedupe_keep_order(values: list[str]) -> list[str]:
     return out
 
 
+RISK_FACTOR_NAME_NORMALIZATION: dict[str, str] = {
+    "dm": "diabetes",
+    "diabetes mellitus": "diabetes",
+    "vte history": "prior vte",
+    "history of vte": "prior vte",
+    "long term braking": "immobility",
+    "long-term braking": "immobility",
+    "long term break": "immobility",
+    "prolonged anesthesia": "surgery",
+    "anesthesia duration": "surgery",
+    "blood transfusion": "surgery",
+    "transfusion": "surgery",
+    "venous thromboembolism": "thromboembolism",
+    "thromboembolic events": "thromboembolism",
+}
+
+
+def _normalize_risk_factor_name(value: object) -> str:
+    raw = _as_str(value)
+    if not raw:
+        return ""
+    norm = re.sub(r"\s+", " ", raw.strip().lower())
+    mapped = RISK_FACTOR_NAME_NORMALIZATION.get(norm)
+    return mapped if mapped else raw
+
+
 def _build_context(chunks: Sequence[ChunkCandidate], max_chars: int) -> tuple[str, set[str]]:
     limit_raw = int(max_chars)
     limit = limit_raw if limit_raw > 0 else DEFAULT_MAX_CONTEXT_CHARS
@@ -283,10 +316,20 @@ def _normalize_risk_factor(item: object) -> dict[str, Any] | None:
 
     rationale_cap = min(RATIONALE_MAX_CHARS, RATIONALE_HARD_CAP)
 
+    normalized_name_raw = _as_str(item.get("normalized_name")) or _as_str(item.get("name"))
+    normalized_name = _normalize_risk_factor_name(normalized_name_raw)
+    aliases = _dedupe_keep_order(
+        [
+            name
+            for name in (_normalize_risk_factor_name(a) for a in _as_str_list(item.get("aliases")))
+            if name
+        ]
+    )
+
     return {
         "rank": int(_as_int(item.get("rank")) or 0),
-        "normalized_name": _as_str(item.get("normalized_name")) or _as_str(item.get("name")),
-        "aliases": _dedupe_keep_order(_as_str_list(item.get("aliases"))),
+        "normalized_name": normalized_name,
+        "aliases": aliases,
         "confidence": float(_as_float(item.get("confidence")) or 0.0),
         "rationale": _truncate(_as_str(item.get("rationale")), rationale_cap),
         "citations": _as_str_list(item.get("citations")),

@@ -1,0 +1,43 @@
+{
+  "primary_deterministic": {
+    "seed": 42,
+    "temperature": 0.0,
+    "summary": {
+      "rag_no_hyde": {
+        "answer_relevancy": 0.8405910370348508,
+        "extraction_micro_precision": 0.6666666666666666,
+        "extraction_micro_recall": 0.41379310344827586,
+        "extraction_micro_f1": 0.5106382978723404,
+        "extraction_macro_precision": 0.65,
+        "extraction_macro_recall": 0.4057142857142857,
+        "extraction_macro_f1": 0.49909090909090914,
+        "extraction_query_coverage_rate": 1.0,
+        "extraction_evaluated_queries": 5.0,
+        "extraction_skipped_no_gold": 0.0
+      },
+      "rag_hyde": {
+        "answer_relevancy": 0.8529491050494279,
+        "extraction_micro_precision": 0.55,
+        "extraction_micro_recall": 0.3793103448275862,
+        "extraction_micro_f1": 0.4489795918367347,
+        "extraction_macro_precision": 0.5733333333333334,
+        "extraction_macro_recall": 0.3857142857142858,
+        "extraction_macro_f1": 0.4587878787878788,
+        "extraction_query_coverage_rate": 1.0,
+        "extraction_evaluated_queries": 5.0,
+        "extraction_skipped_no_gold": 0.0
+      },
+      "llm_only": {
+        "answer_relevancy": 0.6104150912881663
+      }
+    },
+    "run_dir": "evaluation_metrics/runs/20260209_065332_nogit/primary_deterministic"
+  },
+  "robustness": {
+    "temperature": 0.2,
+    "seeds": [],
+    "runs": [],
+    "aggregate": {},
+    "run_dir": "evaluation_metrics/runs/20260209_065332_nogit/robustness"
+  }
+}
