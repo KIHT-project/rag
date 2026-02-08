@@ -11,11 +11,14 @@ from scheduler_pubmed.src.core.domains.scheduler import (
     IngestJobItemStatus,
     IngestJobStatus,
     PubMedSearchResult,
+    RunDoiResult,
     RunStatus,
+    SchedulerRun,
     SchedulerRunCreated,
     SchedulerStatus,
     TriggerType,
 )
+from scheduler_pubmed.src.core.errors.errors import business_error
 from scheduler_pubmed.src.core.ports.documents_client import DocumentsClient
 from scheduler_pubmed.src.core.ports.pubmed_client import PubMedClient
 from scheduler_pubmed.src.core.ports.pubmed_query_repository import (
@@ -175,6 +178,45 @@ class SchedulerOrchestrationUseCase:
             last_run_at=last_run.started_at if last_run else None,
             last_run_status=last_run.status if last_run else None,
         )
+
+    async def list_runs(
+        self,
+        *,
+        status: RunStatus | None,
+        from_at: datetime | None,
+        to_at: datetime | None,
+    ) -> list[SchedulerRun]:
+        if from_at is not None and to_at is not None and from_at > to_at:
+            raise business_error(
+                code="validation_error",
+                message="Invalid runs time range",
+                details={"from": from_at.isoformat(), "to": to_at.isoformat()},
+            )
+        return await self._scheduler_repository.list_runs(
+            status=status,
+            from_at=from_at,
+            to_at=to_at,
+        )
+
+    async def get_run(self, *, run_id: UUID) -> SchedulerRun:
+        run = await self._scheduler_repository.get_run(run_id=run_id)
+        if run is None:
+            raise business_error(
+                code="not_found",
+                message="Scheduler run not found",
+                details={"run_id": str(run_id)},
+            )
+        return run
+
+    async def list_run_dois(self, *, run_id: UUID) -> list[RunDoiResult]:
+        doi_results = await self._scheduler_repository.list_run_dois(run_id=run_id)
+        if doi_results is None:
+            raise business_error(
+                code="not_found",
+                message="Scheduler run not found",
+                details={"run_id": str(run_id)},
+            )
+        return doi_results
 
     async def execute_run(self, *, run_id: UUID, reldate_days: int | None = None) -> None:
         query_statuses: list[RunStatus] = []

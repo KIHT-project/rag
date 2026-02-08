@@ -8,7 +8,11 @@ import pytest
 
 import scheduler_pubmed.src.core.services.scheduler_runtime as runtime_mod
 from scheduler_pubmed.src.core.domains.scheduler import (
+    DoiExecutionStatus,
+    QueryExecution,
+    RunDoiResult,
     RunStatus,
+    SchedulerRun,
     SchedulerRunCreated,
     SchedulerStatus,
     TriggerType,
@@ -40,6 +44,54 @@ class _FakeUseCase:
             last_run_at=None,
             last_run_status=None,
         )
+
+    async def list_runs(
+        self,
+        *,
+        status: RunStatus | None,
+        from_at: datetime | None,
+        to_at: datetime | None,
+    ) -> list[SchedulerRun]:
+        _ = (status, from_at, to_at)
+        return [
+            SchedulerRun(
+                run_id=uuid4(),
+                status=RunStatus.SUCCESS,
+                started_at=datetime.now(UTC),
+                finished_at=datetime.now(UTC),
+                queries=[
+                    QueryExecution(
+                        query_execution_id=uuid4(),
+                        query_id=uuid4(),
+                        status=RunStatus.SUCCESS,
+                        pubmed_result_count=1,
+                        doi_resolved_count=1,
+                        doi_skipped_exists_count=0,
+                        doi_enqueued_count=1,
+                        doi_failed_count=0,
+                        ingest_job_id=None,
+                    )
+                ],
+            )
+        ]
+
+    async def get_run(self, *, run_id):  # noqa: ANN001
+        return SchedulerRun(
+            run_id=run_id,
+            status=RunStatus.SUCCESS,
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
+            queries=[],
+        )
+
+    async def list_run_dois(self, *, run_id):  # noqa: ANN001, ARG002
+        return [
+            RunDoiResult(
+                doi="10.1000/a",
+                status=DoiExecutionStatus.INGESTED,
+                error_message=None,
+            )
+        ]
 
 
 @pytest.mark.asyncio
@@ -76,6 +128,26 @@ async def test_get_status_uses_runtime_config() -> None:
 
     assert status.enabled is True
     assert status.utc_schedule == ["02:00", "14:00"]
+
+
+@pytest.mark.asyncio
+async def test_runtime_run_read_methods_delegate_to_use_case() -> None:
+    use_case = _FakeUseCase()
+    runtime = SchedulerRuntimeService(
+        use_case=use_case,  # type: ignore[arg-type]
+        enabled=True,
+        utc_schedule=["02:00", "14:00"],
+        automatic_schedule_enabled=False,
+    )
+
+    runs = await runtime.list_runs(status=None, from_at=None, to_at=None)
+    run = await runtime.get_run(run_id=runs[0].run_id)
+    dois = await runtime.list_run_dois(run_id=runs[0].run_id)
+
+    assert len(runs) == 1
+    assert run.run_id == runs[0].run_id
+    assert len(dois) == 1
+    assert dois[0].doi == "10.1000/a"
 
 
 @pytest.mark.asyncio

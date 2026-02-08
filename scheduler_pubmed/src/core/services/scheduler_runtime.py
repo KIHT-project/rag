@@ -6,6 +6,9 @@ from uuid import UUID
 
 from scheduler_pubmed.src.common.logging import get_logger
 from scheduler_pubmed.src.core.domains.scheduler import (
+    RunDoiResult,
+    RunStatus,
+    SchedulerRun,
     SchedulerRunCreated,
     SchedulerStatus,
     TriggerType,
@@ -68,6 +71,25 @@ class SchedulerRuntimeService:
         return await self._use_case.get_status(
             enabled=self._enabled, utc_schedule=self._utc_schedule
         )
+
+    async def list_runs(
+        self,
+        *,
+        status: RunStatus | None,
+        from_at: datetime | None,
+        to_at: datetime | None,
+    ) -> list[SchedulerRun]:
+        return await self._use_case.list_runs(
+            status=status,
+            from_at=from_at,
+            to_at=to_at,
+        )
+
+    async def get_run(self, *, run_id: UUID) -> SchedulerRun:
+        return await self._use_case.get_run(run_id=run_id)
+
+    async def list_run_dois(self, *, run_id: UUID) -> list[RunDoiResult]:
+        return await self._use_case.list_run_dois(run_id=run_id)
 
     def _start_run_task(self, *, run_id: UUID, reldate_days: int | None) -> None:
         task = asyncio.create_task(

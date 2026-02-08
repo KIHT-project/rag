@@ -10,7 +10,7 @@ alembic==1.18.1
 python-dotenv==1.2.1
 
 # API contract tooling
-pydantic==2.12.0
+pydantic==2.12.5
 datamodel-code-generator==0.52.2
 
 # Test

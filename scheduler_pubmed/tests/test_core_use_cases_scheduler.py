@@ -12,11 +12,15 @@ from scheduler_pubmed.src.core.domains.scheduler import (
     IngestJobItemStatus,
     IngestJobStatus,
     PubMedSearchResult,
+    RunDoiResult,
     RunStatus,
+    SchedulerRun,
     SchedulerRunCreated,
+    QueryExecution,
     SchedulerRunRecord,
     TriggerType,
 )
+from scheduler_pubmed.src.core.errors.errors import BusinessError
 from scheduler_pubmed.src.core.use_cases.scheduler import (
     SchedulerOrchestrationUseCase,
     _QueryExecutionState,
@@ -52,6 +56,9 @@ class _FakeSchedulerRepository:
         ] = {}
         self.last_successful_updates: dict[UUID, datetime] = {}
         self.last_run_record: SchedulerRunRecord | None = None
+        self.runs: list[SchedulerRun] = []
+        self.run_by_id: dict[UUID, SchedulerRun] = {}
+        self.run_dois_by_run_id: dict[UUID, list[RunDoiResult]] = {}
 
     async def create_run(self, *, trigger_type: TriggerType) -> SchedulerRunCreated:
         run = SchedulerRunCreated(
@@ -73,6 +80,24 @@ class _FakeSchedulerRepository:
 
     async def get_last_run(self) -> SchedulerRunRecord | None:
         return self.last_run_record
+
+    async def list_runs(
+        self,
+        *,
+        status: RunStatus | None,
+        from_at: datetime | None,
+        to_at: datetime | None,
+    ) -> list[SchedulerRun]:
+        _ = (from_at, to_at)
+        if status is None:
+            return list(self.runs)
+        return [run for run in self.runs if run.status == status]
+
+    async def get_run(self, *, run_id: UUID) -> SchedulerRun | None:
+        return self.run_by_id.get(run_id)
+
+    async def list_run_dois(self, *, run_id: UUID) -> list[RunDoiResult] | None:
+        return self.run_dois_by_run_id.get(run_id)
 
     async def create_query_execution(self, *, run_id: UUID, query_id: UUID) -> UUID:
         query_execution_id = uuid4()
@@ -589,3 +614,79 @@ async def test_execute_query_sets_query_error_when_pubmed_search_fails() -> None
     assert summary["doi_resolved_count"] == 0
     assert summary["doi_failed_count"] == 0
     assert summary["error_message"] == "pubmed failed"
+
+
+@pytest.mark.asyncio
+async def test_list_runs_returns_repository_results() -> None:
+    run_id = uuid4()
+    scheduler_repo = _FakeSchedulerRepository()
+    scheduler_repo.runs = [
+        SchedulerRun(
+            run_id=run_id,
+            status=RunStatus.SUCCESS,
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
+            queries=[
+                QueryExecution(
+                    query_execution_id=uuid4(),
+                    query_id=uuid4(),
+                    status=RunStatus.SUCCESS,
+                    pubmed_result_count=1,
+                    doi_resolved_count=1,
+                    doi_skipped_exists_count=0,
+                    doi_enqueued_count=1,
+                    doi_failed_count=0,
+                    ingest_job_id=None,
+                )
+            ],
+        )
+    ]
+    use_case = SchedulerOrchestrationUseCase(
+        query_repository=_FakeQueryRepository([]),
+        scheduler_repository=scheduler_repo,
+        pubmed_client=_FakePubMedClient(results=[]),
+        documents_client=_FakeDocumentsClient(),
+    )
+
+    runs = await use_case.list_runs(status=RunStatus.SUCCESS, from_at=None, to_at=None)
+
+    assert len(runs) == 1
+    assert runs[0].run_id == run_id
+
+
+@pytest.mark.asyncio
+async def test_list_runs_raises_validation_error_when_from_is_after_to() -> None:
+    use_case = SchedulerOrchestrationUseCase(
+        query_repository=_FakeQueryRepository([]),
+        scheduler_repository=_FakeSchedulerRepository(),
+        pubmed_client=_FakePubMedClient(results=[]),
+        documents_client=_FakeDocumentsClient(),
+    )
+
+    with pytest.raises(BusinessError) as exc_info:
+        await use_case.list_runs(
+            status=None,
+            from_at=datetime(2026, 2, 9, 0, 0, tzinfo=UTC),
+            to_at=datetime(2026, 2, 8, 0, 0, tzinfo=UTC),
+        )
+
+    assert exc_info.value.code == "validation_error"
+
+
+@pytest.mark.asyncio
+async def test_get_run_and_list_run_dois_raise_not_found() -> None:
+    run_id = uuid4()
+    use_case = SchedulerOrchestrationUseCase(
+        query_repository=_FakeQueryRepository([]),
+        scheduler_repository=_FakeSchedulerRepository(),
+        pubmed_client=_FakePubMedClient(results=[]),
+        documents_client=_FakeDocumentsClient(),
+    )
+
+    with pytest.raises(BusinessError) as get_exc:
+        await use_case.get_run(run_id=run_id)
+    with pytest.raises(BusinessError) as doi_exc:
+        await use_case.list_run_dois(run_id=run_id)
+
+    assert get_exc.value.code == "not_found"
+    assert doi_exc.value.code == "not_found"

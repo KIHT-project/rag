@@ -6,7 +6,9 @@ from uuid import UUID
 
 from scheduler_pubmed.src.core.domains.scheduler import (
     DoiExecutionStatus,
+    RunDoiResult,
     RunStatus,
+    SchedulerRun,
     SchedulerRunCreated,
     SchedulerRunRecord,
     TriggerType,
@@ -21,6 +23,21 @@ class SchedulerRepository(Protocol):
         raise NotImplementedError
 
     async def get_last_run(self) -> SchedulerRunRecord | None:
+        raise NotImplementedError
+
+    async def list_runs(
+        self,
+        *,
+        status: RunStatus | None,
+        from_at: datetime | None,
+        to_at: datetime | None,
+    ) -> list[SchedulerRun]:
+        raise NotImplementedError
+
+    async def get_run(self, *, run_id: UUID) -> SchedulerRun | None:
+        raise NotImplementedError
+
+    async def list_run_dois(self, *, run_id: UUID) -> list[RunDoiResult] | None:
         raise NotImplementedError
 
     async def create_query_execution(self, *, run_id: UUID, query_id: UUID) -> UUID:
