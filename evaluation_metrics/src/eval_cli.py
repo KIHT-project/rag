@@ -22,6 +22,7 @@ from evaluation_metrics.src.phases.phase2_overlap_audit import build_overlap_aud
 from evaluation_metrics.src.phases.phase3_generate import run_phase3_generate
 from evaluation_metrics.src.phases.phase4_ragas import run_ragas
 from evaluation_metrics.src.phases.phase5_audit import build_audit_sample
+from evaluation_metrics.src.phases.phase6_extraction import run_phase6_extraction
 from evaluation_metrics.src.schemas.models import RunContext
 
 
@@ -140,6 +141,80 @@ def _audit_dsn(config: dict[str, Any]) -> str:
             "Missing audit Postgres DSN. Set EVAL_AUDIT_POSTGRES_DSN or audit.postgres_dsn in eval.yaml."
         )
     return dsn
+
+
+def _resolve_extraction_cfg(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("extraction", {})
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise RuntimeError("extraction must be a mapping in eval config")
+    return raw
+
+
+def _resolve_tasks_clean_path(extraction_cfg: dict[str, Any]) -> Path:
+    raw = extraction_cfg.get("tasks_clean_json", "evaluation_metrics/tasks_clean.json")
+    out = Path(str(raw))
+    if not out.exists():
+        raise RuntimeError(f"tasks_clean_json not found: {out}")
+    return out
+
+
+def _run_phase6_for_outputs(
+    *,
+    config: dict[str, Any],
+    outputs: dict[str, Path],
+    out_dir: Path,
+) -> dict[str, dict[str, float]]:
+    extraction_cfg = _resolve_extraction_cfg(config)
+    if not bool(extraction_cfg.get("enabled", False)):
+        return {}
+
+    include_modes_raw = extraction_cfg.get("include_modes", [])
+    include_modes: set[str] | None = None
+    if isinstance(include_modes_raw, list) and include_modes_raw:
+        include_modes = {str(x).strip() for x in include_modes_raw if str(x).strip()}
+
+    tasks_clean_json = _resolve_tasks_clean_path(extraction_cfg)
+
+    per_mode_summary: dict[str, dict[str, float]] = {}
+    for mode, in_path in outputs.items():
+        if include_modes is not None and mode not in include_modes:
+            continue
+
+        summary = run_phase6_extraction(
+            input_jsonl=in_path,
+            tasks_clean_json=tasks_clean_json,
+            out_dir=out_dir,
+            reports_risk_field=str(extraction_cfg.get("reports_risk_field", "reports_risk_factors")),
+            reports_positive_value=str(extraction_cfg.get("reports_positive_value", "Yes")),
+            reports_confidence_field=str(
+                extraction_cfg.get("reports_confidence_field", "confidence_reports_risk_factors")
+            ),
+            min_confidence=int(extraction_cfg.get("min_confidence", 3)),
+            allow_missing_confidence=bool(extraction_cfg.get("allow_missing_confidence", True)),
+            factor_source_field=str(extraction_cfg.get("factor_source_field", "reason_label")),
+            factor_source_fallback_to_abstract=bool(
+                extraction_cfg.get("factor_source_fallback_to_abstract", True)
+            ),
+            no_gold_policy=str(extraction_cfg.get("no_gold_policy", "skip")),
+            pred_closed_set_only=bool(extraction_cfg.get("pred_closed_set_only", False)),
+            pred_include_aliases=bool(extraction_cfg.get("pred_include_aliases", True)),
+            pred_include_summary_factors=bool(
+                extraction_cfg.get("pred_include_summary_factors", False)
+            ),
+            pred_include_citation_snippets=bool(
+                extraction_cfg.get("pred_include_citation_snippets", False)
+            ),
+            canonical_factors=(
+                extraction_cfg.get("canonical_factors")
+                if isinstance(extraction_cfg.get("canonical_factors"), dict)
+                else None
+            ),
+        )
+        per_mode_summary[mode] = summary
+
+    return per_mode_summary
 
 
 async def _cmd_phase1(args: argparse.Namespace) -> None:
@@ -396,6 +471,14 @@ async def _cmd_paper(args: argparse.Namespace) -> None:
         primary_summary = _run_phase4_for_outputs(
             config=config, outputs=primary_outputs, out_dir=Path(primary_ctx.run_dir)
         )
+        primary_extraction_summary = _run_phase6_for_outputs(
+            config=config, outputs=primary_outputs, out_dir=Path(primary_ctx.run_dir)
+        )
+        for mode, metrics in primary_extraction_summary.items():
+            mode_metrics = primary_summary.setdefault(mode, {})
+            for metric, value in metrics.items():
+                mode_metrics[f"extraction_{metric}"] = float(value)
+
         for mode, metrics in primary_summary.items():
             for metric, value in metrics.items():
                 await audit.create_metric(
@@ -452,6 +535,13 @@ async def _cmd_paper(args: argparse.Namespace) -> None:
             run_summary = _run_phase4_for_outputs(
                 config=config, outputs=outputs, out_dir=Path(seed_ctx.run_dir)
             )
+            run_extraction_summary = _run_phase6_for_outputs(
+                config=config, outputs=outputs, out_dir=Path(seed_ctx.run_dir)
+            )
+            for mode, metrics in run_extraction_summary.items():
+                mode_metrics = run_summary.setdefault(mode, {})
+                for metric, value in metrics.items():
+                    mode_metrics[f"extraction_{metric}"] = float(value)
             all_runs.append({"seed": seed, "summary": run_summary, "run_dir": seed_ctx.run_dir})
             for mode, metrics in run_summary.items():
                 for metric, value in metrics.items():
@@ -572,6 +662,49 @@ def _cmd_phase5(args: argparse.Namespace) -> None:
     )
 
 
+def _cmd_phase6(args: argparse.Namespace) -> None:
+    config = _load_config(Path(args.config))
+    ctx = _init_run(config)
+    extraction_cfg = _resolve_extraction_cfg(config)
+
+    tasks_clean = (
+        Path(args.tasks_clean_json)
+        if str(args.tasks_clean_json or "").strip()
+        else _resolve_tasks_clean_path(extraction_cfg)
+    )
+
+    run_phase6_extraction(
+        input_jsonl=Path(args.input_jsonl),
+        tasks_clean_json=tasks_clean,
+        out_dir=Path(ctx.run_dir),
+        reports_risk_field=str(extraction_cfg.get("reports_risk_field", "reports_risk_factors")),
+        reports_positive_value=str(extraction_cfg.get("reports_positive_value", "Yes")),
+        reports_confidence_field=str(
+            extraction_cfg.get("reports_confidence_field", "confidence_reports_risk_factors")
+        ),
+        min_confidence=int(extraction_cfg.get("min_confidence", 3)),
+        allow_missing_confidence=bool(extraction_cfg.get("allow_missing_confidence", True)),
+        factor_source_field=str(extraction_cfg.get("factor_source_field", "reason_label")),
+        factor_source_fallback_to_abstract=bool(
+            extraction_cfg.get("factor_source_fallback_to_abstract", True)
+        ),
+        no_gold_policy=str(extraction_cfg.get("no_gold_policy", "skip")),
+        pred_closed_set_only=bool(extraction_cfg.get("pred_closed_set_only", False)),
+        pred_include_aliases=bool(extraction_cfg.get("pred_include_aliases", True)),
+        pred_include_summary_factors=bool(
+            extraction_cfg.get("pred_include_summary_factors", False)
+        ),
+        pred_include_citation_snippets=bool(
+            extraction_cfg.get("pred_include_citation_snippets", False)
+        ),
+        canonical_factors=(
+            extraction_cfg.get("canonical_factors")
+            if isinstance(extraction_cfg.get("canonical_factors"), dict)
+            else None
+        ),
+    )
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -612,6 +745,11 @@ def main() -> None:
     s8.add_argument("--rag-hyde", required=True)
     s8.add_argument("--llm-only", required=True)
     s8.set_defaults(func=_cmd_phase5)
+
+    s10 = sub.add_parser("phase6")
+    s10.add_argument("--input-jsonl", required=True)
+    s10.add_argument("--tasks-clean-json", default="")
+    s10.set_defaults(func=_cmd_phase6)
 
     s9 = sub.add_parser("paper")
     s9.set_defaults(func=lambda a: _run_async(_cmd_paper(a)))

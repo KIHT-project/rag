@@ -1,0 +1,9 @@
+[
+  {
+    "query_id": "thrombosis_q021",
+    "mode": "rag_no_hyde",
+    "reason": "no_gold_factors",
+    "cited_doi_count": 0,
+    "gold_doi_count": 0
+  }
+]

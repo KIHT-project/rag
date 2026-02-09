@@ -323,6 +323,7 @@ class AskUseCase:
             question=question_normalized,
             selected_chunks=selected_chunks,
             max_context_chars=int(ask_max_context_chars),
+            max_json_retries=int(ask_llm_max_retries),
             llm_options=None,
         )
 

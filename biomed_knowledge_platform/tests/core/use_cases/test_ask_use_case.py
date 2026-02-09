@@ -92,6 +92,8 @@ async def test_hyde_disabled_only_question_path_runs() -> None:
 
     hyde_generator.assert_not_called()
     assert vector_index.search_chunks.call_count == 1
+    _, synth_kwargs = synthesizer.call_args
+    assert synth_kwargs["max_json_retries"] == 0
 
     _, kwargs = vector_index.search_chunks.call_args
     assert kwargs["qfilter"] == {"year_min": 2000}

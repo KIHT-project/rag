@@ -1,0 +1,16 @@
+[
+  {
+    "query_id": "thrombosis_q023",
+    "mode": "rag_no_hyde",
+    "reason": "no_gold_factors",
+    "cited_doi_count": 2,
+    "gold_doi_count": 0
+  },
+  {
+    "query_id": "thrombosis_q025",
+    "mode": "rag_no_hyde",
+    "reason": "no_gold_factors",
+    "cited_doi_count": 3,
+    "gold_doi_count": 1
+  }
+]

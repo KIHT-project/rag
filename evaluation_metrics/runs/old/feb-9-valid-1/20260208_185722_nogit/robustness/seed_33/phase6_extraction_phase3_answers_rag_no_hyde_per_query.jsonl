@@ -1,0 +1,1 @@
+{"query_id": "thrombosis_q022", "mode": "rag_no_hyde", "tp": 0, "fp": 3, "fn": 1, "precision": 0.0, "recall": 0.0, "f1": 0.0, "pred_factor_count": 3, "gold_factor_count": 1, "cited_doi_count": 2, "gold_doi_count": 1, "pred_factors": "cardiovascular risk|thromboembolic events|venous thromboembolism", "gold_factors": "anticoagulation", "matched_factors": ""}
