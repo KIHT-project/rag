@@ -1,2 +1,0 @@
-query_id,mode,tp,fp,fn,precision,recall,f1,pred_factor_count,gold_factor_count,cited_doi_count,gold_doi_count,pred_factors,gold_factors,matched_factors
-thrombosis_q021,rag_no_hyde,2,0,2,1.0,0.5,0.6666666666666666,2,4,1,1,catheter infiltration|catheter occlusion,catheter dislodgement|catheter infiltration|catheter occlusion|thrombophlebitis,catheter infiltration|catheter occlusion

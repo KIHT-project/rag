@@ -1,6 +1,0 @@
-query_id,mode,tp,fp,fn,precision,recall,f1,pred_factor_count,gold_factor_count,cited_doi_count,gold_doi_count,pred_factors,gold_factors,matched_factors
-thrombosis_q021,rag_no_hyde,7,0,2,1.0,0.7777777777777778,0.8750000000000001,7,9,3,3,age|atrial fibrillation|diabetes|heart failure|hypertension|obesity|thromboembolism,age|atrial fibrillation|diabetes|heart failure|hypertension|obesity|surgery|thromboembolism|trauma,age|atrial fibrillation|diabetes|heart failure|hypertension|obesity|thromboembolism
-thrombosis_q022,rag_no_hyde,6,0,0,1.0,1.0,1.0,6,6,1,1,age|heart failure|immobility|obesity|prior vte|trauma,age|heart failure|immobility|obesity|prior vte|trauma,age|heart failure|immobility|obesity|prior vte|trauma
-thrombosis_q023,rag_no_hyde,0,1,4,0.0,0.0,0.0,1,4,1,1,catheter,catheter dislodgement|catheter infiltration|catheter occlusion|thrombophlebitis,
-thrombosis_q024,rag_no_hyde,1,2,4,0.3333333333333333,0.2,0.25,3,5,1,1,cancer|infection|surgery,age|catheter|obesity|surgery|trauma,surgery
-thrombosis_q025,rag_no_hyde,5,0,1,1.0,0.8333333333333334,0.9090909090909091,5,6,2,2,age|cancer|diabetes|heart failure|hypertension,age|cancer|diabetes|heart failure|hypertension|thromboembolism,age|cancer|diabetes|heart failure|hypertension

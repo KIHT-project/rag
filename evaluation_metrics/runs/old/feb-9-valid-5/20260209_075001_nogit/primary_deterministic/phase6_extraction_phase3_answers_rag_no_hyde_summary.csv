@@ -1,2 +1,0 @@
-mode,total_queries,evaluated_queries,skipped_no_gold,query_coverage_rate,skipped_no_gold_rate,micro_precision,micro_recall,micro_f1,macro_precision,macro_recall,macro_f1,tp_total,fp_total,fn_total,label_positive_docs,label_kept_docs,label_docs_with_factor_hits,label_unique_kept_dois,pred_closed_set_only,pred_include_aliases
-rag_no_hyde,1,1,0,1.0,0.0,1.0,0.6666666666666666,0.8,1.0,0.6666666666666666,0.8,6,0,3,597,572,551,572,True,False
