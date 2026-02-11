@@ -21,4 +21,4 @@ COPY alembic.ini /service/scheduler_pubmed/alembic.ini
 ENV PYTHONPATH=/service
 ENV PUBMED_SCHEDULER_CONFIG_DIR=/service/scheduler_pubmed/config
 
-CMD ["python", "-m", "uvicorn", "scheduler_pubmed.src.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "scheduler_pubmed.src.api.app:app", "--host", "0.0.0.0", "--port", "8001"]

@@ -14,7 +14,10 @@ RUN apt-get update \
 
 # Dependencies first for caching
 COPY requirements.txt /service/requirements.txt
-RUN pip install --no-cache-dir -r /service/requirements.txt
+COPY requirements-embeddings.txt /service/requirements-embeddings.txt
+RUN pip install --no-cache-dir -r /service/requirements.txt \
+ && pip install --no-cache-dir -r /service/requirements-embeddings.txt
+
 
 COPY src /service/src
 COPY configs /service/configs
