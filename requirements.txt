@@ -3,3 +3,4 @@
 -r evaluation_metrics/requirements.txt
 -r scheduler_pubmed/requirements.txt
 -r tests/requirements.txt
+-r scripts/requirements.txt

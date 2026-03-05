@@ -1,0 +1,12 @@
+% This is a snippet intended to be included inside a table environment if needed.
+% caption: Mean RAGAS metrics by configuration for the selected run.
+% label: tab:ragas-metrics-summary
+\begin{tabular}{lrrr}
+\toprule
+Configuration & answer\_relevancy & faithfulness & llm\_context\_precision\_without\_reference \\
+\midrule
+LLM only & 0.701587 & NaN & NaN \\
+RAG HyDE & 0.820208 & 0.538194 & 0.900000 \\
+RAG no HyDE & 0.867172 & 0.708333 & 1.000000 \\
+\bottomrule
+\end{tabular}
