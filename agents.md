@@ -183,8 +183,8 @@ Primary duties:
 Agents should use the closest available build commands.
 Preferred:
 - `make test` in each service when code changes are requested
-- `make pdf` in thesis directory if defined
-- Otherwise use `latexmk` invocation used by the thesis folder
+- `make latex-build` in root direcoty to build the PDF.
+- `make latex-open` in root direcoty to open the PDF.
 
 If a command is missing, create a minimal one rather than relying on ad hoc local commands.
 

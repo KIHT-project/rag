@@ -1,0 +1,5 @@
+label-studio-sdk==2.0.9
+pandas==2.3.2
+openpyxl==3.1.5
+python-dotenv==1.1.1
+pytest==8.4.2
