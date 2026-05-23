@@ -33,13 +33,13 @@
 \include{frontmatter}
 
 \tableofcontents
-\clearpage
-
-% Optional, recommended
-% \listoffigures
-% \clearpage
-% \listoftables
-% \clearpage
+\cleardoublepage
+\addcontentsline{toc}{chapter}{List of Figures}
+\listoffigures
+\cleardoublepage
+\addcontentsline{toc}{chapter}{List of Tables}
+\listoftables
+\cleardoublepage
 
 % Print acronyms here in front matter
 \printglossary[type=\acronymtype,title=Acronyms]

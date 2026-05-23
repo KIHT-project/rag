@@ -77,6 +77,13 @@ Generation quality is evaluated using Retrieval Augmented Generation Assessment 
 Table~\ref{tab:ragas-metrics-summary} reports the generated RAGAS summary table available in the thesis resources. In that table, RAG without HyDE has higher answer relevancy than RAG with HyDE, and it also has stronger faithfulness and context precision. The LLM-only baseline has answer relevancy but no faithfulness or context precision values, because no retrieved contexts are provided to evaluate grounding. The result does not support a blanket claim that HyDE improves generation quality in this benchmark.
 % evidence: docs/thesis/latex/src/resources/tables/ragas_metrics_summary.tex
 
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\linewidth]{resources/images/ragas_metrics_summary.pdf}
+\caption{Visual summary of mean RAGAS metrics by configuration.}
+\label{fig:ragas-metrics-summary}
+\end{figure}
+
 The canonical paper benchmark summary is treated as the authoritative aggregate artifact for the deterministic run. In that summary, RAG without HyDE reports answer relevancy of 0.8672, faithfulness of 0.8167, and context precision of approximately 1.0000, whereas RAG with HyDE reports answer relevancy of 0.8202, faithfulness of 0.6458, and context precision of approximately 0.9000. The likely explanation is not that HyDE is intrinsically inferior, but that these five queries are already specific enough that expansion can introduce less relevant context or alter the evidence mix.
 % evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
 
@@ -98,6 +105,13 @@ Table~\ref{tab:extraction-metrics-summary} reports macro-level extraction behavi
 The run-level extraction summaries provide the corresponding micro counts. RAG without HyDE produced 30 true positives, 6 false positives, and 0 false negatives, yielding micro precision 0.8333, micro recall 1.0000, and micro F1 0.9091. RAG with HyDE produced 29 true positives, 5 false positives, and 2 false negatives, yielding micro precision 0.8529, micro recall 0.9355, and micro F1 0.8923. These values reinforce the same interpretation: HyDE is more conservative in this run, while no-HyDE is more complete.
 % evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_no_hyde_summary.csv
 % evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_hyde_summary.csv
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\linewidth]{resources/images/extraction_metrics_summary.pdf}
+\caption{Visual summary of risk factor extraction metrics by configuration.}
+\label{fig:extraction-metrics-summary}
+\end{figure}
 
 \section{Operational Evaluation}
 
