@@ -5,7 +5,7 @@
 
 This chapter defines the architecture of a platform that must support both continuous biomedical evidence acquisition and grounded analytical responses for thrombosis-oriented information needs. The architectural problem is not only to retrieve relevant literature, but to couple retrieval quality with lifecycle control, operational transparency, and experiment reproducibility. For this reason, the system is scoped as an integrated architecture rather than a single question answering service.
 
-The platform is organized as three cooperating subsystems: a Biomedical Retrieval Augmented Generation (RAG) service, a PubMed scheduler service, and an evaluation subsystem used to execute comparative experiments. This scope establishes a full path from literature acquisition, to indexing and retrieval, to measured experimental outputs.
+The platform is organized as three cooperating subsystems: a Biomedical Retrieval Augmented Generation (RAG) service~\cite{lewis2020rag}, a PubMed scheduler service, and an evaluation subsystem used to execute comparative experiments. This scope establishes a full path from literature acquisition, to indexing and retrieval, to measured experimental outputs.
 % evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
 % evidence: scheduler_pubmed/src/api/app.py
 % evidence: evaluation_metrics/src/phases/phase1_pool.py
@@ -85,7 +85,7 @@ The high-level topology also reflects a contract-oriented integration strategy. 
 
 \section{Human-in-the-Loop Curation Subsystem}
 
-Label Studio is positioned in this architecture as a human-in-the-loop curation subsystem rather than as a core retrieval or answer-generation service. Its role is to host manually reviewed biomedical-abstract tasks, while the surrounding \texttt{labelstudio-tools} package prepares tasks for upload, exports reviewed tasks, enriches them with bibliographic metadata, and hands metadata-complete records to the biomedical RAG ingestion API. This placement preserves a clean separation between evidence curation and online retrieval, while still allowing curated judgments to influence evaluation-oriented analysis and corpus-preparation decisions.
+Label Studio~\cite{tkachenko2020labelstudio} is positioned in this architecture as a human-in-the-loop curation subsystem rather than as a core retrieval or answer-generation service. Its role is to host manually reviewed biomedical-abstract tasks, while the surrounding \texttt{labelstudio-tools} package prepares tasks for upload, exports reviewed tasks, enriches them with bibliographic metadata, and hands metadata-complete records to the biomedical RAG ingestion API. This placement preserves a clean separation between evidence curation and online retrieval, while still allowing curated judgments to influence evaluation-oriented analysis and corpus-preparation decisions.
 % evidence: labelstudio-tools/src/app/python/main.py
 % evidence: labelstudio-tools/src/app/python/uploader.py
 % evidence: labelstudio-tools/src/app/python/download_data/main.py
@@ -112,7 +112,7 @@ The biomedical RAG service is organized around four conceptual components: inges
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/document_lookup.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/delete_document.py
 
-Architecturally, the service applies Clean Architecture with a ports-and-adapters realization. The API layer performs transport and schema duties, use cases orchestrate business workflows, the domain layer holds framework-independent models, and adapters implement infrastructure integrations behind abstract ports. Dependency direction is inward: outer layers depend on inner policies through interfaces, while the domain remains independent of frameworks and vendors. This structure improves maintainability through low coupling and supports reproducibility by making workflow behavior explicit at use-case boundaries. The Engineering Wiki complements this architecture as a documentation and governance layer that records current repository facts; it is not a runtime subsystem of the RAG service.
+Architecturally, the service applies Clean Architecture~\cite{martin2017cleanarchitecture} with a ports-and-adapters realization~\cite{clean2012architecture}. The API layer performs transport and schema duties, use cases orchestrate business workflows, the domain layer holds framework-independent models, and adapters implement infrastructure integrations behind abstract ports. Dependency direction is inward: outer layers depend on inner policies through interfaces, while the domain remains independent of frameworks and vendors. This structure improves maintainability through low coupling and supports reproducibility by making workflow behavior explicit at use-case boundaries. The Engineering Wiki complements this architecture as a documentation and governance layer that records current repository facts; it is not a runtime subsystem of the RAG service.
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/ingestion.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/retrieval.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/pubmed.py
@@ -189,7 +189,7 @@ The retrieval pipeline transforms a user question into a ranked evidence context
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hallucination/synthesis.py
 
-The synthesis stage uses an LLM to generate structured responses with explicit citation linkage to retrieved context. An optional retrieval expansion mode, Hypothetical Document Embeddings (HyDE), generates a hypothetical passage from the question, embeds it, and merges those candidates with direct-question candidates before reranking. The rationale is improved semantic recall for difficult or underspecified biomedical questions. The tradeoff is increased dependency on generation quality and higher response-time variance.
+The synthesis stage uses an LLM to generate structured responses with explicit citation linkage to retrieved context. An optional retrieval expansion mode, Hypothetical Document Embeddings (HyDE), generates a hypothetical passage from the question, embeds it, and merges those candidates with direct-question candidates before reranking~\cite{gao2023hyde}. The rationale is improved semantic recall for difficult or underspecified biomedical questions. The tradeoff is increased dependency on generation quality and higher response-time variance.
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hyde/hyde.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hyde/hybrid_retrieval.py
@@ -202,7 +202,7 @@ The ask flow further constrains synthesis reliability through explicit limits on
 
 \section{Data and Persistence Architecture}
 
-The persistence model separates vector state, scheduler state, audit state, and evaluation artifacts. Indexed chunk data and metadata are retained in Qdrant. Scheduler query, run, and DOI execution states are persisted through the scheduler repository layer, and API audit events are persisted through the audit service. By contrast, the current biomedical RAG application composition wires ingestion job state, duplicate-control state, payload state, and queue state to in-memory stores with bounded capacity and time-to-live behavior. In the vector layer, per-chunk point identifiers are derived from document identifier and chunk index, and the document identifier is derived from normalized DOI, thereby enforcing a DOI-centered document identity model for retrieval and deletion workflows.
+The persistence model separates vector state, scheduler state, audit state, and evaluation artifacts. Indexed chunk data and metadata are retained in Qdrant~\cite{qdrant2026collections}. Scheduler query, run, and DOI execution states are persisted through the scheduler repository layer, and API audit events are persisted through the audit service. By contrast, the current biomedical RAG application composition wires ingestion job state, duplicate-control state, payload state, and queue state to in-memory stores with bounded capacity and time-to-live behavior. In the vector layer, per-chunk point identifiers are derived from document identifier and chunk index, and the document identifier is derived from normalized DOI, thereby enforcing a DOI-centered document identity model for retrieval and deletion workflows.
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/pipeline.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/in_memory_job_store.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/in_memory_idempotency.py
@@ -222,7 +222,7 @@ This persistence strategy enables cross-phase diagnostic analysis. Retrieval out
 % evidence: evaluation_metrics/src/phases/phase3_generate.py
 % evidence: evaluation_metrics/src/phases/phase5_audit.py
 
-The evaluation approach is implemented as a command-line orchestration layer that materializes per-run directories and phase outputs, while external model-serving dependencies are supplied by a dedicated Ollama deployment stack. This separation ensures that evaluator configuration, run artifacts, and model-hosting lifecycle can be inspected independently when reproducing or auditing experiments.
+The evaluation approach is implemented as a command-line orchestration layer that materializes per-run directories and phase outputs, while external model-serving dependencies are supplied by a dedicated Ollama deployment stack~\cite{ollama2026api}. This separation ensures that evaluator configuration, run artifacts, and model-hosting lifecycle can be inspected independently when reproducing or auditing experiments.
 % evidence: evaluation_metrics/src/eval_cli.py
 % evidence: evaluation_metrics/src/clients/ollama_api.py
 % evidence: llm_server/docker-compose.yml

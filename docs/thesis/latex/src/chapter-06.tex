@@ -42,15 +42,15 @@ When a clean task dataset is available, a dedicated integration script converts 
 
 \section{Ingestion and Embedding Strategy}
 
-The ingestion strategy is implemented in the biomedical RAG service. At the core of the indexing pipeline is a domain-specific \texttt{SectionAwareChunker}. Unlike naive token-based chunkers, this component respects biomedical document structure. It actively detects and filters out non-informative sections—such as bibliographies—ensuring that only evidence-bearing text is embedded and indexed. Embeddings are generated locally using the \texttt{SentenceTransformersEmbeddingProvider}, which transforms the chunks into dense vectors before they are stored in the Qdrant vector database.
+The ingestion strategy is implemented in the biomedical RAG service. At the core of the indexing pipeline is a domain-specific \texttt{SectionAwareChunker}. Unlike naive token-based chunkers, this component respects biomedical document structure. It actively detects and filters out non-informative sections—such as bibliographies—ensuring that only evidence-bearing text is embedded and indexed. Embeddings are generated locally using the \texttt{SentenceTransformersEmbeddingProvider}, which transforms the chunks into dense vectors before they are stored in the Qdrant vector database~\cite{reimers2019sentencebert,qdrant2026collections}.
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/chunking.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
 
 \section{Retrieval Logic}
 
-The retrieval logic, orchestrated by the \texttt{AskUseCase}, uses a multi-stage hybrid system rather than relying exclusively on dense vector search. The pipeline begins with an optional retrieval expansion phase using Hypothetical Document Embeddings (HyDE), which generates a hypothetical passage and retrieves additional candidates from the same vector index.
+The retrieval logic, orchestrated by the \texttt{AskUseCase}, uses a multi-stage hybrid system rather than relying exclusively on dense vector search. The pipeline begins with an optional retrieval expansion phase using Hypothetical Document Embeddings (HyDE), which generates a hypothetical passage and retrieves additional candidates from the same vector index~\cite{gao2023hyde}.
 
-Following candidate generation, the system uses a hybrid ranker to fuse signals. This ranker combines dense vector ranks, optional HyDE ranks, and in-memory lexical BM25-style ranks through reciprocal-rank fusion. It also applies section weights; for example, evidence located in results or conclusions sections receives higher weight than methods or supplementary sections. This domain-oriented ranking policy biases the final context window toward more evidence-bearing sections, but it does not guarantee that clinically most important evidence is always selected.
+Following candidate generation, the system uses a hybrid ranker to fuse signals. This ranker combines dense vector ranks, optional HyDE ranks, and in-memory lexical BM25-style ranks through reciprocal-rank fusion~\cite{cormack2009reciprocal}. It also applies section weights; for example, evidence located in results or conclusions sections receives higher weight than methods or supplementary sections. This domain-oriented ranking policy biases the final context window toward more evidence-bearing sections, but it does not guarantee that clinically most important evidence is always selected.
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hyde/hyde.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/retrieval/hybrid_ranker.py

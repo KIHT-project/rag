@@ -43,14 +43,14 @@ The second configuration is RAG without HyDE. This configuration routes each que
 % evidence: evaluation_metrics/src/phases/phase3_generate.py
 % evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase3_answers_rag_no_hyde.jsonl
 
-The third configuration is RAG with HyDE enabled. HyDE adds a generation-mediated expansion step before retrieval, with the goal of improving semantic matching for difficult or underspecified queries. In this experiment, HyDE tests whether expansion improves the retrieved evidence and downstream answers for thrombosis risk factor questions. Its expected benefit is higher semantic recall, while its expected risk is the introduction of expansion noise when the original query is already precise.
+The third configuration is RAG with HyDE enabled. HyDE adds a generation-mediated expansion step before retrieval, with the goal of improving semantic matching for difficult or underspecified queries~\cite{gao2023hyde}. In this experiment, HyDE tests whether expansion improves the retrieved evidence and downstream answers for thrombosis risk factor questions. Its expected benefit is higher semantic recall, while its expected risk is the introduction of expansion noise when the original query is already precise.
 % evidence: evaluation_metrics/config/eval.yaml
 % evidence: evaluation_metrics/src/phases/phase3_generate.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hyde/hyde.py
 
 \section{Retrieval Evaluation}
 
-Retrieval evaluation asks whether the system ranks relevant biomedical evidence near the top of the result list. Normalized discounted cumulative gain at k is relevant because it rewards systems that place more useful documents earlier, which matters when the answer generator consumes only a bounded number of contexts. Precision at k measures how much of the top-ranked evidence is relevant, while recall at k measures how much known relevant evidence is recovered. These metrics evaluate retrieval quality before answer synthesis and therefore diagnose failures that RAGAS or extraction metrics may only reveal indirectly.
+Retrieval evaluation asks whether the system ranks relevant biomedical evidence near the top of the result list. Normalized discounted cumulative gain at k is relevant because it rewards systems that place more useful documents earlier, which matters when the answer generator consumes only a bounded number of contexts~\cite{jarvelin2002ndcg}. Precision at k measures how much of the top-ranked evidence is relevant, while recall at k measures how much known relevant evidence is recovered. These metrics evaluate retrieval quality before answer synthesis and therefore diagnose failures that RAGAS or extraction metrics may only reveal indirectly.
 % evidence: evaluation_metrics/src/phases/phase2_beir.py
 % evidence: evaluation_metrics/src/phases/phase2_retrieval_weaklabels.py
 
@@ -64,7 +64,7 @@ This limitation is material. Retrieval metrics would show whether an answer fail
 
 \section{Generation and RAGAS Evaluation}
 
-Generation quality is evaluated using Retrieval Augmented Generation Assessment (RAGAS) metrics. Answer relevancy estimates whether the response addresses the user's question. Faithfulness estimates whether the generated response is supported by the supplied contexts. Context precision without reference estimates whether the retrieved contexts are useful for the generated answer without requiring a separate gold answer. These metrics matter because a biomedical assistant must answer the question, remain grounded in evidence, and avoid depending on irrelevant retrieved material.
+Generation quality is evaluated using Retrieval Augmented Generation Assessment (RAGAS) metrics~\cite{es2024ragas}. Answer relevancy estimates whether the response addresses the user's question. Faithfulness estimates whether the generated response is supported by the supplied contexts. Context precision without reference estimates whether the retrieved contexts are useful for the generated answer without requiring a separate gold answer. These metrics matter because a biomedical assistant must answer the question, remain grounded in evidence, and avoid depending on irrelevant retrieved material.
 % evidence: evaluation_metrics/src/phases/phase4_ragas.py
 
 \begin{table}[h]

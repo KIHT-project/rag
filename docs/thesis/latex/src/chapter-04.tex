@@ -12,7 +12,7 @@ Externalized configuration improves reproducibility by making assumptions visibl
 
 \section{RAG Service Configuration}
 
-The \texttt{rag.yaml} file records the core retrieval and indexing assumptions of the biomedical RAG service. It configures the sentence-transformer embedding provider, CPU execution, embedding normalization behavior, embedding batch size, chunk size, chunk overlap, vector backend, and nominal retrieval depth. These values are central to the experimental setup because they determine the embedding space and chunk granularity from which Qdrant candidates are produced.
+The \texttt{rag.yaml} file records the core retrieval and indexing assumptions of the biomedical RAG service. It configures the sentence-transformer embedding provider~\cite{reimers2019sentencebert}, CPU execution, embedding normalization behavior, embedding batch size, chunk size, chunk overlap, vector backend, and nominal retrieval depth. These values are central to the experimental setup because they determine the embedding space and chunk granularity from which Qdrant candidates are produced.
 % evidence: biomed_knowledge_platform/configs/rag.yaml
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/chunking.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
@@ -24,7 +24,7 @@ This file does not configure HyDE activation or generation temperature. HyDE beh
 
 \section{LLM and HyDE Configuration}
 
-The \texttt{llm.yaml} file configures the local Ollama dependency used by the biomedical RAG service. It records the Ollama base URL, the generator model identifier, the HyDE model identifier, the default HyDE switch, question and context bounds, candidate and final chunk limits, concurrency, retry count, and timeout. In the verified configuration, HyDE is disabled by default and can be enabled per request through the API header used in the evaluation configurations.
+The \texttt{llm.yaml} file configures the local Ollama dependency used by the biomedical RAG service~\cite{ollama2026api}. It records the Ollama base URL, the generator model identifier, the HyDE model identifier, the default HyDE switch, question and context bounds, candidate and final chunk limits, concurrency, retry count, and timeout. In the verified configuration, HyDE is disabled by default and can be enabled per request through the API header used in the evaluation configurations.
 % evidence: biomed_knowledge_platform/configs/llm.yaml
 % evidence: biomed_knowledge_platform/src/biomed_platform/api/endpoints/ask.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/ollama/ollama_client.py
@@ -35,7 +35,7 @@ The LLM configuration also contains reranker-related fields. The inspected retri
 
 \section{Vector Store Configuration}
 
-The \texttt{qdrant.yaml} file defines the Qdrant REST endpoint, optional gRPC endpoint, timeout, collection naming prefix, distance metric, and telemetry flag. Collection names are derived from the configured prefix and embedding model identifier, which supports model-specific collections without changing the external API contract.
+The \texttt{qdrant.yaml} file defines the Qdrant REST endpoint, optional gRPC endpoint, timeout, collection naming prefix, distance metric, and telemetry flag~\cite{qdrant2026collections}. Collection names are derived from the configured prefix and embedding model identifier, which supports model-specific collections without changing the external API contract.
 % evidence: biomed_knowledge_platform/configs/qdrant.yaml
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
 
