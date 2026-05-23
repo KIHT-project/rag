@@ -29,7 +29,7 @@ Task upload is implemented through the Label Studio Software Development Kit (SD
 
 \subsection{Export, DOI Enrichment, and Clean Task Serialization}
 
-The export-side workflow uses the Label Studio API to page through project tasks, refresh an access token when needed, and collect the full reviewed task list. Exported tasks are then passed through DOI enrichment, after which the pipeline validates whether each task contains the metadata required for downstream ingestion, including source, source identifier, DOI, year, journal, authors, title, and abstract. The implementation writes separate raw, clean, rejected, and missing-identifier JSON artifacts atomically, which improves recoverability and makes data-quality failures inspectable without rerunning the entire export.
+The export-side workflow uses the Label Studio API to page through project tasks, refresh an access token when needed, and collect the project task list. In the observed artifact snapshot, exported tasks are marked as labeled, but the code should still be understood as an export and cleaning utility rather than as an adjudication engine. Exported tasks are then passed through DOI enrichment, after which the pipeline validates whether each task contains the metadata required for downstream ingestion, including source, source identifier, DOI, year, journal, authors, title, and abstract. The implementation writes separate raw, clean, rejected, and missing-identifier JSON artifacts atomically, which improves recoverability and makes data-quality failures inspectable without rerunning the entire export.
 % evidence: labelstudio-tools/src/app/python/download_data/fetch_data_from_ls.py
 % evidence: labelstudio-tools/src/app/python/download_data/find_doi.py
 % evidence: labelstudio-tools/src/app/python/download_data/main.py
@@ -40,18 +40,25 @@ The export-side workflow uses the Label Studio API to page through project tasks
 When a clean task dataset is available, a dedicated integration script converts each task into the ingestion schema expected by the biomedical platform. Only tasks with complete DOI, year, title, journal, author list, and abstract fields are transformed into ingestion items. These items are batched and posted to the \texttt{/v1/ingest/items} endpoint, with special retry handling for transport failures, rate limiting responses, and server-side failures. A short post-success delay is also applied to reduce the probability of immediate rate-limit pressure on consecutive batches.
 % evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
 
-\section{Embedding Strategy}
+\section{Ingestion and Embedding Strategy}
 
-The embedding strategy itself is implemented in the biomedical RAG service rather than in \texttt{labelstudio-tools}. The curation package contributes indirectly by ensuring that only records with sufficient metadata and abstract content are handed to the ingestion API. This separation keeps feature extraction and vector indexing within the retrieval subsystem while allowing human-reviewed records to influence corpus composition through a controlled interface.
-% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
-% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ingestion.py
+The ingestion strategy is implemented in the biomedical RAG service. At the core of the indexing pipeline is a domain-specific \texttt{SectionAwareChunker}. Unlike naive token-based chunkers, this component respects biomedical document structure. It actively detects and filters out non-informative sections—such as bibliographies—ensuring that only evidence-bearing text is embedded and indexed. Embeddings are generated locally using the \texttt{SentenceTransformersEmbeddingProvider}, which transforms the chunks into dense vectors before they are stored in the Qdrant vector database.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/chunking.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
 
 \section{Retrieval Logic}
 
-Retrieval logic is likewise external to the curation package. The implementation boundary is explicit: \texttt{labelstudio-tools} stops at the point where curated records are serialized as ingestion items and delivered to the biomedical API. Retrieval ranking, context assembly, and answer synthesis remain responsibilities of the biomedical RAG service. This boundary prevents review tooling from becoming entangled with query-time retrieval behavior and preserves cleaner subsystem ownership.
-% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
-% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/search.py
+The retrieval logic, orchestrated by the \texttt{AskUseCase}, uses a multi-stage hybrid system rather than relying exclusively on dense vector search. The pipeline begins with an optional retrieval expansion phase using Hypothetical Document Embeddings (HyDE), which generates a hypothetical passage and retrieves additional candidates from the same vector index.
+
+Following candidate generation, the system uses a hybrid ranker to fuse signals. This ranker combines dense vector ranks, optional HyDE ranks, and in-memory lexical BM25-style ranks through reciprocal-rank fusion. It also applies section weights; for example, evidence located in results or conclusions sections receives higher weight than methods or supplementary sections. This domain-oriented ranking policy biases the final context window toward more evidence-bearing sections, but it does not guarantee that clinically most important evidence is always selected.
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hyde/hyde.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/retrieval/hybrid_ranker.py
+
+\section{Synthesis and Validation}
+
+Once the top-ranked contexts are finalized, the system enforces a strict JSON-only prompt during synthesis. The application layer performs post-generation parsing, schema validation, and citation backfilling so that extracted risk factors are linked to provided context chunks when possible. This validation layer reduces unsupported output and improves compatibility with downstream evaluators, but it does not eliminate hallucination risk or establish clinical correctness.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hallucination/synthesis.py
 
 \section{Error Handling}
 

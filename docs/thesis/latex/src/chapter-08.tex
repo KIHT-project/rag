@@ -62,7 +62,7 @@ The generation stage is deliberately constrained, but not clinically validated. 
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hallucination/synthesis.py
 % evidence: evaluation_metrics/src/phases/phase3_generate.py
 
-Nevertheless, hallucination risk remains. RAGAS faithfulness below 1.0 demonstrates that generated answers were not perfectly supported by retrieved contexts under the evaluator used in the run. The LLM-only baseline is more exposed because it has no retrieved context at all; its answer relevancy can be scored, but its grounding cannot be evaluated through faithfulness or context precision. This distinction is central in healthcare-oriented systems. A fluent answer is not equivalent to a source-supported answer, and a source-supported answer is not equivalent to clinical validation.
+Nevertheless, hallucination risk remains. RAGAS faithfulness below 1.0 demonstrates that generated answers were not perfectly supported by retrieved contexts under the evaluator used in the run. The robustness outputs show stable RAG metrics across the recorded seeds, but this should be interpreted cautiously because the evaluation CLI applies seed and temperature settings differently across modes, and the RAG service call itself is mediated by the running API and local Ollama service. The LLM-only baseline is more exposed because it has no retrieved context at all; its answer relevancy can be scored, but its grounding cannot be evaluated through faithfulness or context precision. This distinction is central in healthcare-oriented systems. A fluent answer is not equivalent to a source-supported answer, and a source-supported answer is not equivalent to clinical validation.
 % evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
 % evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase4_ragas_phase3_answers_llm_only.csv
 
@@ -79,13 +79,19 @@ The architecture gives unusual weight to traceability for a thesis prototype. AP
 % evidence: evaluation_metrics/src/eval_cli.py
 % evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/config_snapshot.json
 
-YAML-driven configuration is important to this reproducibility story. The RAG, Qdrant, LLM, scheduler, and evaluation settings are externalized into structured configuration files. This makes experimental differences explicit and avoids hiding retrieval or generation behavior in ad hoc command-line state. The tradeoff is configuration drift: if the RAG service, evaluator, and thesis tables are not generated from the same configuration snapshot, reported results can diverge. The existing mismatch between the generated RAGAS LaTeX table and the canonical JSON summary is a concrete example of this risk.
+YAML-driven configuration is important to this reproducibility story. The RAG, Qdrant, LLM, scheduler, and evaluation settings are externalized into structured configuration files. This makes experimental differences explicit and avoids hiding retrieval or generation behavior in ad hoc command-line state. The tradeoff is configuration drift: if the RAG service, evaluator, and thesis tables are not generated from the same configuration snapshot, reported results can diverge. The auxiliary flattened paper-benchmark table discussed in Chapter~7 is a concrete example of why generated reporting artifacts must preserve configuration context.
 % evidence: biomed_knowledge_platform/src/biomed_platform/common/settings.py
 % evidence: biomed_knowledge_platform/configs/rag.yaml
 % evidence: biomed_knowledge_platform/configs/qdrant.yaml
 % evidence: biomed_knowledge_platform/configs/llm.yaml
 % evidence: evaluation_metrics/config/eval.yaml
 % evidence: docs/thesis/latex/src/chapter-07.tex
+
+Repository review also exposed several configuration-to-implementation boundaries that affect interpretation. The search API accepts request-level \texttt{top\_k} and currently returns no pagination cursor, even though configuration and schemas reserve related concepts. Qdrant configuration includes REST and gRPC fields, but the verified local configuration disables gRPC preference. The LLM configuration records reranker-related fields, while the implemented reranking path in the inspected code is deterministic and combines dense, lexical, HyDE, and section signals rather than invoking an LLM reranker. These are not failures in themselves, but they show why thesis claims must distinguish implemented behavior from configurable or reserved interface surface.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/search.py
+% evidence: biomed_knowledge_platform/configs/qdrant.yaml
+% evidence: biomed_knowledge_platform/configs/llm.yaml
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/retrieval/hybrid_ranker.py
 
 Reproducibility is also bounded by state that is not fully captured in the benchmark directory. The canonical run stores generated answers and metric outputs, but it does not store a complete Qdrant collection snapshot or a complete Ollama runtime image. Therefore, the artifacts support audit of the completed run, but exact rerun identity depends on reconstructing corpus state, vector index state, model availability, and evaluator environment. This is acceptable for a thesis prototype if stated explicitly; it would be insufficient for regulated clinical deployment evidence.
 % evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit
@@ -107,7 +113,7 @@ The methodological value of this path is that expert review can shape the eviden
 The limitation is equally important. The code validates metadata completeness for ingestion, but it does not enforce annotation completeness, adjudication, or inter-annotator agreement. The current evidence therefore supports claims about annotation-based curation and evaluation substrate construction, not claims about clinical truth or diagnostic safety. Human-in-the-loop validation is present as a workflow capability, but stronger clinical validation would require documented annotation protocols, reviewer agreement analysis, and independent adjudication evidence.
 % evidence: docs/thesis/latex/src/chapter-05.tex
 % evidence: docs/thesis/latex/src/chapter-10.tex
-% TODO: Add inter-annotator agreement and adjudication evidence if clinician review protocols become available.
+% TODO: Add inter-annotator agreement and adjudication evidence if reviewer protocols become available.
 
 \section{Local-First Deployment and Operational Implications}
 
@@ -162,8 +168,9 @@ Third, the repository evidence supports operational traceability but not full cl
 % evidence: labelstudio-tools/ls_data/tasks_raw.json
 % evidence: evaluation_metrics/src/phases/phase6_extraction.py
 
-Fourth, the requested high-level and low-level design-document directories were not present in the repository snapshot. The thesis therefore relies on the engineering wiki, source architecture, thesis evidence files, and generated artifacts for architectural grounding.
-% TODO: Add explicit high-level and low-level design documentation paths if these directories are restored.
+Fourth, while the high-level and low-level design documents are present as PDF files in the repository (\texttt{docs/high-level-design.pdf} and \texttt{docs/low-level-design.pdf}), they lack the fine-grained traceability that directory-based markdown design documents would provide. The thesis therefore relies heavily on the Engineering Wiki, source architecture, and generated artifacts for rigorous architectural grounding.
+% evidence: docs/high-level-design.pdf
+% evidence: docs/low-level-design.pdf
 
 \section{Discussion Summary}
 

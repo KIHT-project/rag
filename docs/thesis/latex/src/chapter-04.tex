@@ -1,12 +1,91 @@
 % chapter-04.tex
 \chapter{Configuration Management}
 
-\section{rag.yaml}
+The platform uses external configuration to make runtime behavior inspectable. Configuration is not treated as a secondary operational concern: retrieval depth, embedding identity, vector-store endpoints, local model endpoints, scheduler integration, and evaluation settings all affect the interpretation of experimental results. For this reason, the thesis distinguishes between configuration that is actively consumed by the implementation, configuration reserved for interface compatibility, and configuration captured only by the evaluation pipeline.
+% evidence: ../engineering-wiki/wiki/repo-profiles/rag.md
+% evidence: biomed_knowledge_platform/src/biomed_platform/common/settings.py
+% evidence: evaluation_metrics/src/eval_cli.py
 
-\section{llm.yaml}
+Externalized configuration improves reproducibility by making assumptions visible, but it does not by itself guarantee deterministic behavior. Exact rerun identity can still depend on vector-store state, local model files, evaluator runtime, corpus contents, and service versions. The role of configuration management in this thesis is therefore traceability and controlled comparison, not a claim of perfect future replay.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/config_snapshot.json
+% evidence: docs/thesis/latex/src/chapter-07.tex
 
-\section{qdrant.yaml}
+\section{RAG Service Configuration}
 
-\section{scheduler.yaml}
+The \texttt{rag.yaml} file records the core retrieval and indexing assumptions of the biomedical RAG service. It configures the sentence-transformer embedding provider, CPU execution, embedding normalization behavior, embedding batch size, chunk size, chunk overlap, vector backend, and nominal retrieval depth. These values are central to the experimental setup because they determine the embedding space and chunk granularity from which Qdrant candidates are produced.
+% evidence: biomed_knowledge_platform/configs/rag.yaml
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/chunking.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
+
+This file does not configure HyDE activation or generation temperature. HyDE behavior is controlled through the LLM configuration and the \texttt{X-HyDE-Enabled} request header used by the evaluation client. Temperature and generation length for the benchmark are controlled by the evaluation configuration when the evaluation pipeline calls the model or RAG API.
+% evidence: biomed_knowledge_platform/configs/llm.yaml
+% evidence: biomed_knowledge_platform/src/biomed_platform/api/endpoints/ask.py
+% evidence: evaluation_metrics/config/eval.yaml
+
+\section{LLM and HyDE Configuration}
+
+The \texttt{llm.yaml} file configures the local Ollama dependency used by the biomedical RAG service. It records the Ollama base URL, the generator model identifier, the HyDE model identifier, the default HyDE switch, question and context bounds, candidate and final chunk limits, concurrency, retry count, and timeout. In the verified configuration, HyDE is disabled by default and can be enabled per request through the API header used in the evaluation configurations.
+% evidence: biomed_knowledge_platform/configs/llm.yaml
+% evidence: biomed_knowledge_platform/src/biomed_platform/api/endpoints/ask.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/ollama/ollama_client.py
+
+The LLM configuration also contains reranker-related fields. The inspected retrieval implementation should be described conservatively: the verified ranking path combines dense vector rank, optional HyDE rank, lexical BM25-style rank, and section weighting in application code. The repository evidence does not show an LLM reranker being invoked for the canonical benchmark path.
+% evidence: biomed_knowledge_platform/configs/llm.yaml
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/retrieval/hybrid_ranker.py
+
+\section{Vector Store Configuration}
+
+The \texttt{qdrant.yaml} file defines the Qdrant REST endpoint, optional gRPC endpoint, timeout, collection naming prefix, distance metric, and telemetry flag. Collection names are derived from the configured prefix and embedding model identifier, which supports model-specific collections without changing the external API contract.
+% evidence: biomed_knowledge_platform/configs/qdrant.yaml
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
+
+The verified configuration sets cosine distance and disables gRPC preference. This matters for reproducibility because vector-store behavior is a function of both embedding representation and collection configuration. Changing the embedding model, normalization setting, or collection naming policy can create a different retrieval corpus even when the same API endpoint is used.
+% evidence: biomed_knowledge_platform/configs/rag.yaml
+% evidence: biomed_knowledge_platform/configs/qdrant.yaml
+
+\section{Scheduler Configuration}
+
+The PubMed scheduler configuration is stored in \texttt{pubmed\_scheduler.yaml}. It enables the scheduler, records the UTC execution times, and defines the HTTP integration paths used to communicate with the biomedical RAG service. The scheduler therefore remains a separate acquisition subsystem: it owns acquisition timing and RAG API coordination, but it does not directly mutate the vector store.
+% evidence: scheduler_pubmed/config/pubmed_scheduler.yaml
+% evidence: scheduler_pubmed/src/adapters/rag/documents_client.py
+% evidence: scheduler_pubmed/src/core/use_cases/scheduler.py
+
+This configuration should not be described as a generic cron file. The verified repository configuration contains explicit UTC schedule times and API paths for document lookup, batch fetch, and ingest-job polling. Query definitions and run outcomes are owned by the scheduler domain and persistence layer rather than by a single flat scheduler configuration file.
+% evidence: scheduler_pubmed/config/pubmed_scheduler.yaml
+% evidence: scheduler_pubmed/src/core/domains/pubmed_query.py
+% evidence: scheduler_pubmed/src/db/repositories/scheduler_repository.py
+
+\section{Evaluation Configuration}
+
+The \texttt{eval.yaml} file defines the experimental control surface for the evaluation subsystem. It records the RAG API endpoint, ask-mode HyDE header, Ollama model settings, deterministic and robustness seeds, query file, RAGAS embedding model, extraction policy, and metric \texttt{k} values. These settings define the comparison between LLM-only, RAG without HyDE, and RAG with HyDE configurations.
+% evidence: evaluation_metrics/config/eval.yaml
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+% evidence: evaluation_metrics/src/phases/phase4_ragas.py
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+
+The evaluation CLI writes configuration snapshots into run directories. This is essential for later interpretation because it links generated answer files, RAGAS outputs, extraction summaries, and aggregate benchmark summaries back to the execution settings that produced them. The snapshot is an audit artifact; it does not archive the complete vector database or Ollama runtime.
+% evidence: evaluation_metrics/src/eval_cli.py
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/config_snapshot.json
+
+\section{Configuration Boundaries and Drift Risks}
+
+Repository review identified configuration boundaries that should be kept visible. The RAG service exposes request-level search depth, and the search use case defaults to a value from the request model when none is supplied. The \texttt{rag.yaml} retrieval \texttt{top\_k} value is therefore best treated as nominal service configuration rather than as proof that every search in the system used that value. Similarly, the search response schema includes a cursor field, but the inspected search use case returns no next cursor in the current implementation.
+% evidence: biomed_knowledge_platform/configs/rag.yaml
+% evidence: biomed_knowledge_platform/src/biomed_platform/api/models/generated/schemas.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/search.py
+
+These boundaries affect thesis writing because configuration files can contain reserved or partially wired settings. A configuration key is not sufficient evidence that a behavior was active in the canonical evaluation run. Reported results must therefore be tied to run artifacts and inspected execution paths, not only to YAML presence.
+% evidence: docs/thesis/STYLE_GUIDE.md
+% evidence: docs/thesis/evidence/CLAIMS.md
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
 
 \section{Reproducibility Strategy}
+
+The configuration-management strategy supports reproducibility by preserving explicit service and evaluation settings. The canonical run stores a configuration snapshot alongside generated answers and metric artifacts, and the thesis source uses evidence comments to link claims back to those artifacts. This creates an auditable path from a reported metric to the run directory and configuration that produced it.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/config_snapshot.json
+% evidence: docs/thesis/STYLE_GUIDE.md
+
+The remaining reproducibility risks are operational. Local Qdrant state, local Ollama model files, service uptime, PubMed availability, and benchmark artifact selection can all affect future runs. Configuration management reduces hidden state, but stronger future claims would require corpus version identifiers, vector-store snapshots, model/runtime digests, and regenerated retrieval-ranking artifacts for the canonical evaluation.
+% evidence: docs/thesis/latex/src/chapter-07.tex
+% evidence: docs/thesis/latex/src/chapter-08.tex
+% TODO: Add corpus-version, vector-store snapshot, and model-runtime digest artifacts before claiming strict rerun identity.

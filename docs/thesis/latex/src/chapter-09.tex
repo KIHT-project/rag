@@ -25,7 +25,7 @@ A second contribution is the retrieval and evaluation pipeline. The platform com
 % evidence: evaluation_metrics/src/phases/phase4_ragas.py
 % evidence: evaluation_metrics/src/phases/phase6_extraction.py
 
-The third contribution is a risk factor extraction workflow grounded in human-curated task data. Label Studio tasks are prepared from abstract records, exported after review, enriched with bibliographic metadata, separated into clean and rejected datasets, and then used both as ingestion input and as a reference substrate for extraction evaluation. This does not establish clinical validation, but it creates a reproducible bridge between human review, corpus curation, RAG ingestion, and benchmark scoring.
+The third contribution is a risk factor extraction workflow grounded in human-curated task data. Label Studio tasks are prepared from abstract records, exported after review, enriched with bibliographic metadata, and separated into clean and rejected datasets. Metadata-complete clean tasks can be handed to RAG ingestion, while annotation content and cited document alignment support the extraction reference substrate. This does not establish clinical validation, but it creates a reproducible bridge between human review, corpus curation, RAG ingestion, and benchmark scoring.
 % evidence: labelstudio-tools/src/app/python/main.py
 % evidence: labelstudio-tools/src/app/python/download_data/main.py
 % evidence: labelstudio-tools/ls_data/tasks_clean.json
@@ -60,7 +60,7 @@ Several architectural decisions had direct research consequences. Qdrant integra
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/retrieval/hybrid_ranker.py
 
-YAML-driven configuration was also important. RAG, Qdrant, LLM, scheduler, and evaluation behavior are configured outside core logic. This made the benchmark settings inspectable and reduced hidden experimental state. The corresponding risk is configuration drift: if generated tables, service configuration, and summary artifacts are not synchronized, the thesis can report inconsistent values. The existing RAGAS table mismatch noted in Chapter 7 is a concrete example of this operational risk.
+YAML-driven configuration was also important. RAG, Qdrant, LLM, scheduler, and evaluation behavior are configured outside core logic. This made the benchmark settings inspectable and reduced hidden experimental state. The corresponding risk is configuration drift: if generated tables, service configuration, and summary artifacts are not synchronized, the thesis can report incomplete or misleading summaries. The auxiliary paper-benchmark table discussed in Chapter~7 is a concrete example of this operational risk.
 % evidence: ../engineering-wiki/wiki/configuration/yaml-configuration.md
 % evidence: biomed_knowledge_platform/src/biomed_platform/common/settings.py
 % evidence: evaluation_metrics/config/eval.yaml
@@ -121,7 +121,7 @@ The fifth priority is knowledge graph augmentation. The current ingestion payloa
 % evidence: evaluation_metrics/src/phases/phase6_extraction.py
 % TODO: Define graph schema and provenance rules before implementing knowledge graph augmentation.
 
-The sixth priority is improved generation. The local-first deployment model could support fine-tuned or instruction-adapted biomedical LLMs, but only after benchmark coverage and validation artifacts are strengthened. The existing Ollama adapter and LLM server stack provide a practical integration point for comparing models under the same API and evaluation protocol. Model changes should be evaluated through faithfulness, answer relevancy, extraction quality, latency, and failure behavior, not through anecdotal answer quality.
+The sixth priority is improved generation and evaluation consensus. The local-first deployment model could support fine-tuned biomedical LLMs, but only after benchmark coverage is strengthened. The evaluation framework should also evolve to support evaluator sensitivity analysis or multi-model evaluator consensus, reducing reliance on a single evaluator configuration for RAGAS scoring. Larger adjudicated PubMed-derived benchmark sets would provide a stronger reference for extraction tasks. The existing Ollama adapter and LLM server stack provide a practical integration point for these extensions, but model changes should still be judged by faithfulness, extraction quality, latency, and failure behavior rather than anecdotal answer quality.
 % evidence: llm_server/docker-compose.yml
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/ollama/ollama_client.py
 % evidence: evaluation_metrics/config/eval.yaml

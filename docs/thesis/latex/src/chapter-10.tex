@@ -294,11 +294,94 @@ The high-level and low-level design material requested for inspection is present
 
 \section{Additional Technical Notes}
 
-\subsection{Annotation Schema}
+\subsection{Synthesis and Extraction Artifacts}
+
+To ensure reproducibility of the extraction and synthesis stages, the following artifacts define the JSON schema prompt and the canonical mapping rules.
+
+The synthesis step enforces structured generation using a strict prompt schema:
+
+\begin{lstlisting}[language={},caption={Synthesis JSON Only Prompt Template snippet.}]
+You are a biomedical evidence grounded answer generator.
+
+Hard rules
+1. Output MUST be a single JSON object and nothing else.
+2. No markdown, no prose, no commentary.
+3. Use ONLY the provided chunk contexts, do not invent facts.
+4. Cite ONLY allowed chunk_ids.
+...
+Required JSON schema
+{
+  "answer": {
+    "summary": "string",
+    "risk_factors": [
+      {
+        "rank": 1,
+        "normalized_name": "string",
+        "aliases": ["string"],
+        "confidence": 0.5,
+        "rationale": "string",
+        "citations": ["chunk_id"]
+      }
+    ],
+    "limitations": ["string"]
+  },
+  "citations": ["chunk_id"]
+}
+\end{lstlisting}
+
+The Phase 6 extraction evaluation maps specific terminology back to its default canonical-factor dictionary. An excerpt of this mapping includes:
+
+\begin{lstlisting}[language={},caption={Excerpt of \texttt{DEFAULT\_CANONICAL\_FACTORS}.}]
+{
+    "prior_vte": [
+        "prior vte",
+        "previous vte",
+        "history of vte",
+        "vte history",
+        "venous thromboembolism history",
+        "prior dvt",
+        "history of dvt",
+        "deep vein thrombosis history",
+        "prior pulmonary embolism",
+        "history of pulmonary embolism",
+        "previous thrombosis",
+    ],
+    "age": [
+        "advanced age",
+        "older age",
+        "elderly",
+        "aging",
+    ],
+    "obesity": [
+        "obesity",
+        "obese",
+        "body mass index",
+        "bmi",
+    ],
+    "cancer": [
+        "cancer",
+        "malignancy",
+        "neoplasm",
+        "tumor",
+    ],
+    "immobility": [
+        "immobility",
+        "immobilization",
+    ]
+}
+\end{lstlisting}
+
+\subsection{Observed Label Studio Export Structure}
 
 The exported Label Studio tasks contain a top-level identifier and a \texttt{data} object holding the bibliographic payload. In the clean export, the \texttt{data} object includes at least \texttt{pmid}, \texttt{title}, \texttt{abstract}, \texttt{doi}, \texttt{doi\_url}, \texttt{source}, \texttt{source\_id}, \texttt{source\_url}, \texttt{year}, \texttt{journal}, and \texttt{authors}. Additional export metadata includes timestamps, labeling status, project information, and the full list of annotations attached to the task.
 % evidence: labelstudio-tools/ls_data/tasks_raw.json
 % evidence: labelstudio-tools/ls_data/tasks_clean.json
+
+The observed artifact snapshot contains 1300 raw exported tasks, 1288 clean tasks, and 12 rejected tasks. All clean tasks are marked as labeled in the export metadata. Within the clean task file, 1277 tasks contain one annotation object and 11 tasks contain two annotation objects. The evaluation code currently reads the first annotation object for a task, so this export shape should be treated as an implementation assumption rather than as proof of adjudicated multi-reviewer consensus.
+% evidence: labelstudio-tools/ls_data/tasks_raw.json
+% evidence: labelstudio-tools/ls_data/tasks_clean.json
+% evidence: labelstudio-tools/ls_data/tasks_rejected.json
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
 
 Within the observed annotations, the \texttt{result} array stores heterogeneous review items. These include span labels over abstract text, binary choices for relation to venous thrombosis and risk-factor reporting, confidence ratings, article-type choices, and clinical category selections. The repository supports an annotation model that combines inclusion rationale, topical relevance, confidence, and coarse categorization, but it does not prove that every task contains identical annotation content.
 % evidence: labelstudio-tools/ls_data/tasks_raw.json

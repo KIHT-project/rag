@@ -47,6 +47,8 @@ Third, it contributes a reproducible evaluation framework that structures retrie
 
 Fourth, it contributes an empirical analysis framework for evidence-grounded answer generation under realistic operational constraints. The contribution is not presented as a claim of universal superiority over alternative systems; rather, it provides a controlled basis for discussing how architectural choices influence retrieval behavior, synthesis quality, and reproducibility characteristics.
 
+Fifth, it introduces a repository-aware engineering process, materialized through an Engineering Wiki philosophy, that grounds development and documentation in verified repository artifacts. This ensures that architectural claims and evaluation metrics are directly traceable to the underlying configuration and implementation.
+
 These contributions are deliberately framed with conservative scope. The thesis does not claim to eliminate all limitations of biomedical question answering, nor does it claim generalization beyond the evaluated setup. Its contribution is a rigorously structured foundation for subsequent extension, replication, and comparative study.
 
 \section{Thesis Structure}
@@ -55,16 +57,18 @@ The remainder of the thesis is organized to move from conceptual grounding to ar
 
 Chapter 3 presents the system architecture, including subsystem responsibilities, workflow design, and operational constraints. It explains why the platform is structured as coordinated services and how architectural tradeoffs are handled with respect to reproducibility, observability, and evidence grounding.
 
-Chapter 4 describes implementation-level realization of the architecture. This chapter maps conceptual components to concrete service behavior and runtime orchestration choices, with emphasis on how the implemented system preserves the design intentions introduced earlier.
+Chapter 4 describes the configuration management strategy, highlighting how externalized configuration files and version locking support reproducibility and experimental control.
 
-Chapter 5 defines the experimental methodology. It specifies evaluation objectives, experimental stages, and measurement strategy, so that empirical claims in later chapters can be interpreted within a transparent protocol rather than as isolated outcomes.
+Chapter 5 defines the experimental methodology. It specifies evaluation objectives, dataset protocols, and the reproducibility strategy, ensuring that empirical claims in later chapters can be interpreted within a transparent framework.
 
-Chapter 6 reports evaluation results and examines retrieval and generation behavior through the defined methodology. The chapter emphasizes interpretation of system behavior in relation to architectural and pipeline decisions.
+Chapter 6 reports the implementation details of the architecture. This chapter maps conceptual components to concrete service behavior, focusing on retrieval logic, human-in-the-loop curation, and error handling.
 
-Chapter 7 provides discussion, including implications for biomedical information access and system design. It connects empirical findings to broader methodological questions about evidence grounding, reproducibility, and operational tradeoffs.
+Chapter 7 provides the evaluation results, examining retrieval and generation behavior through the defined methodology. It relies on canonical artifacts to present quantitative metrics.
 
-Chapter 8 addresses limitations and future work. It distinguishes current system boundaries from prospective extensions and clarifies which constraints arise from architecture, external dependencies, or evaluation scope.
+Chapter 8 provides discussion, including implications for biomedical information access and system design. It connects empirical findings to broader methodological questions and architectural limitations.
 
 Chapter 9 concludes the thesis by summarizing the problem framing, contributions, and principal findings. It restates the significance of integrating continuous ingestion, retrieval-grounded synthesis, and reproducible evaluation in a single biomedical platform.
+
+Appendix A provides supplementary material covering repository structure, configuration and deployment excerpts, evaluation-pipeline details, Engineering Wiki integration, reproducibility notes, and the observed Label Studio export structure.
 
 This chapter progression is designed to preserve argumentative continuity: each chapter establishes prerequisites for the next, ensuring that final conclusions are grounded in explicit architectural reasoning and empirically traceable methodology.

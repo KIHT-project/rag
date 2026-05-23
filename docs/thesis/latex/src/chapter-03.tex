@@ -85,7 +85,7 @@ The high-level topology also reflects a contract-oriented integration strategy. 
 
 \section{Human-in-the-Loop Curation Subsystem}
 
-Label Studio is positioned in this architecture as a human-in-the-loop curation subsystem rather than as a core retrieval or answer-generation service. Its role is to host clinician-facing review tasks derived from candidate biomedical abstracts, while the surrounding \texttt{labelstudio-tools} package prepares tasks for upload, exports reviewed tasks, enriches them with bibliographic metadata, and hands curated records to the biomedical RAG ingestion API. This placement preserves a clean separation between evidence curation and online retrieval, while still allowing curated judgments to influence what enters the indexed corpus and what can later be used for evaluation-oriented analysis.
+Label Studio is positioned in this architecture as a human-in-the-loop curation subsystem rather than as a core retrieval or answer-generation service. Its role is to host manually reviewed biomedical-abstract tasks, while the surrounding \texttt{labelstudio-tools} package prepares tasks for upload, exports reviewed tasks, enriches them with bibliographic metadata, and hands metadata-complete records to the biomedical RAG ingestion API. This placement preserves a clean separation between evidence curation and online retrieval, while still allowing curated judgments to influence evaluation-oriented analysis and corpus-preparation decisions.
 % evidence: labelstudio-tools/src/app/python/main.py
 % evidence: labelstudio-tools/src/app/python/uploader.py
 % evidence: labelstudio-tools/src/app/python/download_data/main.py
@@ -99,7 +99,7 @@ Architecturally, this subsystem sits between manual biomedical validation and do
 % evidence: labelstudio-tools/src/app/python/download_data/main.py
 % evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
 
-This curation layer also has methodological significance for later evaluation chapters. The exported task structure retains manual annotation content alongside bibliographic identifiers and enriched metadata, which means curated tasks can act as traceable review artifacts rather than transient operator notes. At the same time, the current implementation validates metadata completeness for ingestion, but does not itself enforce annotation completeness or inter-annotator agreement constraints. The architectural tradeoff is therefore pragmatic: the subsystem increases traceability and enables clinician-informed dataset refinement, yet stronger annotation-governance guarantees remain an external workflow responsibility rather than a property enforced entirely in code.
+This curation layer also has methodological significance for later evaluation chapters. The exported task structure retains manual annotation content alongside bibliographic identifiers and enriched metadata, which means curated tasks can act as traceable review artifacts rather than transient operator notes. At the same time, the current implementation validates metadata completeness for ingestion, but does not itself enforce annotation completeness or inter-annotator agreement constraints. The architectural tradeoff is therefore pragmatic: the subsystem increases traceability and enables review-informed dataset refinement, yet stronger annotation-governance guarantees remain an external workflow responsibility rather than a property enforced entirely in code.
 % evidence: labelstudio-tools/ls_data/tasks_raw.json
 % evidence: labelstudio-tools/src/app/python/download_data/main.py
 
@@ -112,7 +112,7 @@ The biomedical RAG service is organized around four conceptual components: inges
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/document_lookup.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/delete_document.py
 
-Architecturally, the service applies Clean Architecture with a ports-and-adapters realization. The API layer performs transport and schema duties, use cases orchestrate business workflows, the domain layer holds framework-independent models, and adapters implement infrastructure integrations behind abstract ports. Dependency direction is inward: outer layers depend on inner policies through interfaces, while the domain remains independent of frameworks and vendors. This structure improves maintainability through low coupling and supports reproducibility by making workflow behavior explicit at use-case boundaries.
+Architecturally, the service applies Clean Architecture with a ports-and-adapters realization. The API layer performs transport and schema duties, use cases orchestrate business workflows, the domain layer holds framework-independent models, and adapters implement infrastructure integrations behind abstract ports. Dependency direction is inward: outer layers depend on inner policies through interfaces, while the domain remains independent of frameworks and vendors. This structure improves maintainability through low coupling and supports reproducibility by making workflow behavior explicit at use-case boundaries. The Engineering Wiki complements this architecture as a documentation and governance layer that records current repository facts; it is not a runtime subsystem of the RAG service.
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/ingestion.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/retrieval.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/pubmed.py
@@ -167,7 +167,7 @@ The lifecycle begins when a document is introduced through direct ingestion requ
 % evidence: biomed_knowledge_platform/src/biomed_platform/common/utils.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ingestion.py
 
-Processing proceeds through asynchronous ingestion jobs. The architecture validates candidate items, reserves document identities to prevent conflicting writes, persists payload state, and dispatches workers for chunking, embedding, and vector indexing. Section-aware chunking and payload preservation ensure that downstream retrieval can reconstruct coherent evidence segments with provenance-bearing metadata.
+Processing proceeds through asynchronous ingestion jobs. The architecture validates candidate items, reserves document identities to prevent conflicting writes, stores job and payload state in the current in-memory runtime, and dispatches workers for chunking, embedding, and vector indexing. Section-aware chunking and payload preservation ensure that downstream retrieval can reconstruct coherent evidence segments with provenance-bearing metadata, but the current job and payload stores are not restart-durable.
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ingestion.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/worker.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/chunking.py
@@ -202,7 +202,7 @@ The ask flow further constrains synthesis reliability through explicit limits on
 
 \section{Data and Persistence Architecture}
 
-The persistence model combines operational state persistence and evaluation artifact persistence. Operationally, indexed chunk data and metadata are retained in the vector layer, while ingestion job states, duplicate-control records, and scheduler execution states are persisted to support lifecycle reconstruction and failure recovery. In the vector layer, per-chunk point identifiers are derived from document identifier and chunk index, and the document identifier is derived from normalized DOI, thereby enforcing a DOI-centered document identity model for retrieval and deletion workflows.
+The persistence model separates vector state, scheduler state, audit state, and evaluation artifacts. Indexed chunk data and metadata are retained in Qdrant. Scheduler query, run, and DOI execution states are persisted through the scheduler repository layer, and API audit events are persisted through the audit service. By contrast, the current biomedical RAG application composition wires ingestion job state, duplicate-control state, payload state, and queue state to in-memory stores with bounded capacity and time-to-live behavior. In the vector layer, per-chunk point identifiers are derived from document identifier and chunk index, and the document identifier is derived from normalized DOI, thereby enforcing a DOI-centered document identity model for retrieval and deletion workflows.
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/pipeline.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/in_memory_job_store.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/in_memory_idempotency.py
