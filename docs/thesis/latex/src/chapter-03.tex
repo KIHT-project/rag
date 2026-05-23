@@ -83,6 +83,26 @@ The high-level topology also reflects a contract-oriented integration strategy. 
 % evidence: biomed_knowledge_platform/src/biomed_platform/api/endpoints/documents.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/api/endpoints/ingestion.py
 
+\section{Human-in-the-Loop Curation Subsystem}
+
+Label Studio is positioned in this architecture as a human-in-the-loop curation subsystem rather than as a core retrieval or answer-generation service. Its role is to host clinician-facing review tasks derived from candidate biomedical abstracts, while the surrounding \texttt{labelstudio-tools} package prepares tasks for upload, exports reviewed tasks, enriches them with bibliographic metadata, and hands curated records to the biomedical RAG ingestion API. This placement preserves a clean separation between evidence curation and online retrieval, while still allowing curated judgments to influence what enters the indexed corpus and what can later be used for evaluation-oriented analysis.
+% evidence: labelstudio-tools/src/app/python/main.py
+% evidence: labelstudio-tools/src/app/python/uploader.py
+% evidence: labelstudio-tools/src/app/python/download_data/main.py
+% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
+
+Architecturally, this subsystem sits between manual biomedical validation and downstream ingestion. Upstream, Excel-based abstract collections are loaded, optional exclusion filters are applied, and valid rows are transformed into Label Studio task payloads containing at minimum PMID, title, and abstract fields. Downstream, exported tasks are enriched with DOI and source metadata, partitioned into clean and rejected datasets according to ingestion requirements, and then transformed into batch ingestion requests for the biomedical RAG service. The resulting workflow constrains human review to a dedicated curation surface while keeping ingestion contracts explicit and machine-verifiable.
+% evidence: labelstudio-tools/src/app/python/data_loader.py
+% evidence: labelstudio-tools/src/app/python/filters.py
+% evidence: labelstudio-tools/src/app/python/tasks.py
+% evidence: labelstudio-tools/src/app/python/download_data/doi_enrich_any.py
+% evidence: labelstudio-tools/src/app/python/download_data/main.py
+% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
+
+This curation layer also has methodological significance for later evaluation chapters. The exported task structure retains manual annotation content alongside bibliographic identifiers and enriched metadata, which means curated tasks can act as traceable review artifacts rather than transient operator notes. At the same time, the current implementation validates metadata completeness for ingestion, but does not itself enforce annotation completeness or inter-annotator agreement constraints. The architectural tradeoff is therefore pragmatic: the subsystem increases traceability and enables clinician-informed dataset refinement, yet stronger annotation-governance guarantees remain an external workflow responsibility rather than a property enforced entirely in code.
+% evidence: labelstudio-tools/ls_data/tasks_raw.json
+% evidence: labelstudio-tools/src/app/python/download_data/main.py
+
 \section{Component Architecture of the Biomedical RAG Service}
 
 The biomedical RAG service is organized around four conceptual components: ingestion, retrieval, synthesis, and document management. The ingestion component accepts normalized document payloads, enforces duplicate constraints, and orchestrates asynchronous indexing. The retrieval component transforms user questions into vector-space candidates and assembles context-bearing evidence. The synthesis component produces structured answers with explicit citations. The document management component provides lifecycle controls required for lookup, verification, and deletion.

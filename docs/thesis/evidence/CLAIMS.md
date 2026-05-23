@@ -52,3 +52,48 @@ scheduler_pubmed/src/core/services/scheduler_runtime.py
 
 Status:
 ready
+
+### C004
+Statement:
+The Label Studio integration is implemented as a curation-side workflow that exports reviewed tasks, enriches them with bibliographic metadata, and separates clean ingestion-ready records from rejected records.
+
+Scope:
+Chapter 3 System Architecture, Chapter 5 Methodology, Chapter 10 Appendix
+
+Evidence:
+labelstudio-tools/src/app/python/download_data/main.py
+labelstudio-tools/ls_data/tasks_raw.json
+labelstudio-tools/ls_data/tasks_clean.json
+labelstudio-tools/ls_data/tasks_rejected.json
+
+Status:
+ready
+
+### C005
+Statement:
+The RAG handoff for curated Label Studio tasks batches ingestion requests and retries on transport errors, HTTP 429 responses, and 5xx responses using bounded backoff.
+
+Scope:
+Chapter 6 Implementation Details
+
+Evidence:
+labelstudio-tools/src/app/python/rag_importer/rag_integration.py
+
+Status:
+ready
+
+### C006
+Statement:
+Initial Label Studio task preparation from Excel validates required columns, normalizes optional boolean review flags, applies configurable exclusion filters, and transforms valid rows into task payloads containing PMID, title, and abstract.
+
+Scope:
+Chapter 3 System Architecture, Chapter 6 Implementation Details
+
+Evidence:
+labelstudio-tools/src/app/python/config.py
+labelstudio-tools/src/app/python/data_loader.py
+labelstudio-tools/src/app/python/filters.py
+labelstudio-tools/src/app/python/tasks.py
+
+Status:
+ready

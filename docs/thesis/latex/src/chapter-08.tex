@@ -1,12 +1,177 @@
 % chapter-08.tex
 \chapter{Discussion}
 
-\section{Hypothesis Validation}
+\section{Architectural Interpretation of the Evaluation}
 
-\section{Strengths}
+The evaluation results are best interpreted as the behavior of a specific engineered biomedical RAG architecture, not as a general statement about all retrieval-augmented biomedical systems. The strongest finding is that RAG without HyDE performed better overall than RAG with HyDE on the canonical deterministic benchmark. In the paper benchmark summary, the no-HyDE configuration achieved higher answer relevancy, higher faithfulness, higher context precision, and higher extraction recall and F1, while the HyDE configuration achieved slightly higher extraction precision but lower recall. This pattern indicates a precision-recall and grounding tradeoff rather than a uniform improvement from query expansion.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
+% evidence: docs/thesis/latex/src/chapter-07.tex
 
-\section{Limitations}
+This behavior is consistent with the repository architecture. The ask workflow retrieves direct-query candidates, optionally retrieves HyDE candidates, merges candidate sets by chunk identity, reranks them through dense, HyDE, lexical, and section-aware signals, and finally restricts synthesis to a bounded number of chunks. Because the benchmark questions are already clinically specific, generated expansion can introduce semantically plausible but less question-aligned evidence. Under a final context budget, such extra candidates can displace directly relevant chunks or dilute the evidence supplied to the generator. The observed HyDE degradation is therefore not surprising in this benchmark; it reflects how expansion interacts with candidate union, reranking weights, and a small final context window.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hyde/hybrid_retrieval.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/retrieval/hybrid_ranker.py
+% evidence: evaluation_metrics/queries/queries.jsonl
 
-\section{Scalability Considerations}
+The result also illustrates why the evaluation chapter separates retrieval, generation, extraction, and operational quality. HyDE did not simply make answers worse in every respect. It produced slightly higher extraction precision, suggesting that some generated expansions may have narrowed the predicted factor set. However, the corresponding lower recall and F1 show that this narrowing missed factors present in the derived reference set. For biomedical risk-factor extraction, this distinction matters: a configuration that is more conservative may appear cleaner but still omit clinically relevant candidate factors. Conversely, the no-HyDE configuration recovered all gold factors in the evaluated set but produced more false positives. The preferred operating point therefore depends on whether the workflow prioritizes sensitivity for later human review or precision for direct presentation.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_no_hyde_summary.csv
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_hyde_summary.csv
 
-\section{Ethical Considerations}
+\section{Retrieval Behavior and Biomedical Constraints}
+
+The retrieval subsystem is constrained by the interaction between Qdrant vector search, the selected embedding model, chunk construction, and the downstream reranker. The vector index stores section-aware chunks as Qdrant points with metadata such as document identifier, DOI, section, title, year, disease, source type, and created timestamp. Search begins with dense embeddings and cosine-distance vector retrieval, after which the application layer reranks candidate chunks using reciprocal-rank-style signals and section weighting. Qdrant therefore supplies the initial semantic candidate pool, but final evidence selection is not a pure vector-distance decision.
+% evidence: biomed_knowledge_platform/configs/qdrant.yaml
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/pipeline.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/retrieval/hybrid_ranker.py
+
+This design has clear advantages for biomedical abstracts. Section metadata allows results, conclusions, and abstracts to be weighted differently from methods or supplementary material. DOI-centered payloads make retrieved chunks traceable back to source records. Query filters can constrain disease, source type, DOI, and publication year. These properties improve auditability and enable domain-specific retrieval behavior without embedding domain logic inside Qdrant itself.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/chunking.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
+
+The same design also exposes limitations. The configured embedding model is a local MiniLM sentence-transformer, executed on CPU, with embedding normalization disabled in the RAG configuration. The model is practical for a local thesis platform, but the repository does not contain evidence that it was tuned for thrombosis terminology, risk-factor synonymy, or biomedical abbreviation handling. Consequently, retrieval can be sensitive to whether the query wording aligns with abstract phrasing. The hybrid reranker partially mitigates this through lexical and section signals, but it cannot fully compensate for embedding ambiguity or missing corpus coverage.
+% evidence: biomed_knowledge_platform/configs/rag.yaml
+% evidence: evaluation_metrics/config/eval.yaml
+% TODO: Add a domain-embedding ablation if future runs compare all-MiniLM-L6-v2 with a biomedical embedding model.
+
+Biomedical retrieval is further limited by the source material available to the index. The observed workflows ingest abstracts and metadata, not consistently complete full-text articles. Abstract-level retrieval is valuable for broad evidence discovery, but many clinical details, subgroup definitions, and methodological caveats may appear only in full text. This affects both retrieval and generation: a chunk may contain enough text to identify a risk factor, but not enough context to support nuanced clinical interpretation. The thesis should therefore treat the platform as an evidence-screening and grounded synthesis prototype rather than a clinical decision-support system.
+% evidence: labelstudio-tools/src/app/python/tasks.py
+% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/pipeline.py
+
+\section{Impact of HyDE Query Expansion}
+
+HyDE is implemented as an optional generation-mediated expansion path. When enabled, the service asks the local LLM to produce a short hypothetical answer document, embeds that generated text, retrieves additional Qdrant candidates, and merges them with direct-query candidates. The implementation clamps generated expansion length, uses low-temperature generation settings, caches expansion outputs, and assigns a lower HyDE rank weight than direct dense retrieval in the hybrid reranker. These controls show that HyDE is treated as an auxiliary signal rather than as a replacement for direct retrieval.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hyde/hyde.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hyde/hybrid_retrieval.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/retrieval/hybrid_ranker.py
+
+The evaluation indicates that these controls were not sufficient to improve the canonical benchmark. The no-HyDE configuration reported faithfulness of 0.8167 and context precision of approximately 1.0000, while HyDE reported faithfulness of 0.6458 and context precision of approximately 0.9000 in the deterministic summary. This difference suggests that HyDE introduced or emphasized context that was less aligned with the generated answers. The retrieved examples also show the nature of the risk: for specific orthopedic and catheter queries, related but not identical populations or intervention contexts can enter the context set when expansion broadens the semantic neighborhood.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase3_answers_rag_hyde.jsonl
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase3_answers_rag_no_hyde.jsonl
+
+This finding should be interpreted narrowly. It does not refute HyDE as a method. It shows that, in this repository, for five already-specific thrombosis questions and a compact abstract-level corpus, direct retrieval was the stronger default. HyDE may still be useful for shorter, underspecified, or terminology-mismatched questions, but the present evidence does not support enabling it as an unconditional improvement. A more defensible future design would make HyDE conditional, for example triggering it only when direct retrieval returns low confidence, low lexical overlap, or insufficient context diversity.
+% evidence: evaluation_metrics/queries/queries.jsonl
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
+% TODO: Evaluate conditional HyDE activation against a larger query set before making HyDE the production default.
+
+\section{Generation, Grounding, and Hallucination Risk}
+
+The generation stage is deliberately constrained, but not clinically validated. The synthesis prompt instructs the LLM to answer only from supplied chunk contexts, emit structured JSON, cite allowed chunk identifiers, and state limitations when evidence is insufficient. The API then returns both answer content and citations, which allows the evaluation pipeline to extract the contexts actually used by the server rather than evaluating against a separate search result. These implementation choices reduce uncontrolled generation behavior and improve auditability.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hallucination/synthesis.py
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+
+Nevertheless, hallucination risk remains. RAGAS faithfulness below 1.0 demonstrates that generated answers were not perfectly supported by retrieved contexts under the evaluator used in the run. The LLM-only baseline is more exposed because it has no retrieved context at all; its answer relevancy can be scored, but its grounding cannot be evaluated through faithfulness or context precision. This distinction is central in healthcare-oriented systems. A fluent answer is not equivalent to a source-supported answer, and a source-supported answer is not equivalent to clinical validation.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase4_ragas_phase3_answers_llm_only.csv
+
+The local Ollama deployment also affects generation behavior. The configured model is \texttt{llama3.1:8b-instruct-q4\_K\_M}, accessed through an HTTP adapter with bounded concurrency, retry handling, and long timeout settings. This supports local-first control over inference infrastructure, but it also constrains throughput and makes generation sensitive to the available host running Ollama. The use of a quantized local model is pragmatic for reproducibility and data-control reasons, but the repository does not provide evidence that this model has been clinically validated for biomedical risk-factor synthesis.
+% evidence: biomed_knowledge_platform/configs/llm.yaml
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/ollama/ollama_client.py
+% evidence: evaluation_metrics/config/eval.yaml
+% TODO: Add model-card or validation evidence before making any claim about clinical reliability of the local LLM.
+
+\section{Traceability, Auditability, and Reproducibility}
+
+The architecture gives unusual weight to traceability for a thesis prototype. API middleware records request metadata, response bodies, exception traces, and audit events through a PostgreSQL audit service. The evaluation subsystem creates run directories, writes configuration snapshots, materializes phase outputs, and records deterministic and robustness settings. These mechanisms make it possible to inspect which configuration produced a given answer and which intermediate artifacts supported the reported metrics.
+% evidence: biomed_knowledge_platform/src/biomed_platform/common/middleware/audit.py
+% evidence: evaluation_metrics/src/eval_cli.py
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/config_snapshot.json
+
+YAML-driven configuration is important to this reproducibility story. The RAG, Qdrant, LLM, scheduler, and evaluation settings are externalized into structured configuration files. This makes experimental differences explicit and avoids hiding retrieval or generation behavior in ad hoc command-line state. The tradeoff is configuration drift: if the RAG service, evaluator, and thesis tables are not generated from the same configuration snapshot, reported results can diverge. The existing mismatch between the generated RAGAS LaTeX table and the canonical JSON summary is a concrete example of this risk.
+% evidence: biomed_knowledge_platform/src/biomed_platform/common/settings.py
+% evidence: biomed_knowledge_platform/configs/rag.yaml
+% evidence: biomed_knowledge_platform/configs/qdrant.yaml
+% evidence: biomed_knowledge_platform/configs/llm.yaml
+% evidence: evaluation_metrics/config/eval.yaml
+% evidence: docs/thesis/latex/src/chapter-07.tex
+
+Reproducibility is also bounded by state that is not fully captured in the benchmark directory. The canonical run stores generated answers and metric outputs, but it does not store a complete Qdrant collection snapshot or a complete Ollama runtime image. Therefore, the artifacts support audit of the completed run, but exact rerun identity depends on reconstructing corpus state, vector index state, model availability, and evaluator environment. This is acceptable for a thesis prototype if stated explicitly; it would be insufficient for regulated clinical deployment evidence.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit
+% evidence: docs/thesis/evidence/ARTIFACTS.md
+% TODO: Archive vector-store snapshot metadata and model/runtime digests for stronger rerun identity.
+
+\section{Human-in-the-Loop Validation}
+
+The Label Studio workflow strengthens corpus curation but does not establish clinical validation. The repository shows that abstracts are transformed into Label Studio tasks, reviewed tasks are exported, DOI and source metadata are enriched, clean records are separated from rejected records, and ingestion-ready items can be batched into the biomedical RAG API. This creates a traceable human-in-the-loop path between biomedical review activity and downstream ingestion.
+% evidence: labelstudio-tools/src/app/python/main.py
+% evidence: labelstudio-tools/src/app/python/download_data/main.py
+% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
+% evidence: labelstudio-tools/ls_data/tasks_clean.json
+
+The methodological value of this path is that expert review can shape the evidence substrate and can provide a derived reference set for extraction evaluation. The extraction phase uses curated task annotations, confidence policy, DOI alignment, and canonical factor normalization to construct an evaluable risk-factor reference. This is a practical bridge from manual review to quantitative assessment.
+% evidence: evaluation_metrics/config/eval.yaml
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+
+The limitation is equally important. The code validates metadata completeness for ingestion, but it does not enforce annotation completeness, adjudication, or inter-annotator agreement. The current evidence therefore supports claims about annotation-based curation and evaluation substrate construction, not claims about clinical truth or diagnostic safety. Human-in-the-loop validation is present as a workflow capability, but stronger clinical validation would require documented annotation protocols, reviewer agreement analysis, and independent adjudication evidence.
+% evidence: docs/thesis/latex/src/chapter-05.tex
+% evidence: docs/thesis/latex/src/chapter-10.tex
+% TODO: Add inter-annotator agreement and adjudication evidence if clinician review protocols become available.
+
+\section{Local-First Deployment and Operational Implications}
+
+The repository favors a local-first deployment model. The biomedical RAG service depends on local or locally reachable Qdrant, PostgreSQL, and Ollama services; the evaluation configuration points to a local RAG API and a LAN Ollama endpoint; and the wiki profile identifies Docker Compose rather than Kubernetes as the verified orchestration mechanism. This design is appropriate for an MSc prototype because it reduces cloud dependency, enables offline inspection of artifacts, and keeps sensitive review workflows under local operational control.
+% evidence: ../engineering-wiki/wiki/repo-profiles/rag.md
+% evidence: evaluation_metrics/config/eval.yaml
+% evidence: biomed_knowledge_platform/configs/qdrant.yaml
+% evidence: biomed_knowledge_platform/configs/llm.yaml
+
+The cost is operational fragility under scale. Ingestion workers are configured with a single worker and a small in-memory queue. Ingestion job stores, idempotency stores, payload stores, and queues are in-memory in the current API composition, with time-to-live policies and bounded capacity. This is a reasonable simplification for local experiments, but it means service restart behavior and burst ingestion behavior are not equivalent to a durable production queue. The architecture exposes backpressure and job state semantics, but the concrete runtime wiring remains prototype-oriented.
+% evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/in_memory_queue.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/in_memory_job_store.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/in_memory_idempotency.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/in_memory_payload_store.py
+
+Local inference also creates throughput constraints. The Ollama adapter limits concurrent requests through a semaphore and retries transient transport or server failures. The LLM configuration sets long request timeouts and low concurrency. These choices improve reliability for slow local inference, but they limit concurrent evaluation throughput and interactive latency under multiple users. The deployment therefore prioritizes controllability and reproducibility over high-availability serving.
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/ollama/ollama_client.py
+% evidence: biomed_knowledge_platform/configs/llm.yaml
+
+\section{Scalability and Engineering Architecture Implications}
+
+The strongest engineering property of the platform is separation of concerns. The FastAPI layer is kept distinct from use cases, domain models, ports, and infrastructure adapters. The scheduler service does not write directly to the vector database; it calls document and ingestion endpoints exposed by the biomedical RAG service. The evaluation subsystem does not reach into service internals; it calls APIs and stores phase outputs. This clean separation improves testability and makes architectural reasoning possible, because retrieval behavior, acquisition behavior, and evaluation behavior can be discussed as separate responsibilities.
+% evidence: ../engineering-wiki/wiki/repo-profiles/rag.md
+% evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/ingestion.py
+% evidence: scheduler_pubmed/src/adapters/rag/documents_client.py
+% evidence: evaluation_metrics/src/eval_cli.py
+
+This architecture also limits uncontrolled coupling between PubMed ingestion assumptions and retrieval behavior. The scheduler searches PubMed through E-utilities endpoints, extracts DOI values from summaries, filters incrementally by publication timestamp when available, and enqueues DOI batches through the RAG service. These assumptions are explicit, but they are not exhaustive. Missing DOI metadata, inconsistent publication dates, or PubMed response variability can reduce acquisition coverage before the retrieval system has an opportunity to index evidence.
+% evidence: scheduler_pubmed/src/adapters/pubmed/query_client.py
+% evidence: scheduler_pubmed/src/core/use_cases/scheduler.py
+% evidence: scheduler_pubmed/src/adapters/rag/documents_client.py
+
+At larger scale, the main architectural pressure points are durable ingestion state, vector-store lifecycle management, corpus versioning, model versioning, and evaluation dataset expansion. Qdrant can support larger vector collections than the thesis benchmark uses, but the application still needs durable queues, migration-aware schema governance, collection snapshots, and explicit corpus versions to make large-scale comparisons meaningful. Without these additions, metric changes could be caused by corpus drift rather than retrieval or generation improvements.
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
+% evidence: evaluation_metrics/src/eval_cli.py
+% TODO: Add corpus version identifiers to evaluation run metadata before comparing runs across changing ingestion states.
+
+\section{Limitations Discovered from the Repository}
+
+Several limitations arise directly from the inspected repository rather than from general RAG concerns. First, the canonical run does not contain the phase 1 and phase 2 retrieval artifacts needed to report nDCG at k, retrieval precision at k, or retrieval recall at k. This prevents a clean separation between ranking quality and downstream generation quality for the selected run. The discussion of retrieval must therefore remain partly inferential, based on context precision, faithfulness, extracted factors, and recorded generated contexts.
+% evidence: docs/thesis/latex/src/chapter-07.tex
+% evidence: evaluation_metrics/src/phases/phase2_beir.py
+% evidence: evaluation_metrics/src/phases/phase2_retrieval_weaklabels.py
+% TODO: Generate and register canonical phase 1 and phase 2 retrieval artifacts.
+
+Second, the benchmark is intentionally small. Five queries are useful for diagnostic analysis because each query can be inspected manually, but they do not support statistically robust claims. This limitation is amplified by the specificity of the questions. A different benchmark with broader or shorter queries could change the relative usefulness of HyDE.
+% evidence: evaluation_metrics/queries/queries.jsonl
+
+Third, the repository evidence supports operational traceability but not full clinical validation. Label Studio tasks provide manual annotations, and extraction evaluation uses those annotations as a reference substrate. However, there is no repository evidence of adjudicated gold labels, reviewer agreement, prospective validation, or clinical outcome testing. Claims must therefore remain limited to system evaluation and curated evidence processing.
+% evidence: labelstudio-tools/ls_data/tasks_raw.json
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+
+Fourth, the requested high-level and low-level design-document directories were not present in the repository snapshot. The thesis therefore relies on the engineering wiki, source architecture, thesis evidence files, and generated artifacts for architectural grounding.
+% TODO: Add explicit high-level and low-level design documentation paths if these directories are restored.
+
+\section{Discussion Summary}
+
+The main architectural conclusion is that the current platform behaves like a carefully bounded local biomedical RAG prototype rather than a production clinical system. Its strengths are explicit subsystem boundaries, source-linked retrieval payloads, configurable local inference, traceable evaluation artifacts, and a human-in-the-loop curation path. These strengths explain why the system can support credible thesis evaluation.
+% evidence: ../engineering-wiki/wiki/repo-profiles/rag.md
+% evidence: docs/thesis/latex/src/chapter-03.tex
+% evidence: docs/thesis/latex/src/chapter-07.tex
+
+The main research conclusion is more critical. Direct RAG was the stronger configuration for the canonical benchmark, and HyDE did not improve the measured generation or extraction outcome overall. This appears to result from the interaction between specific biomedical queries, abstract-level retrieval, generated expansion noise, reranking, and limited final context budget. Future work should therefore prioritize larger retrieval-aware benchmarks, corpus and model versioning, conditional expansion policies, stronger annotation governance, and durable operational state before making broader claims about biomedical reliability.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py

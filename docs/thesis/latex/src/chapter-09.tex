@@ -1,2 +1,148 @@
 % chapter-09.tex
 \chapter{Conclusion and Future Work}
+
+\section{Conclusion}
+
+This thesis produced a repository-backed biomedical RAG platform rather than a standalone model demonstration. The implemented system consists of a modular FastAPI biomedical RAG service, a PubMed scheduler service, a phase-based evaluation subsystem, a local-first Ollama deployment stack, and a Label Studio curation workflow. The biomedical RAG service performs asynchronous ingestion, section-aware chunking, sentence-transformer embedding, Qdrant vector indexing, retrieval, optional HyDE expansion, reranking, and cited answer synthesis. The scheduler service orchestrates PubMed query execution and DOI-based ingestion coordination. The evaluation subsystem executes reproducible benchmark phases and preserves generated artifacts for later inspection.
+% evidence: ../engineering-wiki/wiki/repo-profiles/rag.md
+% evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
+% evidence: scheduler_pubmed/src/core/use_cases/scheduler.py
+% evidence: evaluation_metrics/src/eval_cli.py
+% evidence: llm_server/docker-compose.yml
+% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
+
+The main engineering contribution is the integration of these components into a coherent architecture with explicit boundaries. The system follows the repository's Clean Architecture and ports-and-adapters direction: API endpoints remain separated from use cases, domain objects, ports, and infrastructure adapters. This decision mattered because it allowed Qdrant, Ollama, PubMed, Label Studio exports, and evaluation clients to evolve as external integrations rather than being embedded directly in domain logic. The architecture therefore supports maintainability and experiment traceability, although it also introduces coordination overhead across services and artifacts.
+% evidence: ../engineering-wiki/wiki/architecture/hexagonal-architecture.md
+% evidence: ../engineering-wiki/wiki/backend/backend-python-fastapi.md
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/ingestion.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/ollama/ollama_client.py
+
+A second contribution is the retrieval and evaluation pipeline. The platform combines Qdrant dense vector retrieval with application-level lexical and section-aware reranking. The evaluation subsystem compares LLM-only, RAG without HyDE, and RAG with HyDE configurations, then records generated answers, RAGAS metrics, extraction outputs, and aggregate benchmark summaries. This makes the evaluation more than a final-score exercise: it separates retrieval-related evidence, generation grounding, extraction behavior, and operational reproducibility.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/retrieval/hybrid_ranker.py
+% evidence: evaluation_metrics/config/eval.yaml
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+% evidence: evaluation_metrics/src/phases/phase4_ragas.py
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+
+The third contribution is a risk factor extraction workflow grounded in human-curated task data. Label Studio tasks are prepared from abstract records, exported after review, enriched with bibliographic metadata, separated into clean and rejected datasets, and then used both as ingestion input and as a reference substrate for extraction evaluation. This does not establish clinical validation, but it creates a reproducible bridge between human review, corpus curation, RAG ingestion, and benchmark scoring.
+% evidence: labelstudio-tools/src/app/python/main.py
+% evidence: labelstudio-tools/src/app/python/download_data/main.py
+% evidence: labelstudio-tools/ls_data/tasks_clean.json
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+
+The fourth contribution is the repository-aware engineering process itself. The Engineering Wiki records verified repository facts, architecture rules, configuration guidance, and applicable agent responsibilities. In practice, this philosophy constrained the thesis text to claims supported by source code, run artifacts, and documented architecture decisions. This is important for an engineering thesis because it reduces the gap between written claims and implemented reality.
+% evidence: ../engineering-wiki/wiki/repo-profiles/rag.md
+% evidence: ../engineering-wiki/wiki/architecture/decisions.md
+% evidence: ../engineering-wiki/wiki/configuration/yaml-configuration.md
+% evidence: docs/thesis/STYLE_GUIDE.md
+
+\section{Evaluation Findings}
+
+The canonical evaluation run supports a cautious but concrete conclusion: for the selected five-query thrombosis benchmark, RAG without HyDE was the strongest overall configuration. It achieved higher answer relevancy, faithfulness, context precision, extraction recall, and extraction F1 than the HyDE configuration in the deterministic summary. HyDE achieved slightly higher extraction precision, but lower recall and lower F1. The result therefore does not support a general claim that HyDE improved this benchmark. Instead, it shows that generated expansion can introduce noise when the original biomedical query is already specific.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
+% evidence: docs/thesis/latex/src/chapter-07.tex
+% evidence: docs/thesis/latex/src/chapter-08.tex
+
+The LLM-only baseline served a different purpose. It provided a control for parametric answering, but it could not be evaluated for context faithfulness or context precision because no retrieved evidence was supplied. This distinction is central to the thesis: answer fluency and source grounding are different properties. In a biomedical setting, the latter is essential for auditability, even when the former appears adequate.
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase4_ragas_phase3_answers_llm_only.csv
+
+The evaluation also demonstrated that the current framework is reproducible at the artifact level. The run records configuration snapshots, deterministic seed settings, robustness seeds, generated answer files, RAGAS outputs, extraction summaries, and aggregate benchmark metrics. This level of traceability is sufficient for thesis-level inspection and debugging. It is not yet sufficient for strict output identity across future reruns because vector-store state, model runtime state, and corpus versions are not archived as immutable experiment inputs.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/config_snapshot.json
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
+
+\section{Architectural Lessons}
+
+Several architectural decisions had direct research consequences. Qdrant integration made vector retrieval and metadata filtering practical, while application-level reranking allowed dense, lexical, HyDE, and section signals to be combined without changing the vector database layer. The section-aware chunking and DOI-centered payload design improved traceability from answer citations back to source records. These decisions made the system evaluable, not merely functional.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/chunking.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/pipeline.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/retrieval/hybrid_ranker.py
+
+YAML-driven configuration was also important. RAG, Qdrant, LLM, scheduler, and evaluation behavior are configured outside core logic. This made the benchmark settings inspectable and reduced hidden experimental state. The corresponding risk is configuration drift: if generated tables, service configuration, and summary artifacts are not synchronized, the thesis can report inconsistent values. The existing RAGAS table mismatch noted in Chapter 7 is a concrete example of this operational risk.
+% evidence: ../engineering-wiki/wiki/configuration/yaml-configuration.md
+% evidence: biomed_knowledge_platform/src/biomed_platform/common/settings.py
+% evidence: evaluation_metrics/config/eval.yaml
+% evidence: docs/thesis/latex/src/chapter-07.tex
+
+The local-first LLM deployment was a deliberate and pragmatic engineering choice. Ollama, Open WebUI, and Traefik are separated into their own deployment stack, while the RAG service accesses Ollama through an HTTP adapter with concurrency limits, retries, and long timeouts. This arrangement improves local control and reproducibility, but it constrains throughput and does not provide evidence of clinical reliability for the selected quantized model.
+% evidence: llm_server/docker-compose.yml
+% evidence: biomed_knowledge_platform/configs/llm.yaml
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/ollama/ollama_client.py
+
+\section{Limitations}
+
+The first limitation is evaluation size. The primary benchmark contains five thrombosis-oriented questions. This is useful for diagnostic comparison and thesis demonstration, but it cannot support broad statistical claims about biomedical performance. The observed no-HyDE advantage should therefore be treated as a finding for the current benchmark and architecture, not as a universal property of RAG systems.
+% evidence: evaluation_metrics/queries/queries.jsonl
+% evidence: docs/thesis/latex/src/chapter-07.tex
+
+The second limitation is incomplete retrieval measurement. The repository contains retrieval metric implementations, but the canonical run does not include the phase 1 and phase 2 retrieval artifacts needed to report nDCG at k, retrieval precision at k, or retrieval recall at k. Consequently, retrieval quality is inferred indirectly from context precision, faithfulness, generated contexts, and extraction behavior. This is a significant evidence gap for a system whose central function is retrieval.
+% evidence: evaluation_metrics/src/phases/phase2_beir.py
+% evidence: evaluation_metrics/src/phases/phase2_retrieval_weaklabels.py
+% evidence: docs/thesis/latex/src/chapter-07.tex
+% TODO: Generate and register canonical retrieval ranking artifacts before making final quantitative claims about retrieval quality.
+
+The third limitation is clinical validity. The Label Studio workflow supports human review and curation, but the repository does not contain evidence of inter-annotator agreement, adjudicated gold labels, prospective validation, or integration into a clinical workflow. The system can therefore be described as a biomedical literature retrieval and evaluation prototype, not as a clinically validated decision-support tool.
+% evidence: labelstudio-tools/ls_data/tasks_raw.json
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+% evidence: docs/thesis/latex/src/chapter-08.tex
+% TODO: Add reviewer agreement and adjudication artifacts before making clinical validation claims.
+
+The fourth limitation is operational durability. The current API composition uses in-memory ingestion queues, job stores, idempotency stores, and payload stores with bounded capacity and time-to-live behavior. This is appropriate for local experimentation, but it is not equivalent to a production-grade durable ingestion architecture. Similarly, the benchmark artifacts do not archive full vector-store snapshots or model runtime digests.
+% evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/in_memory_queue.py
+% evidence: docs/thesis/latex/src/chapter-08.tex
+% TODO: Add durable ingestion-state and corpus-version artifacts for production-oriented evaluation.
+
+\section{Future Work}
+
+Future work should extend the current repository rather than replace it with unrelated capabilities. The first priority is stronger biomedical retrieval. The embedding provider is already abstracted behind a port, and Qdrant collections are named by embedding model identifier. This makes it realistic to evaluate biomedical embedding models, embedding normalization strategies, and model-specific collection versions without changing API contracts. A larger benchmark should then compare these models using retrieval metrics, RAGAS metrics, and extraction metrics from the same evaluation pipeline.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/ingestion.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
+% evidence: evaluation_metrics/src/eval_cli.py
+
+The second priority is a larger and more complete evaluation benchmark. The existing phase-based evaluation framework should be extended to include canonical phase 1 and phase 2 retrieval outputs, larger query sets, corpus version identifiers, vector-store snapshot metadata, and continuous evaluation runs. This would allow performance changes to be attributed to retrieval, generation, extraction, or corpus changes rather than to uncontrolled environment drift.
+% evidence: evaluation_metrics/src/phases/phase1_pool.py
+% evidence: evaluation_metrics/src/phases/phase2_beir.py
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+
+The third priority is stronger human validation. The Label Studio curation workflow already provides task preparation, export, enrichment, rejection reporting, and ingestion handoff. Future work should add annotation completeness checks, reviewer agreement reporting, adjudication status, and feedback loops that can update curation policy or evaluation gold sets. This would convert the current human-in-the-loop workflow from a curation support tool into a stronger evaluation-governance mechanism.
+% evidence: labelstudio-tools/src/app/python/download_data/main.py
+% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
+
+The fourth priority is hybrid and explainable retrieval. The current reranker already combines dense, lexical, HyDE, and section signals. A natural extension is to expose retrieval explanations: why a chunk was selected, which signal contributed most, how section boosts affected ranking, and whether HyDE improved or degraded the candidate pool. This would improve debugging and user trust without requiring a change to the service boundary.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/retrieval/hybrid_ranker.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
+
+The fifth priority is knowledge graph augmentation. The current ingestion payloads already preserve DOI, title, year, journal, authors, disease, source type, sections, and extracted risk factors. These fields provide a credible starting point for a graph layer connecting papers, conditions, risk factors, populations, and evidence snippets. Such a graph should augment retrieval and explanation; it should not replace the vector index until graph construction quality has been evaluated.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/pipeline.py
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+% TODO: Define graph schema and provenance rules before implementing knowledge graph augmentation.
+
+The sixth priority is improved generation. The local-first deployment model could support fine-tuned or instruction-adapted biomedical LLMs, but only after benchmark coverage and validation artifacts are strengthened. The existing Ollama adapter and LLM server stack provide a practical integration point for comparing models under the same API and evaluation protocol. Model changes should be evaluated through faithfulness, answer relevancy, extraction quality, latency, and failure behavior, not through anecdotal answer quality.
+% evidence: llm_server/docker-compose.yml
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/ollama/ollama_client.py
+% evidence: evaluation_metrics/config/eval.yaml
+
+The seventh priority is orchestration beyond a single request pipeline. Multi-agent orchestration is a plausible extension only if it remains bounded by the existing architecture: separate agents could support retrieval diagnosis, evidence critique, annotation triage, or evaluation review, but their outputs would need to be auditable artifacts rather than hidden reasoning steps. This aligns with the Engineering Wiki philosophy of explicit responsibilities and evidence-backed claims.
+% evidence: ../engineering-wiki/wiki/task-execution-graph.md
+% evidence: ../engineering-wiki/wiki/architecture/decisions.md
+% TODO: Specify agent responsibilities and artifact contracts before adding multi-agent orchestration.
+
+The eighth priority is broader deployment and ingestion scope. Federated biomedical deployments are a realistic extension of the local-first design if each site can run its own RAG service, vector store, audit database, and evaluation pipeline while sharing only approved metrics or model artifacts. Multi-modal biomedical ingestion is also a possible extension through the ingestion ports, but it would require new parsers, chunking strategies, metadata schemas, and evaluation tasks for figures, tables, or imaging-derived text. Neither extension should be treated as present in the current repository.
+% evidence: ../engineering-wiki/wiki/platform/docker-compose.md
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/ingestion.py
+% TODO: Add federated deployment and multi-modal ingestion design documents before implementation.
+
+The final priority is real clinical workflow integration. The current system can support literature search, curation, and evaluation; it does not yet support clinical deployment. Future work would need user roles, privacy analysis, governance for audited payloads, clinician-facing interfaces, validated update policies, failure escalation, and prospective workflow studies. The repository's modular FastAPI services, audit trail, Label Studio workflow, and evaluation subsystem provide useful starting points, but they are not substitutes for clinical governance.
+% evidence: biomed_knowledge_platform/src/biomed_platform/common/middleware/audit.py
+% evidence: labelstudio-tools/ls_data/tasks_clean.json
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
+
+\section{Closing Remarks}
+
+The thesis demonstrates that a biomedical RAG platform can be engineered as an auditable, modular, locally deployable system with reproducible evaluation artifacts and human curation support. Its strongest result is not a claim of clinical readiness; it is the construction and evaluation of a concrete architecture whose behavior can be inspected. The observed benchmark favors direct RAG over HyDE for the current query set, highlights the importance of grounding and extraction metrics, and identifies the repository changes required for stronger future claims. This makes the project a defensible engineering research foundation rather than a finished clinical product.
+% evidence: docs/thesis/latex/src/chapter-07.tex
+% evidence: docs/thesis/latex/src/chapter-08.tex

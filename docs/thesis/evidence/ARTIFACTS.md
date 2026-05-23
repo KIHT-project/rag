@@ -56,3 +56,55 @@ CSV metrics
 
 Used in thesis:
 Chapter 7 RAG HyDE comparison
+
+### A004 Label Studio raw task export
+Path:
+labelstudio-tools/ls_data/tasks_raw.json
+
+Type:
+JSON task export
+
+What it contains:
+Exported Label Studio tasks with bibliographic payloads and attached manual annotations.
+
+Used in thesis:
+Chapter 5 annotation-based validation, Chapter 10 annotation schema appendix
+
+### A005 Label Studio clean ingestion dataset
+Path:
+labelstudio-tools/ls_data/tasks_clean.json
+
+Type:
+JSON clean dataset
+
+What it contains:
+Curated tasks that passed metadata validation for downstream RAG ingestion.
+
+Used in thesis:
+Chapter 5 dataset protocol, Chapter 6 RAG ingestion handoff, Chapter 10 ingestion-ready schema
+
+### A006 Label Studio rejected task report
+Path:
+labelstudio-tools/ls_data/tasks_rejected.json
+
+Type:
+JSON rejection report
+
+What it contains:
+Rejected tasks with recorded reasons such as missing DOI, source metadata, year, journal, or authors.
+
+Used in thesis:
+Chapter 5 dataset protocol, Chapter 10 workflow assumptions and limitations
+
+### A007 Missing source identifier report
+Path:
+labelstudio-tools/ls_data/missing_source_ids.json
+
+Type:
+JSON quality report
+
+What it contains:
+List of source identifiers for which DOI enrichment remained unresolved in the current export.
+
+Used in thesis:
+Chapter 5 dataset protocol, Chapter 10 annotation workflow limitations

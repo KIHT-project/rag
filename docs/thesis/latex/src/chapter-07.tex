@@ -3,12 +3,164 @@
 
 \section{Experimental Setup}
 
-\section{Retrieval Metrics}
+This chapter evaluates the platform as a set of separable capabilities: retrieval quality, answer generation quality, risk factor extraction quality, and operational reproducibility. The purpose of this separation is methodological clarity. A configuration may retrieve appropriate evidence but synthesize a weak answer, or it may generate a plausible answer while extracting an incomplete set of risk factors. Treating these outcomes as distinct prevents a single aggregate score from hiding different failure modes.
+% evidence: evaluation_metrics/config/eval.yaml
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+% evidence: evaluation_metrics/src/phases/phase4_ragas.py
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
 
-\section{Extraction Metrics}
+The canonical run used for reporting is the primary deterministic run stored under the thesis evidence directory for 2026-02-09. Its configuration snapshot fixes the RAG API endpoint, the generation model, retrieval context size, RAGAS embedding model, extraction policy, and paper benchmark seeds. The primary deterministic condition uses seed 42 and temperature 0.0. A robustness condition is also present with five seeds at temperature 0.2, but the main chapter interpretation is based on the deterministic artifacts unless explicitly stated otherwise.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/config_snapshot.json
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
 
-\section{Operational Metrics}
+The evaluation pipeline is phase based. Query records are read from a JSONL file, answers are generated for each enabled configuration, RAGAS metrics are computed from the generated answers and their recorded contexts, and extraction metrics are computed by comparing predicted risk factor sets against factors inferred from curated Label Studio tasks. This staged design supports reproducibility because each phase materializes inspectable intermediate outputs rather than relying on transient logs.
+% evidence: evaluation_metrics/queries/queries.jsonl
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase3_answers_llm_only.jsonl
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase3_answers_rag_no_hyde.jsonl
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase3_answers_rag_hyde.jsonl
+
+\section{Evaluation Dataset and Query Protocol}
+
+The query protocol contains five thrombosis-oriented questions. The questions cover postoperative venous thromboembolism after total knee replacement, deep vein thrombosis after traumatic lower-extremity fracture, short peripheral catheter failure, pediatric surgery populations, and pneumonia cohorts before the COVID-19 period. The small size of this query set makes the experiment suitable for diagnostic comparison and thesis demonstration, but not for broad statistical claims about clinical performance.
+% evidence: evaluation_metrics/queries/queries.jsonl
+
+Each query is evaluated across all three answer-generation configurations. For the primary deterministic run, each configuration produced five answer records. This one-to-one structure allows per-query comparison across configurations, but it also magnifies the influence of individual difficult queries. Consequently, differences between configurations are interpreted as evidence about this benchmark run, not as stable estimates of population-level clinical validity.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase3_answers_llm_only.jsonl
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase3_answers_rag_no_hyde.jsonl
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase3_answers_rag_hyde.jsonl
+
+The extraction evaluation uses curated task data as the reference substrate. Documents are retained when they are annotated as reporting risk factors with sufficient confidence under the configured policy, and factor strings are mapped into a closed canonical vocabulary. This design makes the extraction evaluation reproducible and inspectable, but it also means the reference labels are derived from abstract-level annotations and rule-based factor normalization rather than from a fully adjudicated clinical gold standard.
+% evidence: evaluation_metrics/config/eval.yaml
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+
+\section{System Configurations}
+
+The first configuration is the LLM-only baseline. It sends the query directly to the generation model without retrieved contexts. This baseline tests the model's parametric response behavior and provides a comparison point for assessing whether grounding through the RAG service improves answer quality. Because no contexts are supplied, context-dependent metrics such as faithfulness and context precision are not applicable to this configuration.
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+% evidence: evaluation_metrics/src/phases/phase4_ragas.py
+
+The second configuration is RAG without HyDE. This configuration routes each question through the biomedical RAG service and asks the service to synthesize an answer from retrieved evidence without query expansion. It tests whether the existing query text is specific enough to retrieve useful context directly. In this benchmark, this configuration is important because several questions are already specific to clinical populations and outcomes, which may reduce the need for expansion.
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase3_answers_rag_no_hyde.jsonl
+
+The third configuration is RAG with HyDE enabled. HyDE adds a generation-mediated expansion step before retrieval, with the goal of improving semantic matching for difficult or underspecified queries. In this experiment, HyDE tests whether expansion improves the retrieved evidence and downstream answers for thrombosis risk factor questions. Its expected benefit is higher semantic recall, while its expected risk is the introduction of expansion noise when the original query is already precise.
+% evidence: evaluation_metrics/config/eval.yaml
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hyde/hyde.py
+
+\section{Retrieval Evaluation}
+
+Retrieval evaluation asks whether the system ranks relevant biomedical evidence near the top of the result list. Normalized discounted cumulative gain at k is relevant because it rewards systems that place more useful documents earlier, which matters when the answer generator consumes only a bounded number of contexts. Precision at k measures how much of the top-ranked evidence is relevant, while recall at k measures how much known relevant evidence is recovered. These metrics evaluate retrieval quality before answer synthesis and therefore diagnose failures that RAGAS or extraction metrics may only reveal indirectly.
+% evidence: evaluation_metrics/src/phases/phase2_beir.py
+% evidence: evaluation_metrics/src/phases/phase2_retrieval_weaklabels.py
+
+The repository contains retrieval metric implementations for precision, recall, mean reciprocal rank, and weak-label pool coverage. However, the canonical run directory used for this thesis does not contain phase 1 or phase 2 retrieval output artifacts, and no nDCG-at-k table was found under the canonical run. For this reason, this chapter does not report numeric nDCG, retrieval precision, or retrieval recall values. The retrieval interpretation is limited to indirect evidence from context precision, faithfulness, and extraction behavior.
+% TODO: Add numeric nDCG@k, retrieval precision@k, and retrieval recall@k once canonical phase 1/phase 2 retrieval artifacts are generated and registered in docs/thesis/evidence/ARTIFACTS.md.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit
+% evidence: evaluation_metrics/src/phases/phase2_beir.py
+% evidence: evaluation_metrics/src/phases/phase2_retrieval_weaklabels.py
+
+This limitation is material. Retrieval metrics would show whether an answer failed because the evidence was not retrieved, because the evidence was retrieved but not used faithfully, or because the extraction parser failed to recover the correct factor set. Without the phase 2 artifacts, the retrieval stage cannot be evaluated independently for the canonical run. The chapter therefore treats retrieval quality as partially evaluated rather than fully measured.
+
+\section{Generation and RAGAS Evaluation}
+
+Generation quality is evaluated using Retrieval Augmented Generation Assessment (RAGAS) metrics. Answer relevancy estimates whether the response addresses the user's question. Faithfulness estimates whether the generated response is supported by the supplied contexts. Context precision without reference estimates whether the retrieved contexts are useful for the generated answer without requiring a separate gold answer. These metrics matter because a biomedical assistant must answer the question, remain grounded in evidence, and avoid depending on irrelevant retrieved material.
+% evidence: evaluation_metrics/src/phases/phase4_ragas.py
+
+\begin{table}[h]
+\centering
+\caption{Mean RAGAS metrics by configuration for the selected run.}
+\label{tab:ragas-metrics-summary}
+\input{resources/tables/ragas_metrics_summary}
+\end{table}
+
+Table~\ref{tab:ragas-metrics-summary} reports the generated RAGAS summary table available in the thesis resources. In that table, RAG without HyDE has higher answer relevancy than RAG with HyDE, and it also has stronger faithfulness and context precision. The LLM-only baseline has answer relevancy but no faithfulness or context precision values, because no retrieved contexts are provided to evaluate grounding. The result does not support a blanket claim that HyDE improves generation quality in this benchmark.
+% evidence: docs/thesis/latex/src/resources/tables/ragas_metrics_summary.tex
+
+The canonical paper benchmark summary points in the same qualitative direction for RAG configurations. In the deterministic summary, RAG without HyDE reports answer relevancy of 0.8672, faithfulness of 0.8167, and context precision of approximately 1.0000, whereas RAG with HyDE reports answer relevancy of 0.8202, faithfulness of 0.6458, and context precision of approximately 0.9000. The likely explanation is not that HyDE is intrinsically inferior, but that these five queries are already specific enough that expansion can introduce less relevant context or alter the evidence mix.
+% TODO: Reconcile the generated RAGAS LaTeX table with paper_benchmark_summary.json before final submission; the direction is consistent, but some reported means differ between the table snippet and canonical JSON summary.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
+
+\section{Risk Factor Extraction Evaluation}
+
+Risk factor extraction is evaluated separately from general answer quality. The extraction phase compares the system's predicted risk factor set with a gold factor set derived from curated task annotations and cited documents. True positives count correctly recovered factors, false positives count predicted factors absent from the reference set, and false negatives count reference factors missed by the system. Precision captures over-extraction, recall captures missed factors, and F1 balances the two. This distinction is important because a response can sound relevant while still omitting clinically meaningful risk factors or adding unsupported ones.
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+
+\begin{table}[h]
+\centering
+\caption{Mean extraction metrics by configuration for the selected run.}
+\label{tab:extraction-metrics-summary}
+\input{resources/tables/extraction_metrics_summary}
+\end{table}
+
+Table~\ref{tab:extraction-metrics-summary} reports macro-level extraction behavior across the five evaluated queries. RAG without HyDE has higher recall and F1, while RAG with HyDE has slightly higher precision. This indicates a precision-recall tradeoff. HyDE produced fewer false positives on average, but it also missed more gold factors. RAG without HyDE recovered all gold factors in the evaluated set, but with a modest increase in false positives.
+% evidence: docs/thesis/latex/src/resources/tables/extraction_metrics_summary.tex
+
+The run-level extraction summaries provide the corresponding micro counts. RAG without HyDE produced 30 true positives, 6 false positives, and 0 false negatives, yielding micro precision 0.8333, micro recall 1.0000, and micro F1 0.9091. RAG with HyDE produced 29 true positives, 5 false positives, and 2 false negatives, yielding micro precision 0.8529, micro recall 0.9355, and micro F1 0.8923. These values reinforce the same interpretation: HyDE is more conservative in this run, while no-HyDE is more complete.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_no_hyde_summary.csv
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_hyde_summary.csv
+
+\section{Operational Evaluation}
+
+Operational evaluation concerns whether the experiment can be traced, repeated, and audited. The primary indicators in this thesis are configuration snapshots, deterministic seed control, per-phase materialized outputs, and separate deterministic and robustness run directories. These properties matter because biomedical RAG evaluation is sensitive to generation settings, evaluator behavior, retrieved contexts, and corpus state. Without run traceability, metric differences cannot be confidently attributed to configuration differences.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/config_snapshot.json
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
+
+The canonical run preserves generated answers, RAGAS outputs, diagnostics, extraction per-query outputs, extraction summaries, and aggregate paper benchmark summaries. The deterministic run uses a fixed seed and temperature 0.0, while the robustness condition records five stochastic seeds at temperature 0.2. This structure supports operational reproducibility at the artifact level. The principal limitation is that reproducibility is not equivalent to identical future model behavior: external model serving, vector store state, and evaluator implementation details can still affect outputs if the run is reproduced in a changed environment.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/robustness
 
 \section{Results}
 
+The main result is that RAG without HyDE performs best overall on this small deterministic benchmark. It achieves the strongest reported answer relevancy among the RAG configurations, the strongest faithfulness and context precision in the canonical summary, and the highest extraction recall and F1. The LLM-only baseline is useful as a control for parametric answering, but it cannot be evaluated for grounding because no retrieved contexts are supplied. Therefore, its answer relevancy score should not be interpreted as evidence of source-supported biomedical reasoning.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
+
+\begin{table}[h]
+\centering
+\caption{Numeric metrics extracted from paper benchmark summary for the selected run.}
+\label{tab:paper-benchmark-summary}
+\input{resources/tables/paper_benchmark_summary_metrics}
+\end{table}
+
+Table~\ref{tab:paper-benchmark-summary} provides a compact summary of the selected benchmark metrics exported for thesis reporting. Read together with Tables~\ref{tab:ragas-metrics-summary} and~\ref{tab:extraction-metrics-summary}, the evidence supports a cautious conclusion: HyDE did not improve this benchmark run, and the no-HyDE configuration should be treated as the stronger configuration for these five diagnostic questions. The result is plausible because the questions are narrow and clinically explicit, so generated query expansion may add context that is semantically related but less directly aligned with the desired answer.
+% evidence: docs/thesis/latex/src/resources/tables/paper_benchmark_summary_metrics.tex
+
+The robustness section of the benchmark summary shows stable RAG answer relevancy, context precision, and extraction metrics across the five stochastic seeds, while LLM-only answer relevancy varies more substantially. This suggests that the recorded RAG outputs were less sensitive to the sampled generation seeds in this run than the LLM-only baseline. However, because the benchmark contains only five questions, the robustness result should be interpreted as a sanity check rather than as a statistical stability claim.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
+
 \section{Error Analysis}
+
+The strongest observed error pattern is expansion noise. In the HyDE configuration, query expansion sometimes retrieved or emphasized contexts that were related to the broad disease area but less aligned with the exact question. This is visible in the lower context precision and faithfulness reported for HyDE relative to no-HyDE, and in the two false negatives in the extraction summary. The pediatric surgery query is a representative case: HyDE produced lower extraction recall for that query than the no-HyDE configuration, indicating that some reference factors were missed.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_hyde_per_query.csv
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_no_hyde_per_query.csv
+
+A second error pattern is over-extraction. RAG without HyDE achieved perfect extraction recall in the evaluated queries, but it did so with six false positives at micro level. This suggests that the configuration tends to preserve more candidate factors from the cited context or generated summary, including factors that are not present in the derived gold set for that query. In biomedical settings, this is a meaningful tradeoff: high recall reduces missed risk factors, but unsupported or irrelevant factors can reduce trust and may require human review.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_no_hyde_summary.csv
+
+The LLM-only baseline demonstrates a different risk. It can produce relevant-looking answers without retrieved contexts, but those answers are not grounded in the indexed corpus for the experiment. The evaluation therefore cannot distinguish correct parametric knowledge from unsupported synthesis using context-based RAGAS metrics. This reinforces the architectural decision to evaluate generation quality and grounding separately.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase4_ragas_phase3_answers_llm_only.csv
+
+\section{Threats to Validity}
+
+The first threat is dataset size. The primary benchmark contains five questions, which is sufficient for inspecting pipeline behavior but not sufficient for robust statistical comparison. A single difficult query can materially shift means, especially for extraction metrics where factor counts vary by cited document. Future evaluation should expand the query set before drawing stronger conclusions.
+% evidence: evaluation_metrics/queries/queries.jsonl
+
+The second threat is reference construction. The extraction gold set is derived from curated task annotations, confidence thresholds, cited DOI alignment, and canonical factor matching rules. This creates a reproducible evaluation substrate, but it is not the same as a fully adjudicated expert gold standard. The results therefore support system evaluation under the repository's annotation protocol, not clinical validation.
+% evidence: evaluation_metrics/config/eval.yaml
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+
+The third threat is incomplete retrieval evaluation. Although retrieval metric code exists, the canonical run does not include the phase outputs required to report nDCG at k, retrieval precision at k, or retrieval recall at k. This limits the ability to isolate ranking quality from synthesis and extraction behavior. The present chapter therefore reports retrieval evidence conservatively and identifies the missing ranking artifacts as an unresolved evidence gap.
+% TODO: Register canonical retrieval metric artifacts before using this chapter for final quantitative claims about retrieval ranking quality.
+% evidence: evaluation_metrics/src/phases/phase2_beir.py
+% evidence: evaluation_metrics/src/phases/phase2_retrieval_weaklabels.py
+
+The fourth threat is evaluator dependence. RAGAS scoring relies on an evaluator model and embedding model configured for the run. The configuration snapshot records these choices, which improves traceability, but evaluator judgments may vary across model versions or runtime environments. This is particularly relevant for faithfulness and answer relevancy, where evaluator behavior can influence numeric scores.
+% evidence: evaluation_metrics/config/eval.yaml
+% evidence: evaluation_metrics/src/phases/phase4_ragas.py
+
+\section{Summary}
+
+The evaluation shows that the platform can execute a traceable, multi-phase biomedical RAG benchmark across LLM-only, RAG without HyDE, and RAG with HyDE configurations. The strongest configuration in the canonical deterministic run is RAG without HyDE. It reports stronger RAGAS grounding behavior than HyDE in the available summaries and achieves higher extraction recall and F1, while HyDE achieves slightly higher extraction precision but misses more gold factors.
+% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
+
+The result should be interpreted narrowly. The experiment demonstrates reproducible evaluation plumbing and provides diagnostic evidence about the current configuration set, but it does not establish clinical validity. The main unresolved quantitative gap is the absence of canonical retrieval ranking artifacts for nDCG at k, retrieval precision at k, and retrieval recall at k. Addressing that gap would strengthen the separation between retrieval, generation, extraction, and operational quality in future thesis iterations.
