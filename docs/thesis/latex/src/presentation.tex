@@ -1,0 +1,216 @@
+% presentation.tex
+\documentclass[aspectratio=169,11pt]{beamer}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{microtype}
+
+\graphicspath{{resources/images/}}
+
+\usetheme{Madrid}
+\usefonttheme{professionalfonts}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+
+\definecolor{AcademicBlue}{RGB}{28,65,112}
+\definecolor{AcademicGray}{RGB}{82,88,96}
+\setbeamercolor{structure}{fg=AcademicBlue}
+\setbeamercolor{frametitle}{bg=AcademicBlue,fg=white}
+\setbeamercolor{title}{fg=AcademicBlue}
+\setbeamercolor{subtitle}{fg=AcademicGray}
+\setbeamerfont{frametitle}{series=\bfseries,size=\large}
+\setbeamerfont{itemize/enumerate body}{size=\small}
+\setbeamerfont{itemize/enumerate subbody}{size=\footnotesize}
+
+\title[Biomedical RAG Thesis]{Design and Evaluation of a Retrieval Augmented Biomedical Platform for Thrombosis Risk Factor Extraction}
+\subtitle{Continuous PubMed Scheduling and Human-in-the-Loop Curation}
+\author[N. Chaikalis]{Nikolaos Chaikalis}
+\institute[DUTH]{School of Medicine, MSc Biomedical Informatics}
+\date{June 2026}
+
+\begin{document}
+
+\begin{frame}
+\centering
+\vspace{0.35cm}
+{\Large\bfseries\color{AcademicBlue}
+Design and Evaluation of a Retrieval Augmented Biomedical Platform\\
+for Thrombosis Risk Factor Extraction\par}
+
+\vspace{0.35cm}
+{\large\color{AcademicGray} Continuous PubMed Scheduling and Human-in-the-Loop Curation\par}
+
+\vspace{0.85cm}
+{\normalsize Nikolaos Chaikalis\par}
+{\small Supervisor: Professor Eleni Kaldoudi\par}
+
+\vspace{0.5cm}
+{\small School of Medicine\\MSc Biomedical Informatics\par}
+
+\vfill
+{\small June 2026\par}
+\end{frame}
+
+\begin{frame}{Research Problem}
+\begin{itemize}
+  \item Biomedical evidence changes faster than static literature reviews and keyword-only search workflows.
+  \item Standalone generation can produce fluent answers without inspectable evidence grounding.
+  \item A biomedical question answering platform must connect freshness, semantic retrieval, provenance, and evaluation.
+  \item The thesis asks how continuous ingestion, retrieval-grounded synthesis, and reproducible measurement can be unified in one architecture.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Objectives}
+\begin{itemize}
+  \item Design a modular biomedical RAG architecture with clear acquisition, retrieval, synthesis, and evaluation boundaries.
+  \item Automate PubMed-oriented literature ingestion with DOI and PMID based identity tracking.
+  \item Preserve reproducible evaluation artifacts for retrieval, generation, and risk factor extraction analysis.
+  \item Compare direct RAG and HyDE-enabled retrieval while keeping limitations and observability explicit.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Background and Related Work}
+\begin{itemize}
+  \item Biomedical information retrieval requires semantic recall, ranked evidence, and source provenance.
+  \item Retrieval Augmented Generation conditions responses on retrieved evidence instead of model memory alone.
+  \item HyDE can improve difficult semantic matching, but generated expansion may also introduce retrieval noise.
+  \item RAG evaluation is decomposed into retrieval quality, grounding metrics, extraction quality, and human validation.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{System Architecture}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.44\textwidth}
+\begin{itemize}
+  \item Biomedical RAG service: ingestion, retrieval, synthesis, and document management.
+  \item PubMed scheduler service: recurrent acquisition and DOI-based handoff.
+  \item Evaluation subsystem: phase-based benchmark execution and artifact persistence.
+\end{itemize}
+\end{column}
+\begin{column}{0.56\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.67\textheight,keepaspectratio]{HLD.pdf}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{RAG Pipeline}
+\begin{itemize}
+  \item Curated abstracts or scheduler-discovered PubMed records enter the ingestion API.
+  \item Documents are split into section-aware chunks and embedded with a local sentence-transformer model.
+  \item Qdrant stores vectors with DOI-centered metadata for traceable retrieval and deletion.
+  \item Query-time retrieval creates a bounded evidence context before answer synthesis.
+  \item Generated answers are constrained to structured JSON with citations to retrieved chunks.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Data Ingestion and Indexing}
+\begin{itemize}
+  \item Documents can be introduced directly or through scheduler-initiated DOI and PMID workflows.
+  \item Asynchronous ingestion jobs reserve document identities, enforce duplicate controls, and expose job status.
+  \item Section-aware chunking filters non-informative text and retains bibliographic metadata.
+  \item Indexing favors local reproducibility and traceability, while current queue and job state remain in memory.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Retrieval and Generation}
+\begin{itemize}
+  \item Direct retrieval embeds the question and retrieves dense vector candidates from Qdrant.
+  \item Optional HyDE generates a hypothetical passage and retrieves an additional candidate pool.
+  \item Hybrid ranking combines dense rank, optional HyDE rank, BM25-style lexical signals, and section weights.
+  \item Synthesis uses bounded context windows, strict JSON output, citation backfilling, and schema validation.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Evaluation Setup}
+\begin{itemize}
+  \item Five thrombosis-oriented diagnostic questions are evaluated across three configurations.
+  \item Configurations: LLM-only baseline, RAG without HyDE, and RAG with HyDE.
+  \item Primary deterministic run: seed 42 and temperature 0.0; robustness group: five seeds at temperature 0.2.
+  \item Metrics: RAGAS answer relevancy, faithfulness, context precision; extraction precision, recall, and F1.
+  \item Outputs include generated answers, metric tables, extraction summaries, diagnostics, and configuration snapshots.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Key Results: Grounding}
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Configuration & Relevancy & Faithfulness & Context precision \\
+\midrule
+LLM only & 0.610 & n/a & n/a \\
+RAG HyDE & 0.820 & 0.646 & 0.900 \\
+RAG no HyDE & \textbf{0.867} & \textbf{0.817} & \textbf{1.000} \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5cm}
+\begin{itemize}
+  \item Direct RAG produced the strongest grounding metrics in the canonical deterministic run.
+  \item LLM-only answers can be relevant, but they cannot be evaluated for source grounding without retrieved context.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Key Results: Extraction}
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Configuration & Precision & Recall & F1 \\
+\midrule
+RAG HyDE & \textbf{0.835} & 0.920 & 0.874 \\
+RAG no HyDE & 0.828 & \textbf{1.000} & \textbf{0.901} \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5cm}
+\begin{itemize}
+  \item HyDE was slightly more precise, but missed more reference factors.
+  \item RAG without HyDE recovered all gold factors in the evaluated set, with more false positives.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Discussion}
+\begin{itemize}
+  \item The no-HyDE configuration was better aligned with the five specific thrombosis questions.
+  \item HyDE appears to broaden the semantic neighborhood, which can dilute a small final context window.
+  \item The preferred operating point depends on whether the workflow values sensitivity for human review or stricter precision.
+  \item Artifact-level reproducibility supports audit, but not byte-identical reruns across changing model and vector states.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Limitations}
+\begin{itemize}
+  \item The benchmark contains five questions, so results are diagnostic rather than statistically general.
+  \item Canonical phase 1 and phase 2 retrieval artifacts are missing, limiting direct nDCG and recall reporting.
+  \item Curated task annotations are not an adjudicated clinical gold standard.
+  \item Ingestion jobs, idempotency state, payload state, and queues are in memory in the current runtime.
+  \item Full vector-store snapshots and model runtime digests are not archived with the canonical run.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Future Work}
+\begin{itemize}
+  \item Generate larger retrieval-aware benchmarks with canonical retrieval ranking artifacts.
+  \item Compare biomedical embedding models, normalization policies, and model-specific Qdrant collections.
+  \item Make HyDE conditional on direct-retrieval confidence and context diversity.
+  \item Add annotation completeness checks, agreement reporting, and adjudication status.
+  \item Improve durability through corpus versions, vector snapshots, and persistent ingestion state.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Conclusion}
+\begin{itemize}
+  \item The thesis delivers an auditable local biomedical RAG platform rather than a standalone model demonstration.
+  \item The architecture integrates PubMed acquisition, human curation, indexing, retrieval, cited synthesis, and evaluation.
+  \item In the canonical benchmark, RAG without HyDE is the strongest overall configuration.
+  \item The central contribution is a defensible engineering research foundation with explicit evidence, boundaries, and limitations.
+\end{itemize}
+\end{frame}
+
+\end{document}
