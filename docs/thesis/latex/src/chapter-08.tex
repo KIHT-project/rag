@@ -79,7 +79,7 @@ The architecture gives unusual weight to traceability for a thesis prototype. AP
 % evidence: evaluation_metrics/src/eval_cli.py
 % evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/config_snapshot.json
 
-YAML-driven configuration is important to this reproducibility story. The RAG, Qdrant, LLM, scheduler, and evaluation settings are externalized into structured configuration files. This makes experimental differences explicit and avoids hiding retrieval or generation behavior in ad hoc command-line state. The tradeoff is configuration drift: if the RAG service, evaluator, and thesis tables are not generated from the same configuration snapshot, reported results can diverge. The auxiliary flattened paper-benchmark table discussed in Chapter~7 is a concrete example of why generated reporting artifacts must preserve configuration context.
+YAML-driven configuration~\cite{yaml2021spec} is important to this reproducibility story. The RAG, Qdrant, LLM, scheduler, and evaluation settings are externalized into structured configuration files. This makes experimental differences explicit and avoids hiding retrieval or generation behavior in ad hoc command-line state. The tradeoff is configuration drift: if the RAG service, evaluator, and thesis tables are not generated from the same configuration snapshot, reported results can diverge. The auxiliary flattened paper-benchmark table discussed in Chapter~7 is a concrete example of why generated reporting artifacts must preserve configuration context.
 % evidence: biomed_knowledge_platform/src/biomed_platform/common/settings.py
 % evidence: biomed_knowledge_platform/configs/rag.yaml
 % evidence: biomed_knowledge_platform/configs/qdrant.yaml
