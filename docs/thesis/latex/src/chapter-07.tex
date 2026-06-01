@@ -50,22 +50,58 @@ The third configuration is RAG with HyDE enabled. HyDE adds a generation-mediate
 
 \section{Retrieval Evaluation}
 
-Retrieval evaluation asks whether the system ranks relevant biomedical evidence near the top of the result list. Normalized discounted cumulative gain at k is relevant because it rewards systems that place more useful documents earlier, which matters when the answer generator consumes only a bounded number of contexts~\cite{jarvelin2002ndcg}. Precision at k measures how much of the top-ranked evidence is relevant, while recall at k measures how much known relevant evidence is recovered. These metrics evaluate retrieval quality before answer synthesis and therefore diagnose failures that RAGAS or extraction metrics may only reveal indirectly.
+Retrieval evaluation asks whether the system ranks relevant biomedical evidence near the top of the result list. Normalized Discounted Cumulative Gain at k (nDCG-at-k) is relevant because it rewards systems that place more useful documents earlier, which matters when the answer generator consumes only a bounded number of contexts~\cite{jarvelin2002ndcg}. Precision at k measures how much of the top-ranked evidence is relevant, while recall at k measures how much of the known relevant evidence is recovered. These metrics evaluate retrieval quality before answer synthesis and therefore help distinguish ranking failure from later failures in answer generation or factor extraction.
 % evidence: evaluation_metrics/src/phases/phase2_beir.py
 % evidence: evaluation_metrics/src/phases/phase2_retrieval_weaklabels.py
 
-The repository contains retrieval metric implementations for precision, recall, mean reciprocal rank, and weak-label pool coverage. However, the canonical run directory used for this thesis does not contain phase 1 or phase 2 retrieval output artifacts, and no nDCG-at-k table was found under the canonical run. For this reason, this chapter does not report numeric nDCG, retrieval precision, or retrieval recall values. The retrieval interpretation is limited to indirect evidence from context precision, faithfulness, and extraction behavior.
-% TODO: Add numeric nDCG@k, retrieval precision@k, and retrieval recall@k once canonical phase 1/phase 2 retrieval artifacts are generated and registered in docs/thesis/evidence/ARTIFACTS.md.
+The repository does contain retrieval-evaluation code, but its current state is narrower than a complete benchmark-ready ranking protocol. One path expects an explicit query-document relevance file in qrels format and computes mean reciprocal rank, precision at k, and recall at k. A second path derives weaker document-level relevance signals from the curated annotation export, for example whether a paper is labeled as related to venous thromboembolism. These capabilities show that retrieval measurement was planned, but they are not equivalent to a fully materialized, query-specific ranking evaluation for the canonical thesis run.
 % evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit
 % evidence: evaluation_metrics/src/phases/phase2_beir.py
 % evidence: evaluation_metrics/src/phases/phase2_retrieval_weaklabels.py
 
-This limitation is material. Retrieval metrics would show whether an answer failed because the evidence was not retrieved, because the evidence was retrieved but not used faithfully, or because the extraction parser failed to recover the correct factor set. Without the phase 2 artifacts, the retrieval stage cannot be evaluated independently for the canonical run. The chapter therefore treats retrieval quality as partially evaluated rather than fully measured.
+For the canonical run used in this thesis, the missing pieces are both procedural and evidential. The stored benchmark directory does not include the separate Phase 1 retrieval pool or Phase 2 retrieval outputs, so the reported run cannot be audited with an independent ranked list of retrieved documents. In addition, no query-specific gold relevance file was found for the five benchmark questions, and the current retrieval code does not implement nDCG-at-k. The available annotation labels are useful for weak supervision and overlap checks, but they are document labels rather than a complete set of judged relevant and non-relevant documents for each query. For these reasons, this chapter does not report numeric nDCG, retrieval precision, or retrieval recall values for the canonical run.
+
+This limitation is material. Retrieval metrics would show whether an answer failed because the evidence was not retrieved, because the evidence was retrieved but not used faithfully, or because the extraction parser failed to recover the correct factor set. Without a canonical retrieval pool, query-specific relevance judgments, and corresponding Phase 2 outputs, the retrieval stage cannot be evaluated independently for the selected run. The chapter therefore treats retrieval quality as partially evaluated rather than fully measured.
 
 \section{Generation and RAGAS Evaluation}
 
-Generation quality is evaluated using Retrieval Augmented Generation Assessment (RAGAS) metrics~\cite{es2024ragas}. Answer relevancy estimates whether the response addresses the user's question. Faithfulness estimates whether the generated response is supported by the supplied contexts. Context precision without reference estimates whether the retrieved contexts are useful for the generated answer without requiring a separate gold answer. These metrics matter because a biomedical assistant must answer the question, remain grounded in evidence, and avoid depending on irrelevant retrieved material.
+Generation quality is evaluated using Retrieval Augmented Generation Assessment (RAGAS) metrics~\cite{es2024ragas}. Answer relevancy estimates whether the response addresses the user's question. Faithfulness estimates whether the generated response is supported by the supplied contexts. The repository's context metric is the without-reference RAGAS variant, which estimates whether the retrieved contexts appear relevant enough to support the produced response without requiring a separate gold answer. These metrics matter because a biomedical assistant must answer the question, remain grounded in evidence, and avoid depending on irrelevant retrieved material.
 % evidence: evaluation_metrics/src/phases/phase4_ragas.py
+
+Answer relevancy is interpreted as user alignment rather than factual correctness. It asks whether the generated answer directly addresses the original question and penalizes answers that are incomplete, evasive, or padded with redundant detail. Operationally, the metric reverse-engineers multiple candidate questions from the generated answer and then measures the semantic similarity between those generated questions and the original user question. A simplified expression is shown in Equation~\ref{eq:answer-relevancy-score}.
+
+\begin{equation}
+\text{Answer Relevancy} =
+\frac{1}{N} \sum_{i=1}^{N} \mathrm{sim}
+(\text{Question}_{\text{original}}, \text{Question}_{\text{generated}, i})
+\label{eq:answer-relevancy-score}
+\end{equation}
+
+This interpretation is important because answer relevancy and faithfulness capture different failure modes. An answer can be highly relevant to the user's prompt while still being unfaithful to the retrieved evidence. In other words, a response may be well targeted and persuasive while remaining unsupported by the indexed biomedical context.
+
+Faithfulness is interpreted as groundedness, meaning whether the generated answer is derived only from the retrieved context rather than from unsupported model inference. Operationally, the metric treats the answer as a set of individual statements and checks whether each statement can be inferred from the retrieved passages. A simplified expression of that logic is shown in Equation~\ref{eq:faithfulness-score}.
+
+\begin{equation}
+\text{Faithfulness Score} =
+\frac{\text{Number of answer statements supported by the context}}
+{\text{Total number of statements in the generated answer}}
+\label{eq:faithfulness-score}
+\end{equation}
+
+This interpretation is important for biomedical use. A high faithfulness score indicates low hallucination risk because the answer remains tied to retrieved evidence, but it does not by itself guarantee that the answer is clinically useful, complete, or fully responsive to the original question. An answer may be perfectly grounded in the supplied context and still fail to address the user's real information need.
+
+Context precision requires more careful interpretation. In classical retrieval evaluation, precision at rank is anchored to whether the retrieved items are relevant to the original question, and higher values indicate that the top of the ranked list is populated with useful evidence. The without-reference RAGAS variant used in this repository does not use an explicit gold relevance set. Instead, it estimates whether the recorded contexts appear useful for supporting the produced answer. It is therefore not a pure retriever-only metric, because the judgment is mediated by the generated response rather than by an independent query-document relevance standard. As a result, it is best treated here as a retrieval-support proxy rather than as a definitive ranking metric such as nDCG or manually adjudicated precision at k.
+
+A simplified ranking-style view of context precision is shown in Equation~\ref{eq:context-precision-score}, which captures the general idea that relevant chunks should appear early in the retrieved list.
+
+\begin{equation}
+\text{Context Precision@K} =
+\frac{\sum_{k=1}^{K} P@k \times I(k)}
+{\text{Total number of relevant chunks in top } K}
+\label{eq:context-precision-score}
+\end{equation}
+
+This distinction matters methodologically. In the current repository, RAGAS Context Precision should be interpreted as an indirect indicator of retrieval support quality, not as a formal retrieval-ranking result. Metrics such as nDCG, Precision@k, and Recall@k require two explicit inputs for each benchmark question: a ranked list of retrieved documents and relevance judgments, that is, a record of which documents should count as relevant to that specific query. The canonical thesis run stores generated answers, cited snippets, RAGAS scores, and extraction outputs, but it does not include a separate Phase 1 retrieval pool or Phase 2 retrieval evaluation for that run. The repository also contains document-level annotation labels and partial retrieval-evaluation code, but these are not yet a complete query-specific gold standard for the reported benchmark. For this reason, Context Precision is useful for showing whether the context supporting an answer appears focused and helpful, but it should not be interpreted on its own as definitive evidence that retrieval ranking quality has been measured directly.
 
 \begin{table}[h]
 \centering
@@ -102,7 +138,23 @@ Risk factor extraction is evaluated separately from general answer quality. The 
 Table~\ref{tab:extraction-metrics-summary} reports macro-level extraction behavior across the five evaluated queries. RAG without HyDE has higher recall and F1, while RAG with HyDE has slightly higher precision. This indicates a precision-recall tradeoff. HyDE produced fewer false positives on average, but it also missed more gold factors. RAG without HyDE recovered all gold factors in the evaluated set, but with a modest increase in false positives.
 % evidence: docs/thesis/latex/src/resources/tables/extraction_metrics_summary.tex
 
-The run-level extraction summaries provide the corresponding micro counts. RAG without HyDE produced 30 true positives, 6 false positives, and 0 false negatives, yielding micro precision 0.8333, micro recall 1.0000, and micro F1 0.9091. RAG with HyDE produced 29 true positives, 5 false positives, and 2 false negatives, yielding micro precision 0.8529, micro recall 0.9355, and micro F1 0.8923. These values reinforce the same interpretation: HyDE is more conservative in this run, while no-HyDE is more complete.
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\caption{Micro level extraction error profile by RAG configuration.}
+\label{tab:extraction-error-profile}
+\begin{tabular}{lrrrrrrp{5.1cm}}
+\toprule
+Configuration & TP & FP & FN & Precision & Recall & F1 & Interpretation \\
+\midrule
+RAG without HyDE & 30 & 6 & 0 & 0.8333 & 1.0000 & 0.9091 & Higher recall, no missed gold factors, but more false positives. \\
+RAG with HyDE & 29 & 5 & 2 & 0.8529 & 0.9355 & 0.8923 & Slightly cleaner predictions, but missed two gold factors. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:extraction-error-profile} summarizes the run-level micro counts and confirms the main practical tradeoff. RAG without HyDE is preferable when sensitivity and complete factor recovery are prioritized, whereas HyDE is slightly more conservative. In biomedical risk factor extraction, false negatives may be more problematic when the system is used for evidence screening, while false positives primarily increase human review burden.
 % evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_no_hyde_summary.csv
 % evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_hyde_summary.csv
 
@@ -164,13 +216,14 @@ The second threat is reference construction. The extraction gold set is derived 
 % evidence: evaluation_metrics/src/phases/phase6_extraction.py
 
 The third threat is incomplete retrieval evaluation. Although retrieval metric code exists, the canonical run does not include the phase outputs required to report nDCG at k, retrieval precision at k, or retrieval recall at k. This limits the ability to isolate ranking quality from synthesis and extraction behavior. The present chapter therefore reports retrieval evidence conservatively and identifies the missing ranking artifacts as an unresolved evidence gap.
-% TODO: Register canonical retrieval metric artifacts before using this chapter for final quantitative claims about retrieval ranking quality.
 % evidence: evaluation_metrics/src/phases/phase2_beir.py
 % evidence: evaluation_metrics/src/phases/phase2_retrieval_weaklabels.py
 
 The fourth threat is evaluator dependence. RAGAS scoring relies on an evaluator model and embedding model configured for the run. The configuration snapshot records these choices, which improves traceability, but evaluator judgments may vary across model versions or runtime environments. This is particularly relevant for faithfulness and answer relevancy, where evaluator behavior can influence numeric scores.
 % evidence: evaluation_metrics/config/eval.yaml
 % evidence: evaluation_metrics/src/phases/phase4_ragas.py
+
+A practical mitigation for this threat is evaluator calibration against human judgment. A stronger future protocol should expand the query set substantially and then manually review a representative sample of generated answers and retrieved contexts, comparing expert scores with the automated RAGAS outputs for answer relevancy, faithfulness, and context precision. Correlation or agreement analysis would make it possible to estimate how well the automated evaluator matches domain judgment in this biomedical setting and whether metric thresholds need adjustment before stronger claims are made.
 
 \section{Summary}
 
