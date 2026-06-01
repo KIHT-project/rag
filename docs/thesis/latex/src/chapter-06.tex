@@ -70,9 +70,65 @@ Error handling in the curation pipeline is structured around fail-fast validatio
 
 \section{Testing Strategy}
 
-The repository includes targeted unit tests for configuration parsing, dataframe loading, filtering semantics, task transformation, and uploader retry behavior. These tests do not validate the full live Label Studio or RAG integration path, but they do cover the key deterministic transformations that control which abstracts become review tasks and how failures are surfaced. The testing scope is therefore strongest at the local data-processing level and weaker at end-to-end integration boundaries.
+The repository uses a layered test layout rather than a single unit-test suite. The biomedical platform and scheduler keep package-local tests in their own \texttt{tests} directories and execute them through package-specific \texttt{make test} targets with coverage reporting and an 80\% threshold in the current continuous-integration workflow. The curation-side \texttt{labelstudio-tools} package keeps a separate \texttt{src/test/python} suite for deterministic data-processing behavior, while cross-component and workflow-level validation is concentrated in the top-level \texttt{tests/bdd} tree, which includes feature files, step definitions, helper clients, and a dedicated Docker Compose environment.
+% evidence: biomed_knowledge_platform/Makefile
+% evidence: scheduler_pubmed/Makefile
+% evidence: .github/workflows/ci.yaml
+% evidence: labelstudio-tools/pyproject.toml
+% evidence: tests/Makefile
+% evidence: tests/README.md
+% evidence: tests/bdd/docker-compose.yaml
+
+\subsection{Unit Testing}
+
+Unit tests are the dominant layer in the repository. In the biomedical platform they target API error handling, configuration loading, retrieval and ingestion use cases, chunking, hybrid ranking, synthesis, readiness checks, and adapter behavior. These tests isolate collaborators with \texttt{AsyncMock}, \texttt{MagicMock}, \texttt{monkeypatch}, and lightweight stubs so that ranking, chunk construction, idempotency handling, and error normalization can be verified without live infrastructure. The scheduler follows the same pattern for endpoint mapping, runtime orchestration, repository mapping, database utility logic, and external PubMed or RAG client adapters. The \texttt{labelstudio-tools} package uses \texttt{unittest} and \texttt{unittest.mock} to cover environment parsing, Excel loading, filtering rules, task transformation, and uploader retry behavior.
+% evidence: biomed_knowledge_platform/tests/api/test_endpoints_unit.py
+% evidence: biomed_knowledge_platform/tests/core/use_cases/test_ask_use_case.py
+% evidence: biomed_knowledge_platform/tests/core/use_cases/test_ingestion_use_case.py
+% evidence: biomed_knowledge_platform/tests/core/services/ingestion/test_pipeline.py
+% evidence: biomed_knowledge_platform/tests/core/services/retrieval/test_hybrid_ranker.py
+% evidence: biomed_knowledge_platform/tests/core/services/test_readiness.py
+% evidence: scheduler_pubmed/tests/test_api_endpoints_scheduler.py
+% evidence: scheduler_pubmed/tests/test_adapters_pubmed_query_client.py
+% evidence: scheduler_pubmed/tests/test_db_repositories_scheduler_repository.py
 % evidence: labelstudio-tools/src/test/python/test_config.py
 % evidence: labelstudio-tools/src/test/python/test_data_loader.py
 % evidence: labelstudio-tools/src/test/python/test_filters.py
 % evidence: labelstudio-tools/src/test/python/test_tasks.py
 % evidence: labelstudio-tools/src/test/python/test_uploader.py
+
+\subsection{Integration Testing}
+
+Integration validation is narrower but still present. At the service boundary, FastAPI endpoint tests instantiate application factories or route sets and verify request handling, dependency wiring, request identifiers, and normalized error envelopes. At the workflow boundary, ingestion and document-fetch tests validate how multiple components collaborate, including queueing, payload persistence, document reservation, chunking, embedding, vector upsert preparation, PubMed fetch resolution, and optional ingestion handoff. Database-oriented integration is split: scheduler repository tests exercise SQLAlchemy repository behavior through fake asynchronous sessions, while live PostgreSQL verification is deferred to the higher-level BDD suite. The same pattern applies to retrieval: lower-level tests validate how embedders, vector indexes, HyDE generation, and synthesis are composed, while full retrieval execution against running infrastructure is covered elsewhere.
+% evidence: biomed_knowledge_platform/tests/api/test_app.py
+% evidence: biomed_knowledge_platform/tests/api/test_error_handlers.py
+% evidence: biomed_knowledge_platform/tests/core/use_cases/test_document_fetch_use_case.py
+% evidence: biomed_knowledge_platform/tests/core/use_cases/test_ingestion_use_case.py
+% evidence: biomed_knowledge_platform/tests/core/services/hyde/test_hybrid_retrieval.py
+% evidence: biomed_knowledge_platform/tests/adapters/qdrant/test_vector_index.py
+% evidence: scheduler_pubmed/tests/test_db_repositories_scheduler_repository.py
+% evidence: scheduler_pubmed/tests/test_db_repositories_pubmed_query_repository.py
+
+\subsection{Behavior Driven Development (BDD)}
+
+Behavior-driven tests are implemented explicitly in \texttt{tests/bdd} with \texttt{pytest-bdd}. This suite does not provide generic examples; it codifies repository workflows as feature files for ingestion, search, ask, readiness, audit persistence, document deletion and fetch, scheduler control, scheduler runs, and PubMed query management. The step definitions follow a concrete Given/When/Then structure that prepares documents, triggers HTTP requests or in-process clients, polls asynchronous ingestion jobs, and asserts observable business outcomes such as citation inclusion, filter exclusion, request auditing, section-aware reference removal, and scheduler status transitions. The suite can run against in-process FastAPI applications or against dockerized HTTP services, and its fixtures provision dedicated configuration, cleanup scripts, and isolated Postgres and Qdrant instances. In practice, this is the repository's main end-to-end validation layer.
+% evidence: tests/requirements.txt
+% evidence: tests/bdd/features/ingestion.feature
+% evidence: tests/bdd/features/search.feature
+% evidence: tests/bdd/features/ask.feature
+% evidence: tests/bdd/features/audit.feature
+% evidence: tests/bdd/features/documents.feature
+% evidence: tests/bdd/features/documents_fetch.feature
+% evidence: tests/bdd/features/pubmed_queries.feature
+% evidence: tests/bdd/features/scheduler_control.feature
+% evidence: tests/bdd/features/scheduler_runs.feature
+% evidence: tests/bdd/conftest.py
+% evidence: tests/bdd/docker-compose.yaml
+
+\subsection{Test Strategy Discussion}
+
+The overall structure follows a pragmatic test-pyramid logic. Most checks are isolated unit tests because the repository contains substantial deterministic logic in parsing, ranking, orchestration, mapping, and error handling. A smaller integration layer validates how those units are assembled at API, use-case, adapter, and repository boundaries. The smallest and most expensive layer is the BDD suite, which exercises complete workflows over realistic infrastructure and therefore provides the strongest confidence in operational behavior. This balance supports reproducibility because deterministic logic is checked cheaply and frequently, while critical cross-component paths such as ingestion, retrieval, auditing, and scheduler execution are still validated through scenario-based tests. A current limitation is that continuous integration executes the package-level \texttt{make test} suites for the biomedical platform and scheduler, but the present workflow file does not show automated execution of the top-level BDD suite or the \texttt{labelstudio-tools} tests.
+% evidence: biomed_knowledge_platform/Makefile
+% evidence: scheduler_pubmed/Makefile
+% evidence: .github/workflows/ci.yaml
+% evidence: tests/Makefile
