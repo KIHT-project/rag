@@ -25,6 +25,7 @@
 \setbeamerfont{frametitle}{series=\bfseries,size=\large}
 \setbeamerfont{itemize/enumerate body}{size=\small}
 \setbeamerfont{itemize/enumerate subbody}{size=\footnotesize}
+\newcommand{\nr}{n/r}
 
 \title[Biomedical RAG Thesis]{Design and Evaluation of a Retrieval Augmented Biomedical Platform for Thrombosis Risk Factor Extraction}
 \subtitle{Continuous PubMed Scheduling and Human-in-the-Loop Curation}
@@ -126,81 +127,111 @@ for Thrombosis Risk Factor Extraction\par}
 \end{itemize}
 \end{frame}
 
-\begin{frame}{Evaluation Setup}
-\begin{itemize}
-  \item Five thrombosis-oriented diagnostic questions are evaluated across three configurations.
-  \item Configurations: LLM-only baseline, RAG without HyDE, and RAG with HyDE.
-  \item Primary deterministic run: seed 42 and temperature 0.0; robustness group: five seeds at temperature 0.2.
-  \item Metrics: RAGAS answer relevancy, faithfulness, context precision; extraction precision, recall, and F1.
-  \item Outputs include generated answers, metric tables, extraction summaries, diagnostics, and configuration snapshots.
-\end{itemize}
-\end{frame}
-
-\begin{frame}{Key Results: Grounding}
+\begin{frame}{Evaluation Overview}
 \centering
-\small
+\normalsize
 \begin{tabular}{lccc}
 \toprule
-Configuration & Relevancy & Faithfulness & Context precision \\
+Configuration & Retrieval & Generation & Extraction \\
 \midrule
-LLM only & 0.610 & n/a & n/a \\
-RAG HyDE & 0.820 & 0.646 & 0.900 \\
-RAG no HyDE & \textbf{0.867} & \textbf{0.817} & \textbf{1.000} \\
+LLM only & No & Yes & No \\
+RAG & Yes & Yes & Yes \\
+RAG + HyDE & Yes & Yes & Yes \\
 \bottomrule
 \end{tabular}
 
-\vspace{0.5cm}
-\begin{itemize}
-  \item Direct RAG produced the strongest grounding metrics in the canonical deterministic run.
-  \item LLM-only answers can be relevant, but they cannot be evaluated for source grounding without retrieved context.
-\end{itemize}
+\vspace{0.45cm}
+{\small Retrieval-dependent metrics apply only to the two RAG configurations. Numeric retrieval ranking metrics were not reported for the canonical run.}
 \end{frame}
 
-\begin{frame}{Key Results: Extraction}
+\begin{frame}{RAGAS Results Summary}
 \centering
 \small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lcccc}
+\toprule
+Configuration & Faithfulness & Answer Relevancy & Context Precision & Context Recall \\
+\midrule
+LLM only & \nr & 0.6104 & \nr & \nr \\
+RAG + HyDE & 0.6458 & 0.8202 & 0.9000 & \nr \\
+RAG & \textbf{0.8167} & \textbf{0.8672} & \textbf{1.0000} & \nr \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3cm}
+{\scriptsize Context recall was not reported in the canonical Chapter 7 run.}
+
+\vspace{0.25cm}
+\begin{block}{Takeaway}
+RAG improved grounding relative to standalone generation. In this benchmark, RAG without HyDE delivered the strongest reported grounding scores.
+\end{block}
+\end{frame}
+
+\begin{frame}{Extraction Results Summary}
+\centering
+\normalsize
 \begin{tabular}{lccc}
 \toprule
 Configuration & Precision & Recall & F1 \\
 \midrule
-RAG HyDE & \textbf{0.835} & 0.920 & 0.874 \\
-RAG no HyDE & 0.828 & \textbf{1.000} & \textbf{0.901} \\
+RAG + HyDE & \textbf{0.8350} & 0.9200 & 0.8735 \\
+RAG & 0.8279 & \textbf{1.0000} & \textbf{0.9009} \\
 \bottomrule
 \end{tabular}
 
-\vspace{0.5cm}
-\begin{itemize}
-  \item HyDE was slightly more precise, but missed more reference factors.
-  \item RAG without HyDE recovered all gold factors in the evaluated set, with more false positives.
-\end{itemize}
+\vspace{0.35cm}
+\begin{block}{Takeaway}
+Risk factor extraction achieved high recall and strong F1 across both evaluated RAG configurations.
+\end{block}
 \end{frame}
 
-\begin{frame}{Discussion}
+\begin{frame}{Error Profile}
+\centering
+\normalsize
+\begin{tabular}{lrrr}
+\toprule
+Configuration & TP & FP & FN \\
+\midrule
+RAG & 30 & 6 & 0 \\
+RAG + HyDE & 29 & 5 & 2 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.35cm}
+\begin{block}{Takeaway}
 \begin{itemize}
-  \item The no-HyDE configuration was better aligned with the five specific thrombosis questions.
-  \item HyDE appears to broaden the semantic neighborhood, which can dilute a small final context window.
-  \item The preferred operating point depends on whether the workflow values sensitivity for human review or stricter precision.
-  \item Artifact-level reproducibility supports audit, but not byte-identical reruns across changing model and vector states.
+  \item RAG without HyDE produced zero false negatives.
+  \item HyDE reduced false positives, but missed some reference factors.
+  \item The preferred mode depends on whether sensitivity or specificity matters more.
 \end{itemize}
+\end{block}
 \end{frame}
 
-\begin{frame}{Limitations}
-\begin{itemize}
-  \item The benchmark contains five questions, so results are diagnostic rather than statistically general.
-  \item Canonical phase 1 and phase 2 retrieval artifacts are missing, limiting direct nDCG and recall reporting.
-  \item Curated task annotations are not an adjudicated clinical gold standard.
-  \item Ingestion jobs, idempotency state, payload state, and queues are in memory in the current runtime.
-  \item Full vector-store snapshots and model runtime digests are not archived with the canonical run.
-\end{itemize}
+\begin{frame}{Operational Results}
+\centering
+\small
+\begin{tabular}{lp{0.46\textwidth}}
+\toprule
+Metric & Value \\
+\midrule
+Questions & 5 thrombosis-oriented benchmark questions \\
+Configurations & 3 answer-generation modes \\
+Primary deterministic run & Seed 42, temperature 0.0 \\
+Robustness condition & 5 stochastic seeds at temperature 0.2 \\
+Extraction query coverage & 5/5 evaluated queries in both RAG modes \\
+Recorded artifacts & Answers, RAGAS outputs, extraction summaries, diagnostics, configuration snapshots \\
+\bottomrule
+\end{tabular}
 \end{frame}
 
-\begin{frame}{Future Work}
+\begin{frame}{Key Findings}
 \begin{itemize}
-  \item Generate larger retrieval-aware benchmarks with canonical retrieval ranking artifacts.
-  \item Compare biomedical embedding models, normalization policies, and model-specific Qdrant collections.
-  \item Make HyDE conditional on direct-retrieval confidence and context diversity.
-  \item Add annotation completeness checks, agreement reporting, and adjudication status.
-  \item Improve durability through corpus versions, vector snapshots, and persistent ingestion state.
+  \item Retrieval was used in both RAG modes, but canonical ranking metrics such as nDCG, precision@k, and recall@k were not available for the reported run.
+  \item RAG without HyDE achieved the strongest reported answer relevancy, faithfulness, and context precision.
+  \item For extraction, RAG without HyDE achieved the best recall and F1, while HyDE achieved slightly higher precision.
+  \item The evaluation pipeline was operationally auditable because it preserved configuration snapshots and phase-level outputs for deterministic and robustness runs.
+  \item The main limitation is scope: only five benchmark questions and no canonical query-specific retrieval judgments.
+  \item The clearest next step is a larger benchmark with explicit retrieval artifacts and judged relevance labels.
 \end{itemize}
 \end{frame}
 
