@@ -199,7 +199,7 @@ The canonical benchmark uses a deterministic primary run and a stochastic robust
 % evidence: evaluation_metrics/config/eval.yaml
 % evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
 
-\section{Engineering Wiki Integration}
+\section{Engineering Wiki}
 
 The Engineering Wiki exists to keep repository work grounded in verified knowledge rather than agent memory or generic assumptions. It provides the canonical orchestration rules, repository profile, architecture guidance, configuration guidance, platform guidance, and academic writing guidance used during thesis development.
 % evidence: ../engineering-wiki/agents/main-agents.md
@@ -209,7 +209,7 @@ The Engineering Wiki exists to keep repository work grounded in verified knowled
 The repository profile acts as the current-state contract for the project. It records the monorepo layout, verified technology stack, configuration files, Docker Compose stacks, testing setup, database migration setup, and applicable agents. This prevents the thesis from describing target architecture as if it already existed. For example, the wiki explicitly records Docker Compose as verified and states that there are no Helm values files or Kubernetes ConfigMaps for this repository.
 % evidence: ../engineering-wiki/wiki/repo-profiles/rag.md
 
-The architecture pages define the documentation philosophy: decisions must be described as current verified state, tradeoffs must remain visible, and repo-local deviations must be explicit. In the thesis, this philosophy is reflected through evidence comments, conservative limitations, and explicit TODOs where artifacts are missing.
+The architecture pages define the documentation philosophy: decisions must be described as current verified state, tradeoffs must remain visible, and repo-local deviations must be explicit.
 % evidence: ../engineering-wiki/wiki/architecture/decisions.md
 % evidence: ../engineering-wiki/wiki/architecture/hexagonal-architecture.md
 % evidence: docs/thesis/evidence/CLAIMS.md
@@ -286,11 +286,6 @@ Hardware and runtime dependencies also affect repeatability. Embeddings are conf
 % evidence: biomed_knowledge_platform/configs/rag.yaml
 % evidence: biomed_knowledge_platform/docker-compose.yaml
 % evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
-
-The high-level and low-level design material requested for inspection is present as PDF files at repository level, not as the requested directories. The appendix therefore does not infer internal text from missing directories. Future thesis revisions should either register these PDFs in the evidence index or restore directory-based design documentation if more granular source material is required.
-% evidence: docs/high-level-design.pdf
-% evidence: docs/low-level-design.pdf
-% TODO: Register high-level and low-level design PDFs in docs/thesis/evidence/ARTIFACTS.md if they become thesis evidence sources.
 
 \section{Additional Technical Notes}
 

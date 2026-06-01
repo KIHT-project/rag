@@ -153,7 +153,7 @@ At larger scale, the main architectural pressure points are durable ingestion st
 % evidence: evaluation_metrics/src/eval_cli.py
 % TODO: Add corpus version identifiers to evaluation run metadata before comparing runs across changing ingestion states.
 
-\section{Limitations Discovered from the Repository}
+\section{Limitations Discovered}
 
 Several limitations arise directly from the inspected repository rather than from general RAG concerns. First, the canonical run does not contain the phase 1 and phase 2 retrieval artifacts needed to report nDCG at k, retrieval precision at k, or retrieval recall at k. This prevents a clean separation between ranking quality and downstream generation quality for the selected run. The discussion of retrieval must therefore remain partly inferential, based on context precision, faithfulness, extracted factors, and recorded generated contexts.
 % evidence: docs/thesis/latex/src/chapter-07.tex
@@ -164,13 +164,9 @@ Several limitations arise directly from the inspected repository rather than fro
 Second, the benchmark is intentionally small. Five queries are useful for diagnostic analysis because each query can be inspected manually, but they do not support statistically robust claims. This limitation is amplified by the specificity of the questions. A different benchmark with broader or shorter queries could change the relative usefulness of HyDE.
 % evidence: evaluation_metrics/queries/queries.jsonl
 
-Third, the repository evidence supports operational traceability but not full clinical validation. Label Studio tasks provide manual annotations, and extraction evaluation uses those annotations as a reference substrate. However, there is no repository evidence of adjudicated gold labels, reviewer agreement, prospective validation, or clinical outcome testing. Claims must therefore remain limited to system evaluation and curated evidence processing.
+Third, the thesis evidence supports operational traceability but not full clinical validation. Label Studio tasks provide manual annotations, and extraction evaluation uses those annotations as a reference substrate. However, there is no repository evidence of adjudicated gold labels, reviewer agreement, prospective validation, or clinical outcome testing. Claims must therefore remain limited to system evaluation and curated evidence processing.
 % evidence: labelstudio-tools/ls_data/tasks_raw.json
 % evidence: evaluation_metrics/src/phases/phase6_extraction.py
-
-Fourth, while the high-level and low-level design documents are present as PDF files in the repository (\texttt{docs/high-level-design.pdf} and \texttt{docs/low-level-design.pdf}), they lack the fine-grained traceability that directory-based markdown design documents would provide. The thesis therefore relies heavily on the Engineering Wiki, source architecture, and generated artifacts for rigorous architectural grounding.
-% evidence: docs/high-level-design.pdf
-% evidence: docs/low-level-design.pdf
 
 \section{Discussion Summary}
 
