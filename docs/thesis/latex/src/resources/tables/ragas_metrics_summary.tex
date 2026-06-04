@@ -3,10 +3,13 @@
 % label: tab:ragas-metrics-summary
 \begin{tabular}{lrrr}
 \toprule
-Configuration & answer\_relevancy & faithfulness & llm\_context\_precision\_without\_reference \\
+Configuration & Answer relevancy & Faithfulness & Context precision \\
 \midrule
-LLM only & 0.610415 & NaN & NaN \\
-RAG HyDE & 0.820208 & 0.645833 & 0.900000 \\
+LLM only & 0.610415 & N/A & N/A \\
 RAG no HyDE & 0.867172 & 0.816667 & 1.000000 \\
+RAG HyDE & 0.820208 & 0.645833 & 0.900000 \\
 \bottomrule
 \end{tabular}
+
+\vspace{2pt}
+\parbox{0.95\linewidth}{\footnotesize Note: Retrieval-dependent metrics are not applicable to the LLM-only baseline because no contexts are retrieved.}

@@ -43,6 +43,18 @@ CONFIG_LABELS = {
 
 CONFIG_ORDER = ["llm_only", "rag_no_hyde", "rag_hyde"]
 
+METRIC_LABELS = {
+    "answer_relevancy": "Answer relevancy",
+    "faithfulness": "Faithfulness",
+    "llm_context_precision_without_reference": "Context precision",
+    "llm_context_precision_wo_ref": "Context precision",
+}
+
+RAGAS_TABLE_NOTE = (
+    "Note: Retrieval-dependent metrics are not applicable to the LLM-only baseline "
+    "because no contexts are retrieved."
+)
+
 
 def _ensure_dirs(out: OutputPaths) -> None:
     out.images_dir.mkdir(parents=True, exist_ok=True)
@@ -57,6 +69,13 @@ def _find_run_csvs(run_dir: Path) -> list[Path]:
     for p in run_dir.rglob("*.csv"):
         csvs.append(p)
 
+    return sorted(csvs)
+
+
+def _select_primary_deterministic_csvs(csvs: Iterable[Path]) -> list[Path]:
+    primary = [path for path in csvs if "primary_deterministic" in path.parts]
+    if primary:
+        return sorted(primary)
     return sorted(csvs)
 
 
@@ -85,11 +104,17 @@ def _numeric_mean_row(df: pd.DataFrame) -> pd.Series:
     return numeric.mean(numeric_only=True)
 
 
-def _write_latex_table(df: pd.DataFrame, out_path: Path, caption: str | None = None, label: str | None = None) -> None:
+def _write_latex_table(
+    df: pd.DataFrame,
+    out_path: Path,
+    caption: str | None = None,
+    label: str | None = None,
+    note: str | None = None,
+) -> None:
     """
     Writes a plain tabular snippet (not a full table float) so chapters can \\input{} it.
     """
-    tex = df.to_latex(index=False, escape=True)
+    tex = df.to_latex(index=False, escape=True, na_rep="N/A")
 
     lines: list[str] = []
     if caption or label:
@@ -99,8 +124,25 @@ def _write_latex_table(df: pd.DataFrame, out_path: Path, caption: str | None = N
         if label:
             lines.append(f"% label: {label}")
     lines.append(tex)
+    if note:
+        lines.append(r"\vspace{2pt}")
+        lines.append(rf"\parbox{{0.95\linewidth}}{{\footnotesize {note}}}")
 
     out_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _order_configs(summary: pd.DataFrame) -> pd.DataFrame:
+    if "config" not in summary.columns:
+        return summary
+
+    ordered = summary.set_index("config").reindex(CONFIG_ORDER)
+    ordered = ordered.dropna(how="all").reset_index()
+    return ordered
+
+
+def _format_metric_columns(df: pd.DataFrame) -> pd.DataFrame:
+    formatted = df.rename(columns=METRIC_LABELS).copy()
+    return formatted
 
 
 def _save_bar_plot(df: pd.DataFrame, metric_columns: list[str], title: str, out_pdf: Path) -> None:
@@ -209,6 +251,7 @@ def generate_ragas_tables_and_plots(run_dir: Path, out: OutputPaths) -> None:
     csvs = _find_run_csvs(run_dir)
 
     ragas_csvs = [p for p in csvs if "phase4_ragas" in p.name.lower()]
+    ragas_csvs = _select_primary_deterministic_csvs(ragas_csvs)
     if not ragas_csvs:
         return
 
@@ -234,6 +277,7 @@ def generate_ragas_tables_and_plots(run_dir: Path, out: OutputPaths) -> None:
     numeric_cols = [c for c in raw.columns if c != "config"]
     summary = raw.groupby("config", as_index=False, sort=False)[numeric_cols].mean(numeric_only=True)
 
+    summary = _order_configs(summary)
     summary["config_label"] = summary["config"].map(CONFIG_LABELS).fillna(summary["config"])
 
     table_cols = ["config_label"] + [c for c in summary.columns if c not in {"config", "config_label"}]
@@ -241,12 +285,14 @@ def generate_ragas_tables_and_plots(run_dir: Path, out: OutputPaths) -> None:
 
     numeric_cols_view = [c for c in summary_view.columns if c != "config_label"]
     summary_view[numeric_cols_view] = summary_view[numeric_cols_view].round(6)
+    summary_view = _format_metric_columns(summary_view)
 
     _write_latex_table(
         summary_view.rename(columns={"config_label": "Configuration"}),
         out.tables_dir / "ragas_metrics_summary.tex",
         caption="Mean RAGAS metrics by configuration for the selected run.",
         label="tab:ragas-metrics-summary",
+        note=RAGAS_TABLE_NOTE,
     )
 
     plot_df = summary[["config"] + [c for c in summary.columns if c not in {"config", "config_label"}]].copy()
