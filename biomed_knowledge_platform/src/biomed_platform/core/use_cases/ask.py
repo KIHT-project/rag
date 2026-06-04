@@ -164,6 +164,29 @@ def _to_chunk_candidate(h: HybridChunkCandidate) -> ChunkCandidate:
     )
 
 
+def _serialize_retrieval_candidate(
+    *,
+    candidate: ChunkCandidate | HybridChunkCandidate,
+    selected_chunk_ids: set[str],
+) -> dict[str, Any]:
+    origin = getattr(candidate, "origin", None)
+    origin_value = str(origin.value) if origin is not None and hasattr(origin, "value") else None
+    chunk_id = str(getattr(candidate, "chunk_id", "") or "")
+    return {
+        "chunk_id": chunk_id,
+        "doc_id": str(getattr(candidate, "doc_id", "") or ""),
+        "doi": str(getattr(candidate, "doi", "") or ""),
+        "pmid": str(getattr(candidate, "pmid", "") or ""),
+        "title": getattr(candidate, "title", None),
+        "year": getattr(candidate, "year", None),
+        "section": getattr(candidate, "section", None),
+        "source_type": getattr(candidate, "source_type", None),
+        "score": float(getattr(candidate, "score", 0.0) or 0.0),
+        "origin": origin_value,
+        "selected_for_context": chunk_id in selected_chunk_ids,
+    }
+
+
 def _is_usable_for_context(c: HybridChunkCandidate) -> bool:
     return bool((c.chunk_text or "").strip())
 
@@ -331,24 +354,47 @@ class AskUseCase:
 
         debug: dict[str, Any] | None = None
         if debug_enabled:
+            selected_chunk_ids = {c.chunk_id for c in selected_hybrid_chunks if c.chunk_id}
             debug = {
                 "duration_ms": round(duration_ms, 2),
                 "question_candidates": [
-                    {"chunk_id": c.chunk_id, "score": float(c.score)} for c in question_candidates
+                    _serialize_retrieval_candidate(
+                        candidate=c,
+                        selected_chunk_ids=selected_chunk_ids,
+                    )
+                    for c in question_candidates
                 ],
                 "hyde_candidates": [
-                    {"chunk_id": c.chunk_id, "score": float(c.score)} for c in hyde_candidates
+                    _serialize_retrieval_candidate(
+                        candidate=c,
+                        selected_chunk_ids=selected_chunk_ids,
+                    )
+                    for c in hyde_candidates
                 ],
                 "merged_candidates_all": [
-                    {"chunk_id": c.chunk_id, "score": float(c.score), "origin": c.origin.value}
+                    _serialize_retrieval_candidate(
+                        candidate=c,
+                        selected_chunk_ids=selected_chunk_ids,
+                    )
                     for c in merged_all
                 ],
                 "merged_candidates_usable": [
-                    {"chunk_id": c.chunk_id, "score": float(c.score), "origin": c.origin.value}
+                    _serialize_retrieval_candidate(
+                        candidate=c,
+                        selected_chunk_ids=selected_chunk_ids,
+                    )
                     for c in ranked_candidates
+                ],
+                "selected_candidates": [
+                    _serialize_retrieval_candidate(
+                        candidate=c,
+                        selected_chunk_ids=selected_chunk_ids,
+                    )
+                    for c in selected_hybrid_chunks
                 ],
                 "selected_chunk_ids": [c.chunk_id for c in selected_hybrid_chunks],
                 "included_chunk_ids": sorted(included_chunk_ids),
+                "hyde_text": hyde_text,
             }
 
         return AskResponseEnvelope(

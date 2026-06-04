@@ -31,6 +31,8 @@ class RagApiClient:
         question: str,
         filters: Optional[dict[str, Any]] = None,
         hyde_enabled: bool = False,
+        debug_enabled: bool = False,
+        debug_ask_max_chunks_candidate: int | None = None,
         hyde_header_name: str = "X-HyDE-Enabled",
         hyde_header_value: str = "true",
     ) -> AskResponse:
@@ -38,6 +40,12 @@ class RagApiClient:
         headers: dict[str, str] = {}
         if hyde_enabled:
             headers[hyde_header_name] = hyde_header_value
+        if debug_enabled:
+            headers["X-Debug-Enabled"] = "true"
+        if debug_ask_max_chunks_candidate is not None:
+            headers["X-Debug-Ask-Max-Chunks-Candidate"] = str(
+                int(debug_ask_max_chunks_candidate)
+            )
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             r = await client.post(f"{self._base_url}/v1/ask", json=payload, headers=headers)
             r.raise_for_status()
