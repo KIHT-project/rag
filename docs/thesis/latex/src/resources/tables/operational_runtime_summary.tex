@@ -1,0 +1,17 @@
+% This is a snippet intended to be included inside a table environment if needed.
+% caption: Operational runtime summary for the complete chained June 2026 execution.
+% label: tab:operational-runtime-summary
+\begin{tabular}{p{0.48\linewidth}p{0.32\linewidth}}
+\toprule
+Measurement & Observed value \\
+\midrule
+Complete chained execution & 34 h 32 min 35 s \\
+Paper benchmark phase & 32 h 47 min 46 s \\
+Retrieval preparation after paper benchmark & 1 h 44 min 42 s \\
+Phase 3 generation, all runs & 12 h 19 min 10 s \\
+Phase 4 RAGAS evaluation, all runs & 20 h 26 min 56 s \\
+Mean generation latency, LLM only & 30.15 s/request \\
+Mean generation latency, RAG without HyDE & 126.74 s/request \\
+Mean generation latency, RAG with HyDE & 138.77 s/request \\
+\bottomrule
+\end{tabular}

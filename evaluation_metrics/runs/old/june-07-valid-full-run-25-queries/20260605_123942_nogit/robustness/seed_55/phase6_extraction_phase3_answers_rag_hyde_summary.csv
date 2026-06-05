@@ -1,0 +1,2 @@
+mode,total_queries,evaluated_queries,skipped_no_gold,query_coverage_rate,skipped_no_gold_rate,micro_precision,micro_recall,micro_f1,macro_precision,macro_recall,macro_f1,tp_total,fp_total,fn_total,label_positive_docs,label_kept_docs,label_docs_with_factor_hits,label_unique_kept_dois,pred_closed_set_only,pred_include_aliases,pred_include_summary_factors,pred_include_citation_snippets
+rag_hyde,25,13,12,0.52,0.48,0.5964912280701754,0.918918918918919,0.7234042553191489,0.6012820512820513,0.9230769230769231,0.7008214008214009,34,23,3,597,572,551,572,True,False,True,True

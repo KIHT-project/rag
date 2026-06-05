@@ -99,10 +99,11 @@ llm_max_concurrency: 2
 
 \subsection{Evaluation Configuration}
 
-The evaluation configuration defines the RAG API endpoint, HyDE header, model settings, deterministic and robustness seeds, query file, RAGAS embedding model, extraction policy, and k values. This file is also copied into run artifacts as a configuration snapshot, which links benchmark outputs to the configuration that produced them.
+The evaluation configuration defines the RAG API endpoint, HyDE header, model settings, deterministic and robustness seeds, query file, RAGAS embedding model, extraction policy, and k values. This file is also copied into run artifacts as a configuration snapshot, which links benchmark outputs to the configuration that produced them. The latest answer-generation benchmark uses 25 questions, primary seed 42, primary temperature 0.0, and robustness seeds 11, 22, 33, 44, and 55 at configured temperature 0.2. The finalized retrieval benchmark uses the same thesis query set but evaluates ranked evidence with completed qrels-based metrics.
 % evidence: evaluation_metrics/config/eval.yaml
 % evidence: evaluation_metrics/src/eval_cli.py
-% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/config_snapshot.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/config_snapshot.json
 
 \begin{lstlisting}[language={},caption={Representative evaluation settings.}]
 paper:
@@ -158,66 +159,80 @@ services:
 \end{lstlisting}
 
 \section{Evaluation Pipeline Details}
+\label{sec:appendix-eval-pipeline}
 
-The evaluation subsystem is implemented as a command-line pipeline with explicit phases. Its purpose is to make evaluation outputs inspectable rather than transient. The same run directory stores configuration snapshots, generated answer records, RAGAS outputs, extraction summaries, and aggregate benchmark summaries.
+The evaluation subsystem is implemented as a command-line pipeline with explicit phases. Its purpose is to make evaluation outputs inspectable rather than transient. The current appendix separates two artifact groups because they represent different phases of the evidence: the finalized generation and extraction benchmark, and the finalized independent retrieval benchmark.
 % evidence: evaluation_metrics/src/eval_cli.py
 % evidence: evaluation_metrics/src/utils/output_writer.py
 
-\subsection{Retrieval Evaluation Workflow}
+\subsection{Evaluation Pipeline Implementation}
 
-The retrieval evaluation code supports pool generation, BEIR-style metric computation, overlap auditing, and weak-label retrieval evaluation. In the canonical thesis run, however, phase 1 and phase 2 retrieval artifacts are not present. This is why Chapters 7 through 9 treat numeric retrieval ranking quality as an unresolved evidence gap rather than reporting invented nDCG or retrieval precision values.
-% evidence: evaluation_metrics/src/phases/phase1_pool.py
-% evidence: evaluation_metrics/src/phases/phase2_beir.py
-% evidence: evaluation_metrics/src/phases/phase2_overlap_audit.py
-% evidence: evaluation_metrics/src/phases/phase2_retrieval_weaklabels.py
-% evidence: docs/thesis/latex/src/chapter-07.tex
-% TODO: Register canonical retrieval phase outputs once regenerated.
+The evaluation subsystem follows the phase-separated architecture defined in Table~\ref{tab:evaluation-phases} (Chapter~\ref{chap:methodology}). Each phase performs a specific task and materializes its output before the next phase begins. This design supports reproducibility by allowing each stage of the benchmark to be inspected and audited independently.
 
-\subsection{Generation and RAGAS Workflow}
+Artifacts flow sequentially through the pipeline. The retrieval benchmark (Phases 1 and 2) establishes the evidence-ranking quality of the system, while the generation benchmark (Phases 3, 4, and 6) evaluates the quality and correctness of the final synthesized answers. This section documents the specific directory structure and artifact names resulting from these phases.
 
-Generation evaluation produces one answer file per mode: LLM-only, RAG without HyDE, and RAG with HyDE. For RAG modes, the evaluation records contexts extracted from the ask response rather than from a separate search call. This matters because faithfulness must be evaluated against the evidence actually supplied to the synthesis stage.
-% evidence: evaluation_metrics/src/phases/phase3_generate.py
-% evidence: evaluation_metrics/src/phases/phase4_ragas.py
+\subsection{Generation Benchmark Artifacts}
 
-\begin{lstlisting}[language={},caption={Canonical answer output pattern.}]
-primary_deterministic/
-  phase3_answers_llm_only.jsonl
-  phase3_answers_rag_no_hyde.jsonl
-  phase3_answers_rag_hyde.jsonl
-  phase4_ragas_phase3_answers_*.csv
+The authoritative generation, RAGAS, extraction, and robustness artifacts are stored in the archived June 7 evaluation bundle as run \texttt{20260605\_123942\_nogit}. The deterministic primary run stores one answer file per mode, RAGAS outputs for each answer file, extraction outputs for both RAG modes, and aggregate summary files. Robustness artifacts are stored under five seed-specific directories.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/paper_benchmark_summary.json
+
+\begin{lstlisting}[language={},caption={Latest generation benchmark artifacts.}]
+20260605_123942_nogit/
+  config_snapshot.json
+  paper_benchmark_summary.json
+  primary_deterministic/
+    phase3_answers_llm_only.jsonl
+    phase3_answers_rag_no_hyde.jsonl
+    phase3_answers_rag_hyde.jsonl
+    phase4_ragas_phase3_answers_*.jsonl
+    phase6_extraction_phase3_answers_rag_no_hyde_summary.csv
+    phase6_extraction_phase3_answers_rag_hyde_summary.csv
+  robustness/
+    seed_11/
+    seed_22/
+    seed_33/
+    seed_44/
+    seed_55/
 \end{lstlisting}
 
-\subsection{Extraction Evaluation Workflow}
-
-Extraction evaluation compares predicted risk factors with a reference substrate derived from curated tasks and canonical factor matching. The configured policy includes confidence filtering, closed-set prediction behavior, and inclusion of summary and citation snippet signals. The resulting metrics are separate from RAGAS because risk-factor recovery is a domain-specific outcome that answer relevancy alone cannot capture.
-% evidence: evaluation_metrics/config/eval.yaml
+Generation evaluation records contexts extracted from the ask response rather than from a separate search call. This matters because faithfulness must be evaluated against the evidence actually supplied to the synthesis stage. Extraction evaluation compares predicted factors with a derived reference substrate and skips queries that have no derived gold factors under the configured policy.
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+% evidence: evaluation_metrics/src/phases/phase4_ragas.py
 % evidence: evaluation_metrics/src/phases/phase6_extraction.py
 
-\subsection{Benchmark Execution Structure}
+\subsection{Finalized Retrieval Benchmark Artifacts}
 
-The canonical benchmark uses a deterministic primary run and a stochastic robustness group. The primary run fixes seed 42 and temperature 0.0. The robustness run uses five seeds at temperature 0.2. This structure supports artifact-level reproducibility and basic sensitivity analysis, while remaining limited by the small five-query benchmark.
-% evidence: evaluation_metrics/config/eval.yaml
-% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
+The finalized retrieval benchmark is stored in the archived June 7 evaluation bundle as run \texttt{20260606\_212735\_nogit}. It exports ranked direct retrieval records, ranked HyDE retrieval records, final context records, a pooled candidate set, a completed annotation file, \texttt{qrels.tsv}, per-query metrics, and aggregate retrieval summaries.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/retrieval_direct.jsonl
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/retrieval_hyde.jsonl
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/retrieval_final_context.jsonl
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/pooled_candidates.jsonl
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/qrels_annotation_completed.csv
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/qrels.tsv
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/retrieval_metrics_summary.json
 
-\section{Engineering Wiki}
+\begin{lstlisting}[language={},caption={Finalized retrieval benchmark artifacts.}]
+20260606_212735_nogit/
+  config_snapshot.json
+  retrieval_direct.jsonl
+  retrieval_hyde.jsonl
+  retrieval_final_context.jsonl
+  pooled_candidates.jsonl
+  qrels_annotation_template.csv
+  qrels_annotation_completed.csv
+  qrels.tsv
+  retrieval_metrics_summary.json
+  retrieval_metrics_per_query.csv
+  retrieval_metrics_comparison.tex
+\end{lstlisting}
 
-The Engineering Wiki exists to keep repository work grounded in verified knowledge rather than agent memory or generic assumptions. It provides the canonical orchestration rules, repository profile, architecture guidance, configuration guidance, platform guidance, and academic writing guidance used during thesis development.
-% evidence: ../engineering-wiki/agents/main-agents.md
-% evidence: ../engineering-wiki/wiki/repo-profiles/rag.md
-% evidence: ../engineering-wiki/wiki/academic/thesis-writing.md
+The finalized retrieval benchmark contains 25 queries, 250 direct retrieval rows, 250 HyDE retrieval rows, 300 final context rows, 321 pooled candidates, completed qrels artifacts, retrieval metric summaries, and retrieval comparison tables. This is the authoritative retrieval evidence base used throughout the thesis.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/qrels_annotation_completed.csv
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/retrieval_metrics_summary.json
 
-The repository profile acts as the current-state contract for the project. It records the monorepo layout, verified technology stack, configuration files, Docker Compose stacks, testing setup, database migration setup, and applicable agents. This prevents the thesis from describing target architecture as if it already existed. For example, the wiki explicitly records Docker Compose as verified and states that there are no Helm values files or Kubernetes ConfigMaps for this repository.
-% evidence: ../engineering-wiki/wiki/repo-profiles/rag.md
-
-The architecture pages define the documentation philosophy: decisions must be described as current verified state, tradeoffs must remain visible, and repo-local deviations must be explicit.
-% evidence: ../engineering-wiki/wiki/architecture/decisions.md
-% evidence: ../engineering-wiki/wiki/architecture/hexagonal-architecture.md
-% evidence: docs/thesis/evidence/CLAIMS.md
-
-The relationship between implementation and documentation is intentionally bidirectional. Source modules provide evidence for thesis claims, while the thesis exposes architecture and evaluation gaps that can become future engineering work. This is why the appendices record configuration and artifact structure: they make the repository auditable by future readers without turning the thesis into operational onboarding documentation.
-% evidence: docs/thesis/evidence/ARTIFACTS.md
-% evidence: docs/thesis/latex/src/chapter-08.tex
-% evidence: docs/thesis/latex/src/chapter-09.tex
+This separation is essential because RAGAS context precision without reference remains an answer-support proxy, extraction metrics evaluate risk-factor recovery against a derived reference substrate, and qrels-based retrieval metrics evaluate ranked documents against query-specific relevance judgments.
+% evidence: docs/thesis/latex/src/chapter-07.tex
 
 \section{Representative Configuration Examples}
 
@@ -272,7 +287,7 @@ services:
 
 \section{Reproducibility Notes}
 
-Reproducibility in this repository is strongest at the artifact and configuration level. The Makefile builds the thesis with two pdflatex passes, and the evaluation CLI writes timestamped run directories with configuration snapshots. The canonical thesis run is registered in the evidence index, which gives later readers a fixed reference point for the evaluation chapter.
+Reproducibility in this repository is strongest at the artifact and configuration level. The Makefile builds the thesis with two pdflatex passes, and the evaluation CLI writes timestamped run directories with configuration snapshots. The canonical thesis runs are registered in the evidence index, which gives later readers fixed reference points for both the generation benchmark and the retrieval benchmark.
 % evidence: Makefile
 % evidence: evaluation_metrics/src/eval_cli.py
 % evidence: docs/thesis/evidence/ARTIFACTS.md
@@ -280,7 +295,7 @@ Reproducibility in this repository is strongest at the artifact and configuratio
 Local LLM behavior remains a reproducibility constraint. The service uses a locally reachable Ollama endpoint and a quantized Llama model. Even with deterministic seeds in the evaluation configuration, exact rerun identity can still depend on model files, host hardware, Ollama version, concurrency, timeout behavior, and service state. The benchmark artifacts therefore support audit of the completed run, but they do not by themselves guarantee byte-identical future generations.
 % evidence: biomed_knowledge_platform/configs/llm.yaml
 % evidence: llm_server/ollama/llm-models.json
-% evidence: evaluation_metrics/config/eval.yaml
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
 
 Hardware and runtime dependencies also affect repeatability. Embeddings are configured for CPU execution, Qdrant and PostgreSQL persist local state through volumes, and the API uses in-memory ingestion queues and stores in the current composition. These are acceptable thesis-prototype choices, but they should be recorded when comparing new runs against the canonical run.
 % evidence: biomed_knowledge_platform/configs/rag.yaml
@@ -392,6 +407,18 @@ The current ingestion runtime uses one worker, a small in-memory queue, in-memor
 % evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/in_memory_queue.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/backpressure.py
+
+The complete chained June execution ran from 2026-06-05 15:39:43.685 to 2026-06-07 02:12:18.683, for 34 hours, 32 minutes, and 35 seconds. The paper benchmark phase consumed 32 hours, 47 minutes, and 46 seconds, followed by 1 hour, 44 minutes, and 42 seconds for retrieval preparation. Phase 4 RAGAS evaluation consumed approximately 20 hours, 26 minutes, and 56 seconds, making it the dominant runtime bottleneck.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
+
+The same logs contain repeated warnings that the evaluator returned one generation instead of the requested three. RAGAS scoring completed successfully, but this evaluator behavior must be disclosed when interpreting the reported metrics. The logs also contain a Python 3.14 compatibility warning involving Pydantic V1 functionality; this is recorded here as an operational caveat rather than as a central scientific finding.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
+
+The nominal robustness runs should also be interpreted with care. The evaluation CLI passes seed and temperature controls to the direct Ollama call used by the LLM-only baseline. The current RAG API path does not expose equivalent request-level stochastic controls for synthesis or HyDE generation, and the RAG answers and contexts are identical across robustness seeds except for volatile identifiers. Zero variance in the RAG modes is therefore deterministic service behavior under the benchmark path, not evidence of stochastic robustness.
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hallucination/synthesis.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hyde/hyde.py
 
 \subsection{Dependency Limitations}
 

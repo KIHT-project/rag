@@ -1,5 +1,6 @@
 % chapter-05.tex
 \chapter{Methodology}
+\label{chap:methodology}
 
 \section{Study Design}
 
@@ -49,3 +50,45 @@ This repository-aware protocol improves methodological transparency by preservin
 % evidence: labelstudio-tools/ls_data/tasks_raw.json
 % evidence: labelstudio-tools/ls_data/tasks_clean.json
 % evidence: labelstudio-tools/ls_data/tasks_rejected.json
+
+\section{Evaluation Protocol}
+
+The current evaluation protocol uses 25 thrombosis oriented questions for answer generation. Each question is evaluated under three modes: LLM only, RAG without HyDE, and RAG with HyDE. The deterministic primary condition uses seed 42 and temperature 0.0, while a robustness group records five nominal seed settings at temperature 0.2. 
+
+The evaluation is conducted using a phase-separated pipeline that materializes intermediate artifacts to ensure traceability and reproducibility. This approach separates the assessment of retrieval ranking from the assessment of answer quality and factor extraction. Table~\ref{tab:evaluation-phases} provides the master map of the six primary evaluation phases used throughout the thesis experiments.
+
+\begin{table}[htbp]
+\centering
+\caption{Overview of Evaluation Pipeline Phases.}
+\label{tab:evaluation-phases}
+\scriptsize
+\begin{tabularx}{\textwidth}{l >{\raggedright\arraybackslash}p{2cm} X >{\raggedright\arraybackslash}p{3.8cm} >{\raggedright\arraybackslash}p{1.8cm}}
+\toprule
+Phase & Name & Purpose & Input / Output & Metrics \\
+\midrule
+Phase 1 & Candidate Pooling & Extract candidate documents from multiple retrieval modes (Direct, HyDE) to build a pooled set for annotation. & \textbf{I:} Queries, RAG API \newline \textbf{O:} \texttt{pooled\_candidates.jsonl} & N/A \\
+Phase 2 & Retrieval Evaluation & Compute Information Retrieval (IR) metrics for ranked document lists against gold relevance judgments (Qrels). & \textbf{I:} \texttt{retrieval\_*.jsonl}, \texttt{qrels.tsv} \newline \textbf{O:} \texttt{retrieval\_metrics.json} & MRR, nDCG@k, P@k, R@k \\
+Phase 3 & Answer Generation & Execute the RAG pipeline or baseline LLM to generate answers for the query set. & \textbf{I:} Queries, RAG API, Ollama API \newline \textbf{O:} \texttt{phase3\_answers\_*.jsonl} & Mean Latency \\
+Phase 4 & RAGAS Evaluation & Assess answer quality using automated multi-dimensional metrics for RAG systems. & \textbf{I:} \texttt{phase3\_answers\_*.jsonl}, Ollama API \newline \textbf{O:} \texttt{phase4\_ragas\_*.jsonl} & Faithfulness, Relevancy \\
+Phase 5 & Consistency Audit & Sample generated outputs to support manual audit and verify internal system consistency. & \textbf{I:} \texttt{phase3\_answers\_*.jsonl} \newline \textbf{O:} \texttt{audit\_sample.json} & N/A \\
+Phase 6 & Extraction Evaluation & Compare extracted risk factors against a derived gold reference substrate from curated annotations. & \textbf{I:} \texttt{phase3\_answers\_*.jsonl}, \texttt{tasks\_clean.json} \newline \textbf{O:} \texttt{phase6\_extraction\_*.csv} & Precision, Recall, F1 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The output of each phase is materialized before the next phase runs, so generated answer files, RAGAS outputs, extraction summaries, and benchmark summaries can be inspected independently.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/paper_benchmark_summary.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase3_answers_llm_only.jsonl
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase3_answers_rag_no_hyde.jsonl
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase3_answers_rag_hyde.jsonl
+
+Seeds are used so that repeated runs can separate random variation from architectural behavior. In simple terms, a seed fixes the random starting point used by the model when temperature is above zero. If two runs use the same prompt, same model, same temperature, and same seed, they should follow the same stochastic path more closely than runs with different seeds. For a non-technical reader, this can be understood like shuffling a deck of cards with a numbered shuffle recipe: using the same recipe reproduces the same order, while changing the recipe can change the order. This is why the deterministic benchmark fixes seed 42 and why the robustness group repeats the experiment across seeds 11, 22, 33, 44, and 55.
+
+Extraction evaluation is conditional on the availability of derived gold factors from the curated annotation substrate. Under the configured no-gold policy, queries without derived reference factors are skipped rather than counted as failures. This produces a query coverage rate of 0.52 and means that extraction results describe only the covered subset.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_no_hyde_summary.csv
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_hyde_summary.csv
+
+The reference substrate remains useful for reproducible system evaluation because it ties scoring to explicit curation artifacts, DOI alignment, confidence policy, and canonical factor matching. It should not be interpreted as an adjudicated clinical gold standard. This distinction is central to the methodology: the thesis evaluates a research prototype and its measurement pipeline, not clinical safety or diagnostic correctness.
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py

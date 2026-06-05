@@ -36,9 +36,10 @@ Thrombosis is a major contributor to cardiovascular morbidity and mortality worl
 
 This thesis presents the design, implementation, and evaluation of a domain adapted Retrieval Augmented Generation platform tailored for thrombosis risk factor extraction from PubMed literature. The proposed system integrates semantic embedding based retrieval, vector database storage, configurable large language model generation, and a continuous DOI level ingestion scheduler. A human in the loop curation workflow is incorporated through annotation tooling, enabling validation and iterative improvement of extracted knowledge.
 
-The platform follows modular architectural principles emphasizing reproducibility, observability, and configuration driven experimentation. A multi phase evaluation framework assesses retrieval quality, extraction accuracy, and operational performance using ranking, classification, and operational metrics.
+The platform follows modular architectural principles emphasizing reproducibility, observability, and configuration driven experimentation. A multi phase evaluation framework assesses retrieval quality, answer grounding, extraction accuracy, and operational reproducibility using qrels based ranking metrics, RAGAS metrics, extraction metrics, and recorded run artifacts. The June 2026 generation benchmark evaluates 25 thrombosis oriented questions across LLM only, RAG without HyDE, and RAG with HyDE modes, with extraction metrics reported only for the 13 questions that have derived gold factors, while the finalized June 2026 retrieval benchmark reports qrels based ranking metrics from a separate 25-query independent retrieval phase.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/paper_benchmark_summary.json
 
-The thesis contributes a reproducible biomedical RAG architecture, an incremental PubMed scheduling mechanism, a human in the loop integration pipeline, and a structured evaluation methodology. The proposed framework establishes a foundation for scalable, continuously updated biomedical knowledge platforms.
+The thesis contributes a reproducible biomedical RAG architecture, an incremental PubMed scheduling mechanism, a human in the loop integration pipeline, and a structured evaluation methodology. The empirical findings are interpreted conservatively: the platform demonstrates auditable experimental architecture and reproducible benchmark artifacts, not clinical readiness.
 
 \clearpage
 

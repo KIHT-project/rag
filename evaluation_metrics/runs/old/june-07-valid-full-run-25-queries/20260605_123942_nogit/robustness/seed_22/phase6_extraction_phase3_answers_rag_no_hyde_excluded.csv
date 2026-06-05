@@ -1,0 +1,13 @@
+query_id,mode,reason,cited_doi_count,gold_doi_count
+thrombosis_q005,rag_no_hyde,no_gold_factors,2,0
+thrombosis_q006,rag_no_hyde,no_gold_factors,1,0
+thrombosis_q010,rag_no_hyde,no_gold_factors,2,0
+thrombosis_q011,rag_no_hyde,no_gold_factors,2,0
+thrombosis_q012,rag_no_hyde,no_gold_factors,1,0
+thrombosis_q016,rag_no_hyde,no_gold_factors,1,0
+thrombosis_q017,rag_no_hyde,no_gold_factors,1,0
+thrombosis_q018,rag_no_hyde,no_gold_factors,1,0
+thrombosis_q019,rag_no_hyde,no_gold_factors,3,0
+thrombosis_q020,rag_no_hyde,no_gold_factors,3,0
+thrombosis_q022,rag_no_hyde,no_gold_factors,1,0
+thrombosis_q023,rag_no_hyde,no_gold_factors,2,0

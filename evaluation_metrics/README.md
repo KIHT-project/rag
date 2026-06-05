@@ -24,7 +24,13 @@ python -m evaluation_metrics.src.eval_cli --config evaluation_metrics/config/eva
 
 Strong recommendations to run the `paper` workflow and the evaluation metrics CLI together:
 ```shell
-python -m evaluation_metrics.src.eval_cli --config evaluation_metrics/config/eval.fast.yaml retrieval-eval-prepare \
+python -m evaluation_metrics.src.eval_cli \
+  --config evaluation_metrics/config/eval.yaml \
+  paper \
+&& \
+python -m evaluation_metrics.src.eval_cli \
+  --config evaluation_metrics/config/eval.yaml \
+  retrieval-eval-prepare \
   --retrieval-pool-depth 10 \
   --max-queries 25
 ```
@@ -218,7 +224,7 @@ python -m evaluation_metrics.src.eval_cli --config evaluation_metrics/config/eva
 
 Example of qrels validation:
 ```shell
-RUN_DIR=evaluation_metrics/runs/20260604_190317_nogit
+RUN_DIR=evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit
 
 python -m evaluation_metrics.src.eval_cli \
   qrels-validate \
@@ -238,7 +244,7 @@ python -m evaluation_metrics.src.eval_cli retrieval-metrics \
   --summary-output "$RUN_DIR/retrieval_metrics_summary.json" \
   --per-query-output "$RUN_DIR/retrieval_metrics_per_query.csv" \
   --latex-output "$RUN_DIR/retrieval_metrics_comparison.tex" \
-  --k 1
+  --k 5
 ```
 
 These commands are useful when a researcher needs to inspect intermediate artifacts, repeat only a specific stage, verify annotation consistency, or troubleshoot a failed run without re-executing the full benchmark.

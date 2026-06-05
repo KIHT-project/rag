@@ -1,0 +1,16 @@
+% This is a snippet intended to be included inside a table environment if needed.
+% caption: Finalized independent retrieval ranking benchmark.
+% label: tab:retrieval-metrics-comparison
+\begin{tabular}{lcc}
+\toprule
+Metric & Direct Retrieval & HyDE Retrieval \\
+\midrule
+MRR & 0.865 & 0.910 \\
+Precision@5 & 0.552 & 0.544 \\
+Recall@5 & 0.5747 & 0.6174 \\
+nDCG@5 & 0.7590 & 0.7231 \\
+\bottomrule
+\end{tabular}
+
+\vspace{2pt}
+\parbox{0.95\linewidth}{\footnotesize Note: These metrics belong to the finalized June 2026 independent retrieval benchmark in the archived June 7 evaluation bundle, run \texttt{20260606\_212735\_nogit}. The benchmark contains 25 queries, 321 judged pooled candidates, completed qrels artifacts, and the same gold relevance set for both Direct Retrieval and HyDE Retrieval.}

@@ -7,7 +7,7 @@ The platform uses external configuration to make runtime behavior inspectable. C
 % evidence: evaluation_metrics/src/eval_cli.py
 
 Externalized configuration improves reproducibility by making assumptions visible, but it does not by itself guarantee deterministic behavior. Exact rerun identity can still depend on vector-store state, local model files, evaluator runtime, corpus contents, and service versions. The role of configuration management in this thesis is therefore traceability and controlled comparison, not a claim of perfect future replay.
-% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/config_snapshot.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
 % evidence: docs/thesis/latex/src/chapter-07.tex
 
 \section{RAG Service Configuration}
@@ -17,10 +17,13 @@ The \texttt{rag.yaml} file records the core retrieval and indexing assumptions o
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/chunking.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
 
-This file does not configure HyDE activation or generation temperature. HyDE behavior is controlled through the LLM configuration and the \texttt{X-HyDE-Enabled} request header used by the evaluation client. Temperature and generation length for the benchmark are controlled by the evaluation configuration when the evaluation pipeline calls the model or RAG API.
+This file does not configure HyDE activation or generation temperature. HyDE behavior is controlled through the LLM configuration and the \texttt{X-HyDE-Enabled} request header used by the evaluation client. The evaluation configuration records deterministic and robustness seeds and temperatures, but the verified execution path applies those controls differently across modes. The LLM-only baseline receives request-level seed and temperature directly from the evaluation CLI, whereas the current RAG API ask path does not expose equivalent request-level seed or temperature controls for RAG synthesis or HyDE generation.
 % evidence: biomed_knowledge_platform/configs/llm.yaml
 % evidence: biomed_knowledge_platform/src/biomed_platform/api/endpoints/ask.py
-% evidence: evaluation_metrics/config/eval.yaml
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hallucination/synthesis.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hyde/hyde.py
 
 \section{LLM and HyDE Configuration}
 
@@ -65,7 +68,7 @@ The \texttt{eval.yaml} file defines the experimental control surface for the eva
 
 The evaluation CLI writes configuration snapshots into run directories. This is essential for later interpretation because it links generated answer files, RAGAS outputs, extraction summaries, and aggregate benchmark summaries back to the execution settings that produced them. The snapshot is an audit artifact; it does not archive the complete vector database or Ollama runtime.
 % evidence: evaluation_metrics/src/eval_cli.py
-% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/config_snapshot.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
 
 \section{Configuration Boundaries and Drift Risks}
 
@@ -74,18 +77,18 @@ Repository review identified configuration boundaries that should be kept visibl
 % evidence: biomed_knowledge_platform/src/biomed_platform/api/models/generated/schemas.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/search.py
 
-These boundaries affect thesis writing because configuration files can contain reserved or partially wired settings. A configuration key is not sufficient evidence that a behavior was active in the canonical evaluation run. Reported results must therefore be tied to run artifacts and inspected execution paths, not only to YAML presence.
+These boundaries affect thesis writing because configuration files can contain reserved or partially wired settings. A configuration key is not sufficient evidence that a behavior was active in the canonical evaluation run. Reported results must therefore be tied to run artifacts and inspected execution paths, not only to YAML presence. In particular, reproducibility should be described as artifact-level and configuration-aware; the current evidence does not prove stochastic equivalence between the LLM-only and RAG benchmark paths.
 % evidence: docs/thesis/STYLE_GUIDE.md
 % evidence: docs/thesis/evidence/CLAIMS.md
-% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/paper_benchmark_summary.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/paper_benchmark_summary.json
 
 \section{Reproducibility Strategy}
 
 The configuration-management strategy supports reproducibility by preserving explicit service and evaluation settings. The canonical run stores a configuration snapshot alongside generated answers and metric artifacts, and the thesis source uses evidence comments to link claims back to those artifacts. This creates an auditable path from a reported metric to the run directory and configuration that produced it.
-% evidence: evaluation_metrics/runs/old/feb-10-valid-1-full-run/20260209_114745_nogit/config_snapshot.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
 % evidence: docs/thesis/STYLE_GUIDE.md
 
-The remaining reproducibility risks are operational. Local Qdrant state, local Ollama model files, service uptime, PubMed availability, and benchmark artifact selection can all affect future runs. Configuration management reduces hidden state, but stronger future claims would require corpus version identifiers, vector-store snapshots, model/runtime digests, and regenerated retrieval-ranking artifacts for the canonical evaluation.
+The remaining reproducibility risks are operational. Local Qdrant state, local Ollama model files, service uptime, PubMed availability, and benchmark artifact selection can all affect future runs. Configuration management reduces hidden state, but stronger future claims would require corpus version identifiers, vector-store snapshots, model/runtime digests, request-level stochastic controls for RAG and HyDE, and expanded retrieval-ranking artifacts with adjudicated qrels.
 % evidence: docs/thesis/latex/src/chapter-07.tex
 % evidence: docs/thesis/latex/src/chapter-08.tex
-% TODO: Add corpus-version, vector-store snapshot, and model-runtime digest artifacts before claiming strict rerun identity.
+% Future evidence note: add corpus-version, vector-store snapshot, and model-runtime digest artifacts before claiming strict rerun identity.
