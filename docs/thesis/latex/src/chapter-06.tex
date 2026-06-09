@@ -1,0 +1,134 @@
+% chapter-06.tex
+\chapter{Implementation Details}
+
+\section{Label Studio Tools Pipeline}
+
+The \texttt{labelstudio-tools} package implements the curation-side integration between abstract preparation, Label Studio task management, exported review artifacts, and RAG ingestion handoff. Its implementation purpose is operational rather than algorithmic: it converts reviewable biomedical records into task payloads, retrieves reviewed tasks from Label Studio, enriches them with missing bibliographic identifiers, and serializes a clean subset that can be ingested through the biomedical platform API. This package is therefore part of the data-curation plane, not part of the online retrieval path.
+% evidence: labelstudio-tools/src/app/python/main.py
+% evidence: labelstudio-tools/src/app/python/download_data/main.py
+% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
+
+\subsection{Configuration and Execution Model}
+
+Configuration is environment-driven. The package resolves a project root from the active \texttt{.env} file, configures logging centrally, and exposes variables for Label Studio connectivity, Excel input location, filter toggles, export destinations, and RAG ingestion behavior. This design keeps the implementation portable across local runs and batch executions, while making behavior explicit enough to reproduce the same data-processing path under controlled settings.
+% evidence: labelstudio-tools/src/app/python/config.py
+% evidence: labelstudio-tools/README.md
+
+\subsection{Excel Loading, Filtering, and Task Transformation}
+
+The task-preparation entrypoint loads an Excel worksheet into a dataframe, rejects empty inputs, and fails fast when required columns are missing. Optional boolean-like columns are normalized into consistent truth values before any filtering logic is applied. The filtering stage can exclude pre-marked records, records declared unrelated to venous thrombosis, or records not reporting on risk factors, depending on configuration. After optional sampling, each valid row is transformed into a minimal Label Studio task containing PMID, title, and abstract content; rows without PMID are skipped to avoid generating invalid review items.
+% evidence: labelstudio-tools/src/app/python/data_loader.py
+% evidence: labelstudio-tools/src/app/python/filters.py
+% evidence: labelstudio-tools/src/app/python/tasks.py
+% evidence: labelstudio-tools/src/app/python/main.py
+
+\subsection{Task Upload and Retry Behavior}
+
+Task upload is implemented through the Label Studio Software Development Kit (SDK). Before import, the uploader checks authentication and verifies that the configured project identifier is visible to the current account. Tasks are then sent in fixed-size batches, with exponential retry backoff applied when a batch import fails. This implementation favors robustness over strict immediacy, which is appropriate for a curation workflow where transient network or service failures should not force a full restart of the import process.
+% evidence: labelstudio-tools/src/app/python/uploader.py
+
+\subsection{Export, DOI Enrichment, and Clean Task Serialization}
+
+The export-side workflow uses the Label Studio API to page through project tasks, refresh an access token when needed, and collect the project task list. In the observed artifact snapshot, exported tasks are marked as labeled, but the code should still be understood as an export and cleaning utility rather than as an adjudication engine. Exported tasks are then passed through DOI enrichment, after which the pipeline validates whether each task contains the metadata required for downstream ingestion, including source, source identifier, DOI, year, journal, authors, title, and abstract. The implementation writes separate raw, clean, rejected, and missing-identifier JSON artifacts atomically, which improves recoverability and makes data-quality failures inspectable without rerunning the entire export.
+% evidence: labelstudio-tools/src/app/python/download_data/fetch_data_from_ls.py
+% evidence: labelstudio-tools/src/app/python/download_data/find_doi.py
+% evidence: labelstudio-tools/src/app/python/download_data/main.py
+% evidence: labelstudio-tools/src/app/python/download_data/save_data.py
+
+\subsection{RAG Ingestion Handoff}
+
+When a clean task dataset is available, a dedicated integration script converts each task into the ingestion schema expected by the biomedical platform. Only tasks with complete DOI, year, title, journal, author list, and abstract fields are transformed into ingestion items. These items are batched and posted to the \texttt{/v1/ingest/items} endpoint, with special retry handling for transport failures, rate limiting responses, and server-side failures. A short post-success delay is also applied to reduce the probability of immediate rate-limit pressure on consecutive batches.
+% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
+
+\section{Ingestion and Embedding Strategy}
+
+The ingestion strategy is implemented in the biomedical RAG service. At the core of the indexing pipeline is a domain-specific \texttt{SectionAwareChunker}. Unlike naive token-based chunkers, this component respects biomedical document structure. It actively detects and filters out non-informative sections—such as bibliographies—ensuring that only evidence-bearing text is embedded and indexed. Embeddings are generated locally using the \texttt{SentenceTransformersEmbeddingProvider}, which transforms the chunks into dense vectors before they are stored in the Qdrant vector database~\cite{reimers2019sentencebert,qdrant2026collections}.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/chunking.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
+
+\section{Retrieval Logic}
+
+The retrieval logic, orchestrated by the \texttt{AskUseCase}, uses a multi-stage hybrid system rather than relying exclusively on dense vector search. The pipeline begins with an optional retrieval expansion phase using Hypothetical Document Embeddings (HyDE), which generates a hypothetical passage and retrieves additional candidates from the same vector index~\cite{gao2023hyde}.
+
+Following candidate generation, the system uses a hybrid ranker to fuse signals. This ranker combines dense vector ranks, optional HyDE ranks, and in-memory lexical BM25-style ranks through reciprocal-rank fusion~\cite{cormack2009reciprocal}. It also applies section weights; for example, evidence located in results or conclusions sections receives higher weight than methods or supplementary sections. This domain-oriented ranking policy biases the final context window toward more evidence-bearing sections, but it does not guarantee that clinically most important evidence is always selected.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hyde/hyde.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/retrieval/hybrid_ranker.py
+
+\section{Synthesis and Validation}
+
+Once the top-ranked contexts are finalized, the system enforces a strict JSON-only prompt during synthesis. The application layer performs post-generation parsing, schema validation, and citation backfilling so that extracted risk factors are linked to provided context chunks when possible. This validation layer reduces unsupported output and improves compatibility with downstream evaluators, but it does not eliminate hallucination risk or establish clinical correctness.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hallucination/synthesis.py
+
+\section{Error Handling}
+
+Error handling in the curation pipeline is structured around fail-fast validation and bounded retries. Invalid Excel inputs, missing required environment variables, missing project access, empty valid-task sets, and malformed task datasets all raise explicit runtime errors. By contrast, operations exposed to network variability use retry loops with exponential backoff, including Label Studio batch import and RAG ingestion requests. The implementation therefore distinguishes between non-recoverable configuration or data-shape faults and recoverable transport or service instability.
+% evidence: labelstudio-tools/src/app/python/data_loader.py
+% evidence: labelstudio-tools/src/app/python/uploader.py
+% evidence: labelstudio-tools/src/app/python/download_data/main.py
+% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
+
+\section{Testing Strategy}
+
+The repository uses a layered test layout rather than a single unit-test suite. The biomedical platform and scheduler keep pytest-based package-local tests~\cite{pytest2026docs} in their own \texttt{tests} directories and execute them through package-specific \texttt{make test} targets with coverage reporting and an 80\% threshold in the current continuous-integration workflow. The curation-side \texttt{labelstudio-tools} package keeps a separate \texttt{src/test/python} suite for deterministic data-processing behavior, while cross-component and workflow-level validation is concentrated in the top-level \texttt{tests/bdd} tree, which includes feature files, step definitions, helper clients, and a dedicated Docker Compose environment~\cite{dockercompose2026docs}.
+% evidence: biomed_knowledge_platform/Makefile
+% evidence: scheduler_pubmed/Makefile
+% evidence: .github/workflows/ci.yaml
+% evidence: labelstudio-tools/pyproject.toml
+% evidence: tests/Makefile
+% evidence: tests/README.md
+% evidence: tests/bdd/docker-compose.yaml
+
+\subsection{Unit Testing}
+
+Unit tests~\cite{meszaros2007xunit} are the dominant layer in the repository. In the biomedical platform they target API error handling, configuration loading, retrieval and ingestion use cases, chunking, hybrid ranking, synthesis, readiness checks, and adapter behavior. These tests isolate collaborators with \texttt{AsyncMock}, \texttt{MagicMock}, \texttt{monkeypatch}, and lightweight stubs so that ranking, chunk construction, idempotency handling, and error normalization can be verified without live infrastructure. The scheduler follows the same pattern for endpoint mapping, runtime orchestration, repository mapping, database utility logic, and external PubMed or RAG client adapters. The \texttt{labelstudio-tools} package uses \texttt{unittest} and \texttt{unittest.mock}~\cite{python2026unittest,python2026unittestmock} to cover environment parsing, Excel loading, filtering rules, task transformation, and uploader retry behavior.
+% evidence: biomed_knowledge_platform/tests/api/test_endpoints_unit.py
+% evidence: biomed_knowledge_platform/tests/core/use_cases/test_ask_use_case.py
+% evidence: biomed_knowledge_platform/tests/core/use_cases/test_ingestion_use_case.py
+% evidence: biomed_knowledge_platform/tests/core/services/ingestion/test_pipeline.py
+% evidence: biomed_knowledge_platform/tests/core/services/retrieval/test_hybrid_ranker.py
+% evidence: biomed_knowledge_platform/tests/core/services/test_readiness.py
+% evidence: scheduler_pubmed/tests/test_api_endpoints_scheduler.py
+% evidence: scheduler_pubmed/tests/test_adapters_pubmed_query_client.py
+% evidence: scheduler_pubmed/tests/test_db_repositories_scheduler_repository.py
+% evidence: labelstudio-tools/src/test/python/test_config.py
+% evidence: labelstudio-tools/src/test/python/test_data_loader.py
+% evidence: labelstudio-tools/src/test/python/test_filters.py
+% evidence: labelstudio-tools/src/test/python/test_tasks.py
+% evidence: labelstudio-tools/src/test/python/test_uploader.py
+
+\subsection{Integration Testing}
+
+Integration validation~\cite{istqb2024ctfl} is narrower but still present. At the service boundary, FastAPI endpoint tests~\cite{fastapi2026docs} instantiate application factories or route sets and verify request handling, dependency wiring, request identifiers, and normalized error envelopes. At the workflow boundary, ingestion and document-fetch tests validate how multiple components collaborate, including queueing, payload persistence, document reservation, chunking, embedding, vector upsert preparation, PubMed fetch resolution, and optional ingestion handoff. Database-oriented integration is split: scheduler repository tests exercise SQLAlchemy repository behavior~\cite{sqlalchemy2026docs} through fake asynchronous sessions, while live PostgreSQL verification~\cite{postgresql2026docs} is deferred to the higher-level BDD suite. The same pattern applies to retrieval: lower-level tests validate how embedders, vector indexes, HyDE generation, and synthesis are composed, while full retrieval execution against running infrastructure is covered elsewhere.
+% evidence: biomed_knowledge_platform/tests/api/test_app.py
+% evidence: biomed_knowledge_platform/tests/api/test_error_handlers.py
+% evidence: biomed_knowledge_platform/tests/core/use_cases/test_document_fetch_use_case.py
+% evidence: biomed_knowledge_platform/tests/core/use_cases/test_ingestion_use_case.py
+% evidence: biomed_knowledge_platform/tests/core/services/hyde/test_hybrid_retrieval.py
+% evidence: biomed_knowledge_platform/tests/adapters/qdrant/test_vector_index.py
+% evidence: scheduler_pubmed/tests/test_db_repositories_scheduler_repository.py
+% evidence: scheduler_pubmed/tests/test_db_repositories_pubmed_query_repository.py
+
+\subsection{Behavior Driven Development (BDD)}
+
+Behavior-driven tests~\cite{north2006bdd} are implemented explicitly in \texttt{tests/bdd} with \texttt{pytest-bdd}~\cite{pytestbdd2026docs}. This suite does not provide generic examples; it codifies repository workflows as feature files for ingestion, search, ask, readiness, audit persistence, document deletion and fetch, scheduler control, scheduler runs, and PubMed query management. The step definitions follow a concrete Given/When/Then structure~\cite{cucumber2026gherkin} that prepares documents, triggers HTTP requests or in-process clients, polls asynchronous ingestion jobs, and asserts observable business outcomes such as citation inclusion, filter exclusion, request auditing, section-aware reference removal, and scheduler status transitions. The suite can run against in-process FastAPI applications or against dockerized HTTP services, and its fixtures provision dedicated configuration, cleanup scripts, and isolated Postgres and Qdrant instances. In practice, this is the repository's main end-to-end validation layer.
+% evidence: tests/requirements.txt
+% evidence: tests/bdd/features/ingestion.feature
+% evidence: tests/bdd/features/search.feature
+% evidence: tests/bdd/features/ask.feature
+% evidence: tests/bdd/features/audit.feature
+% evidence: tests/bdd/features/documents.feature
+% evidence: tests/bdd/features/documents_fetch.feature
+% evidence: tests/bdd/features/pubmed_queries.feature
+% evidence: tests/bdd/features/scheduler_control.feature
+% evidence: tests/bdd/features/scheduler_runs.feature
+% evidence: tests/bdd/conftest.py
+% evidence: tests/bdd/docker-compose.yaml
+
+\subsection{Test Strategy Discussion}
+
+The overall structure follows a pragmatic test-pyramid logic~\cite{cohn2009succeeding}. Most checks are isolated unit tests because the repository contains substantial deterministic logic in parsing, ranking, orchestration, mapping, and error handling. A smaller integration layer validates how those units are assembled at API, use-case, adapter, and repository boundaries. The smallest and most expensive layer is the BDD suite, which exercises complete workflows over realistic infrastructure and therefore provides the strongest confidence in operational behavior. This balance supports reproducibility because deterministic logic is checked cheaply and frequently, while critical cross-component paths such as ingestion, retrieval, auditing, and scheduler execution are still validated through scenario-based tests. A current limitation is that continuous integration executes the package-level \texttt{make test} suites for the biomedical platform and scheduler, but the present workflow file does not show automated execution of the top-level BDD suite or the \texttt{labelstudio-tools} tests.
+% evidence: biomed_knowledge_platform/Makefile
+% evidence: scheduler_pubmed/Makefile
+% evidence: .github/workflows/ci.yaml
+% evidence: tests/Makefile

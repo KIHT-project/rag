@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional
+from typing import Annotated, Any, Mapping
 
 from fastapi import APIRouter, Header, Request
 
@@ -48,8 +48,12 @@ def _get_optional_attr(obj: Any, name: str) -> Any:
 async def ask(
     request: Request,
     payload: schemas.AskRequest,
-    x_hyde_enabled: Optional[bool] = Header(default=None, alias="X-HyDE-Enabled"),
-    x_debug_enabled: Optional[bool] = Header(default=None, alias="X-Debug-Enabled"),
+    x_hyde_enabled: Annotated[bool | None, Header(alias="X-HyDE-Enabled")] = None,
+    x_debug_enabled: Annotated[bool | None, Header(alias="X-Debug-Enabled")] = None,
+    x_debug_ask_max_chunks_candidate: Annotated[
+        int | None,
+        Header(alias="X-Debug-Ask-Max-Chunks-Candidate"),
+    ] = None,
 ):
     app = request.app
     settings = app.state.settings
@@ -82,6 +86,8 @@ async def ask(
     cfg_hyde_enabled = bool(llm_cfg.get("hyde_enabled", False))
     hyde_enabled = bool(x_hyde_enabled) if x_hyde_enabled is not None else cfg_hyde_enabled
     debug_enabled = bool(x_debug_enabled) if x_debug_enabled is not None else False
+    if debug_enabled and x_debug_ask_max_chunks_candidate is not None:
+        ask_max_chunks_candidate = max(1, int(x_debug_ask_max_chunks_candidate))
 
     log.info(
         "Ask chunk limits resolved | candidate_k=%s | final_k=%s | hyde_enabled=%s",

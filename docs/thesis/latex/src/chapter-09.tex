@@ -1,0 +1,116 @@
+% chapter-09.tex
+\chapter{Conclusion and Future Work}
+
+\section{Conclusion}
+
+This thesis produced a repository-backed biomedical RAG platform rather than a standalone model demonstration. The implemented system consists of a modular FastAPI biomedical RAG service, a PubMed scheduler service, a phase-based evaluation subsystem, a local-first Ollama deployment stack, and a Label Studio curation workflow. The biomedical RAG service performs asynchronous ingestion, section-aware chunking, sentence-transformer embedding, Qdrant vector indexing, retrieval, optional HyDE expansion, reranking, and cited answer synthesis.
+% evidence: ../engineering-wiki/wiki/repo-profiles/rag.md
+% evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
+% evidence: scheduler_pubmed/src/core/use_cases/scheduler.py
+% evidence: evaluation_metrics/src/eval_cli.py
+
+The main contribution is the integration of these components into an auditable architecture with explicit boundaries. API endpoints remain separated from use cases, domain objects, ports, and infrastructure adapters. This matters because Qdrant, Ollama, PubMed, Label Studio exports, and evaluation clients can be inspected as external integrations rather than hidden domain logic. The project therefore contributes a defensible engineering research foundation with reproducible evaluation artifacts, not a claim of clinical superiority.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/ingestion.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/ollama/ollama_client.py
+% evidence: docs/thesis/latex/src/chapter-07.tex
+
+The thesis also demonstrates that evaluation design is part of system architecture. The platform does not merely expose an answer endpoint; it preserves phase outputs for generation, RAGAS scoring, extraction scoring, robustness runs, retrieval preparation, and operational logs. This makes it possible to separate answer relevance from grounding, extraction quality from retrieval ranking, and deterministic reproducibility from stochastic robustness. That separation is a practical contribution because it prevents a single attractive metric from hiding important failure modes.
+% evidence: evaluation_metrics/src/eval_cli.py
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/paper_benchmark_summary.json
+
+\section{Evaluation Findings}
+
+The strongest overall configuration depends on the evaluation dimension. Direct RAG without HyDE is preferable for faithfulness and risk factor extraction under the latest deterministic benchmark. It reports higher faithfulness than RAG with HyDE and better micro and macro extraction scores across the 13 extraction-covered questions.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/paper_benchmark_summary.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_no_hyde_summary.csv
+
+The evidence for direct RAG is strongest where grounding and structured factor recovery matter. Its faithfulness score is materially higher than HyDE's, and its extraction result recovers more true positives with the same number of false positives and false negatives. This does not mean direct RAG is universally superior. It means that, in the latest deterministic benchmark, direct RAG is the more defensible choice when the priority is supported answer content and risk-factor extraction from the covered subset.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase4_ragas_phase3_answers_rag_no_hyde.jsonl
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_no_hyde_summary.csv
+
+HyDE is not categorically better or worse. It produces a higher context precision without reference score and slightly higher answer relevancy than direct RAG, but lower faithfulness and lower extraction scores. The LLM-only baseline has the highest answer relevancy score, but it lacks evidence grounding because no retrieved contexts are supplied. These findings support a conservative conclusion: answer relevance, answer support, faithfulness, and extraction quality are different properties and should not be collapsed into one verdict.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase4_ragas_phase3_answers_llm_only.jsonl
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase4_ragas_phase3_answers_rag_no_hyde.jsonl
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase4_ragas_phase3_answers_rag_hyde.jsonl
+
+The evidence for HyDE is therefore conditional. It can be useful when the goal is to focus contexts around the generated answer, as reflected by the higher context precision without reference score. It is less attractive when the goal is faithfulness or extraction performance. The implementation should not remove HyDE, but future use should be conditional and measured. A defensible system could expose HyDE as a configurable retrieval strategy and select it only where retrieval evaluation and downstream generation metrics justify the tradeoff.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hyde/hyde.py
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/paper_benchmark_summary.json
+
+The finalized retrieval benchmark shows a mixed retrieval tradeoff rather than a single winner. HyDE improves MRR and Recall@5, while direct retrieval retains slightly stronger Precision@5 and nDCG@5. This means HyDE is better at surfacing at least one useful source early and recovering more judged relevant evidence in the top five, while direct retrieval is slightly better at keeping the top-five set clean and well ordered by graded relevance.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/retrieval_metrics_summary.json
+
+The operational findings also shape the conclusion. The complete chained execution required more than 34 hours, and RAGAS evaluation was the dominant bottleneck. This shows that reproducible biomedical RAG evaluation is not just a modeling problem; it is also an infrastructure and runtime-management problem. Larger benchmarks, evaluator calibration, and repeated robustness studies will require better scheduling, parallelization where safe, and stricter run metadata preservation.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
+
+\section{Limitations}
+
+The first limitation is evaluation size and coverage. The answer-generation benchmark contains 25 thrombosis oriented questions, and extraction evaluation covers only 13 of them because 12 questions have no derived gold factors under the configured no-gold policy. The results are useful for system diagnosis and thesis evaluation, but they do not support broad clinical claims.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/paper_benchmark_summary.json
+
+The second limitation is reference validity. The extraction substrate is derived from curated tasks, citation alignment, confidence policy, and canonical factor matching. It is reproducible and inspectable, but it is not an adjudicated clinical gold standard. The retrieval qrels are also bounded by snapshot state, annotation quality, and the absence of multi-annotator adjudication.
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/qrels_annotation_completed.csv
+
+The third limitation is operational reproducibility. Configuration snapshots and phase outputs are preserved, but complete corpus version identifiers, Qdrant snapshots, Ollama model digests, and evaluator runtime digests are not archived. The robustness controls also do not currently propagate through the RAG API path in the same way they do for the LLM-only direct Ollama baseline.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
+
+The fourth limitation is evaluator behavior and runtime cost. RAGAS evaluation was the dominant execution bottleneck, and the logs repeatedly warned that one generation was returned where three were requested. The metrics remain usable as recorded artifacts, but evaluator configuration and runtime behavior require disclosure and future calibration.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
+
+The fifth limitation is metric interpretation. Automated metrics help make the benchmark repeatable, but none of them is a replacement for biomedical judgment. Answer relevancy does not prove evidence grounding. Faithfulness does not prove clinical correctness. Context precision without reference is not a qrels-based retrieval ranking metric. Extraction F1 summarizes agreement with a derived reference set, not agreement with an adjudicated clinical standard. These limitations do not make the metrics useless; they define the boundary within which the metrics are scientifically honest.
+% evidence: evaluation_metrics/src/phases/phase4_ragas.py
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+
+\section{Future Work}
+
+Future work should first strengthen stochastic controls. The RAG API should expose request-level seed and temperature controls for synthesis, and HyDE generation should expose equivalent controls. HyDE cache behavior should also be configurable during robustness experiments, so zero variance can be distinguished from true stochastic stability.
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hyde/hyde.py
+
+This work should include an explicit robustness contract for every generation path. The evaluation CLI, RAG API, HyDE generator, and synthesis service should agree on how seed, temperature, cache behavior, and model options are passed and recorded. Without that contract, future robustness tables may again mix stochastic and deterministic paths under the same experimental label.
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
+
+The second priority is retrieval annotation governance. The finalized June 2026 retrieval benchmark is sufficient for reporting current ranking metrics, but future retrieval benchmarks should use multi-annotator qrels adjudication, explicit adjudication status preservation, and clearer annotation governance so ranking claims become stronger over time.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/pooled_candidates.jsonl
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/qrels_annotation_completed.csv
+
+The qrels workflow should also become versioned research infrastructure. Each retrieval benchmark should record the query set, corpus snapshot, candidate pool, annotation template, completed qrels file, adjudication policy, per-query metrics, and summary metrics as a single immutable evaluation bundle. That bundle would make it clear which retrieval claims belong to which corpus state.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/qrels.tsv
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/retrieval_metrics_summary.json
+
+The third priority is larger and more clinically reviewed extraction coverage. More questions should have derived gold factors, and evaluator calibration should compare RAGAS and extraction outputs against expert judgment. This would make it possible to estimate how well automated scores align with biomedical review rather than relying on metric values alone.
+% evidence: evaluation_metrics/src/phases/phase4_ragas.py
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+
+Expanded extraction coverage should preserve the distinction between reproducible derived gold factors and clinical gold standards. A practical next step is to increase the number of questions with derived factors and then introduce expert adjudication for a smaller validation subset. This would allow the project to ask two separate questions: whether the system agrees with repository-derived factors, and whether those factors align with expert biomedical judgment.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_no_hyde_summary.csv
+% evidence: docs/thesis/latex/src/chapter-05.tex
+
+The fourth priority is experiment provenance. Future runs should record corpus version identifiers, Qdrant collection snapshots or snapshot metadata, Ollama model digests, evaluator model/runtime digests, and evaluation code version identifiers. These artifacts would reduce ambiguity when comparing results across changing corpora and local inference environments.
+% evidence: evaluation_metrics/src/eval_cli.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
+
+Provenance should be treated as a first-class benchmark output rather than as informal context. A future run directory should make it possible to answer which corpus was indexed, which vector collection was queried, which embedding model generated the vectors, which Ollama model digest generated and evaluated answers, which code revision ran the phases, and which annotation artifacts supported each metric. Without this information, result changes can be difficult to attribute.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/config_snapshot.json
+
+The fifth priority is runtime optimization. The June execution shows that RAGAS evaluation dominates runtime. Larger evaluations will require batching review, safe parallel evaluation where possible, evaluator configuration review, and possibly smaller calibrated screening runs before full benchmark execution.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
+
+Runtime optimization should not compromise auditability. Parallel execution is useful only if phase outputs remain deterministic where expected, logs remain attributable to specific requests, and failed evaluator calls can be diagnosed. The correct target is not merely faster evaluation, but faster evaluation with preserved traceability.
+% evidence: evaluation_metrics/src/eval_cli.py
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
+
+Additional future work remains valuable but secondary to evaluation validity: biomedical embedding comparisons, conditional HyDE activation, retrieval explanations, durable ingestion queues, and clinical workflow studies. These extensions should be judged by faithfulness, extraction quality, retrieval metrics, latency, failure behavior, and expert review rather than by anecdotal answer quality.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/retrieval/hybrid_ranker.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
+
+\section{Closing Remarks}
+
+The thesis demonstrates that a biomedical RAG platform can be engineered as an auditable, modular, locally deployable system with reproducible evaluation artifacts and human curation support. Its strongest result is not clinical readiness; it is the construction and evaluation of a concrete architecture whose behavior can be inspected. The finalized evidence favors direct RAG without HyDE for faithfulness and extraction, shows limited benefits from HyDE on answer relevancy and context-support proxy metrics, and shows a separate retrieval tradeoff in which HyDE improves early-hit discovery and coverage while direct retrieval retains stronger top-five purity and graded ordering.
+% evidence: docs/thesis/latex/src/chapter-07.tex

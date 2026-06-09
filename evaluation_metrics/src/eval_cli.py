@@ -17,13 +17,36 @@ from evaluation_metrics.src.audit import EvaluationPostgresAudit
 from evaluation_metrics.src.clients.ollama_api import OllamaClient
 from evaluation_metrics.src.clients.rag_api import RagApiClient
 from evaluation_metrics.src.phases.phase1_pool import run_phase1_pool
-from evaluation_metrics.src.phases.phase2_beir import compute_retrieval_metrics, write_retrieval_metrics
-from evaluation_metrics.src.phases.phase2_overlap_audit import build_overlap_audit, discover_label_fields
+from evaluation_metrics.src.phases.phase2_beir import (
+    compute_retrieval_metrics,
+    write_retrieval_metrics,
+)
+from evaluation_metrics.src.phases.phase2_overlap_audit import (
+    build_overlap_audit,
+    discover_label_fields,
+)
 from evaluation_metrics.src.phases.phase3_generate import run_phase3_generate
 from evaluation_metrics.src.phases.phase4_ragas import run_ragas
 from evaluation_metrics.src.phases.phase5_audit import build_audit_sample
 from evaluation_metrics.src.phases.phase6_extraction import run_phase6_extraction
+from evaluation_metrics.src.qrels_annotation import (
+    create_template,
+    generate_qrels,
+    validate_annotations,
+)
+from evaluation_metrics.src.retrieval_metrics import (
+    DEFAULT_K_VALUES,
+    compute_retrieval_metrics as compute_independent_retrieval_metrics,
+    write_outputs as write_independent_retrieval_metrics_outputs,
+)
+from evaluation_metrics.src.retrieval_export import run_retrieval_export
 from evaluation_metrics.src.schemas.models import RunContext
+from evaluation_metrics.src.workflows.retrieval_eval_workflow import (
+    finalize_retrieval_evaluation,
+    format_finalize_summary,
+    format_prepare_summary,
+    prepare_retrieval_evaluation,
+)
 
 
 def _run_async(coro: Any) -> Any:
@@ -61,7 +84,9 @@ def _init_run(config: dict[str, Any]) -> RunContext:
     runs_dir = Path(config["paths"]["runs_dir"])
     run_dir = runs_dir / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "config_snapshot.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
+    (run_dir / "config_snapshot.json").write_text(
+        json.dumps(config, indent=2), encoding="utf-8"
+    )
     return RunContext(run_id=run_id, run_dir=str(run_dir))
 
 
@@ -135,7 +160,11 @@ def _audit_dsn(config: dict[str, Any]) -> str:
     if env:
         return env
     audit_cfg = config.get("audit", {})
-    dsn = str(audit_cfg.get("postgres_dsn", "")).strip() if isinstance(audit_cfg, dict) else ""
+    dsn = (
+        str(audit_cfg.get("postgres_dsn", "")).strip()
+        if isinstance(audit_cfg, dict)
+        else ""
+    )
     if not dsn:
         raise RuntimeError(
             "Missing audit Postgres DSN. Set EVAL_AUDIT_POSTGRES_DSN or audit.postgres_dsn in eval.yaml."
@@ -186,19 +215,31 @@ def _run_phase6_for_outputs(
             input_jsonl=in_path,
             tasks_clean_json=tasks_clean_json,
             out_dir=out_dir,
-            reports_risk_field=str(extraction_cfg.get("reports_risk_field", "reports_risk_factors")),
-            reports_positive_value=str(extraction_cfg.get("reports_positive_value", "Yes")),
+            reports_risk_field=str(
+                extraction_cfg.get("reports_risk_field", "reports_risk_factors")
+            ),
+            reports_positive_value=str(
+                extraction_cfg.get("reports_positive_value", "Yes")
+            ),
             reports_confidence_field=str(
-                extraction_cfg.get("reports_confidence_field", "confidence_reports_risk_factors")
+                extraction_cfg.get(
+                    "reports_confidence_field", "confidence_reports_risk_factors"
+                )
             ),
             min_confidence=int(extraction_cfg.get("min_confidence", 3)),
-            allow_missing_confidence=bool(extraction_cfg.get("allow_missing_confidence", True)),
-            factor_source_field=str(extraction_cfg.get("factor_source_field", "reason_label")),
+            allow_missing_confidence=bool(
+                extraction_cfg.get("allow_missing_confidence", True)
+            ),
+            factor_source_field=str(
+                extraction_cfg.get("factor_source_field", "reason_label")
+            ),
             factor_source_fallback_to_abstract=bool(
                 extraction_cfg.get("factor_source_fallback_to_abstract", True)
             ),
             no_gold_policy=str(extraction_cfg.get("no_gold_policy", "skip")),
-            pred_closed_set_only=bool(extraction_cfg.get("pred_closed_set_only", False)),
+            pred_closed_set_only=bool(
+                extraction_cfg.get("pred_closed_set_only", False)
+            ),
             pred_include_aliases=bool(extraction_cfg.get("pred_include_aliases", True)),
             pred_include_summary_factors=bool(
                 extraction_cfg.get("pred_include_summary_factors", False)
@@ -325,7 +366,9 @@ def _cmd_phase4(args: argparse.Namespace) -> None:
     out_csv = Path(ctx.run_dir) / f"phase4_ragas_{in_path.stem}.csv"
 
     os.environ.setdefault("OPENAI_API_KEY", "ollama")
-    os.environ["OPENAI_BASE_URL"] = str(config["ollama"]["base_url"]).rstrip("/") + "/v1"
+    os.environ["OPENAI_BASE_URL"] = (
+        str(config["ollama"]["base_url"]).rstrip("/") + "/v1"
+    )
     os.environ["EVAL_OLLAMA_MODEL"] = str(config["ollama"]["model"])
 
     embeddings_model = str(config["ragas"]["embeddings_model"])
@@ -339,7 +382,9 @@ def _cmd_phase4(args: argparse.Namespace) -> None:
         embeddings_model=embeddings_model,
         embeddings_device=embeddings_device,
         embeddings_local_only=embeddings_local_only,
-        metric_names=[str(m) for m in ragas_metrics] if isinstance(ragas_metrics, list) else None,
+        metric_names=(
+            [str(m) for m in ragas_metrics] if isinstance(ragas_metrics, list) else None
+        ),
     )
 
 
@@ -350,7 +395,9 @@ def _run_phase4_for_outputs(
     out_dir: Path,
 ) -> dict[str, dict[str, float]]:
     os.environ.setdefault("OPENAI_API_KEY", "ollama")
-    os.environ["OPENAI_BASE_URL"] = str(config["ollama"]["base_url"]).rstrip("/") + "/v1"
+    os.environ["OPENAI_BASE_URL"] = (
+        str(config["ollama"]["base_url"]).rstrip("/") + "/v1"
+    )
     os.environ["EVAL_OLLAMA_MODEL"] = str(config["ollama"]["model"])
 
     embeddings_model = str(config["ragas"]["embeddings_model"])
@@ -367,7 +414,11 @@ def _run_phase4_for_outputs(
             embeddings_model=embeddings_model,
             embeddings_device=embeddings_device,
             embeddings_local_only=embeddings_local_only,
-            metric_names=[str(m) for m in ragas_metrics] if isinstance(ragas_metrics, list) else None,
+            metric_names=(
+                [str(m) for m in ragas_metrics]
+                if isinstance(ragas_metrics, list)
+                else None
+            ),
         )
         per_mode_summary[mode] = _summarize_phase4_json(out_csv.with_suffix(".json"))
     return per_mode_summary
@@ -503,7 +554,9 @@ async def _cmd_paper(args: argparse.Namespace) -> None:
 
         robust_root = _init_sub_run(ctx, name="robustness")
         all_runs: list[dict[str, Any]] = []
-        metrics_acc: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+        metrics_acc: dict[str, dict[str, list[float]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
 
         await audit.create_event(
             run_id=ctx.run_id,
@@ -542,7 +595,9 @@ async def _cmd_paper(args: argparse.Namespace) -> None:
                 mode_metrics = run_summary.setdefault(mode, {})
                 for metric, value in metrics.items():
                     mode_metrics[f"extraction_{metric}"] = float(value)
-            all_runs.append({"seed": seed, "summary": run_summary, "run_dir": seed_ctx.run_dir})
+            all_runs.append(
+                {"seed": seed, "summary": run_summary, "run_dir": seed_ctx.run_dir}
+            )
             for mode, metrics in run_summary.items():
                 for metric, value in metrics.items():
                     metrics_acc[mode][metric].append(float(value))
@@ -631,7 +686,9 @@ async def _cmd_paper(args: argparse.Namespace) -> None:
             phase="PAPER",
             message=str(exc),
             payload={"exception": type(exc).__name__},
-            stacktrace_raw="".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+            stacktrace_raw="".join(
+                traceback.format_exception(type(exc), exc, exc.__traceback__)
+            ),
         )
         error_id = await audit.create_error(
             run_id=ctx.run_id,
@@ -677,14 +734,22 @@ def _cmd_phase6(args: argparse.Namespace) -> None:
         input_jsonl=Path(args.input_jsonl),
         tasks_clean_json=tasks_clean,
         out_dir=Path(ctx.run_dir),
-        reports_risk_field=str(extraction_cfg.get("reports_risk_field", "reports_risk_factors")),
+        reports_risk_field=str(
+            extraction_cfg.get("reports_risk_field", "reports_risk_factors")
+        ),
         reports_positive_value=str(extraction_cfg.get("reports_positive_value", "Yes")),
         reports_confidence_field=str(
-            extraction_cfg.get("reports_confidence_field", "confidence_reports_risk_factors")
+            extraction_cfg.get(
+                "reports_confidence_field", "confidence_reports_risk_factors"
+            )
         ),
         min_confidence=int(extraction_cfg.get("min_confidence", 3)),
-        allow_missing_confidence=bool(extraction_cfg.get("allow_missing_confidence", True)),
-        factor_source_field=str(extraction_cfg.get("factor_source_field", "reason_label")),
+        allow_missing_confidence=bool(
+            extraction_cfg.get("allow_missing_confidence", True)
+        ),
+        factor_source_field=str(
+            extraction_cfg.get("factor_source_field", "reason_label")
+        ),
         factor_source_fallback_to_abstract=bool(
             extraction_cfg.get("factor_source_fallback_to_abstract", True)
         ),
@@ -705,13 +770,125 @@ def _cmd_phase6(args: argparse.Namespace) -> None:
     )
 
 
-def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-        force=True,
+def _cmd_qrels_create_template(args: argparse.Namespace) -> None:
+    create_template(
+        direct_path=Path(args.direct),
+        hyde_path=Path(args.hyde),
+        pooled_output_path=Path(args.pooled_output),
+        template_output_path=Path(args.template_output),
     )
 
+
+def _cmd_qrels_validate(args: argparse.Namespace) -> None:
+    validate_annotations(
+        pooled_path=Path(args.pooled),
+        annotations_path=Path(args.annotations),
+    )
+
+
+def _cmd_qrels_generate(args: argparse.Namespace) -> None:
+    generate_qrels(
+        pooled_path=Path(args.pooled),
+        annotations_path=Path(args.annotations),
+        qrels_output_path=Path(args.qrels_output),
+    )
+
+
+def _cmd_retrieval_metrics(args: argparse.Namespace) -> None:
+    k_values = [int(k) for k in (args.k or DEFAULT_K_VALUES)]
+    summary, per_query_rows = compute_independent_retrieval_metrics(
+        direct_path=Path(args.direct),
+        hyde_path=Path(args.hyde),
+        qrels_path=Path(args.qrels),
+        k_values=k_values,
+        strict=bool(args.strict),
+    )
+    write_independent_retrieval_metrics_outputs(
+        summary=summary,
+        per_query_rows=per_query_rows,
+        summary_output=Path(args.summary_output),
+        per_query_output=Path(args.per_query_output),
+        latex_output=Path(args.latex_output),
+    )
+
+
+async def _cmd_retrieval_export(args: argparse.Namespace) -> None:
+    config = _load_config(Path(args.config))
+    ctx = _init_run(config)
+    rag = RagApiClient(
+        base_url=config["rag_api"]["base_url"],
+        timeout_seconds=float(config["rag_api"]["timeout_seconds"]),
+    )
+    try:
+        await rag.probe()
+    except Exception as e:
+        raise RuntimeError(
+            f"RAG API unreachable at {config['rag_api']['base_url']}. "
+            "Start the API service and retry."
+        ) from e
+
+    paper_cfg = config.get("paper", {})
+    max_queries = (
+        int(args.max_queries)
+        if args.max_queries is not None
+        else _resolve_max_queries(paper_cfg)
+    )
+
+    await run_retrieval_export(
+        ctx=ctx,
+        rag=rag,
+        queries_jsonl=Path(config["paths"]["queries_jsonl"]),
+        hyde_header_name=str(config["ask"]["hyde_header_name"]),
+        hyde_header_value=str(config["ask"]["hyde_header_value"]),
+        retrieval_pool_depth=int(args.retrieval_pool_depth),
+        max_queries=max_queries,
+    )
+
+
+async def _cmd_retrieval_eval_prepare(args: argparse.Namespace) -> None:
+    config = _load_config(Path(args.config))
+    ctx = _init_run(config)
+    rag = RagApiClient(
+        base_url=config["rag_api"]["base_url"],
+        timeout_seconds=float(config["rag_api"]["timeout_seconds"]),
+    )
+    try:
+        await rag.probe()
+    except Exception as e:
+        raise RuntimeError(
+            f"RAG API unreachable at {config['rag_api']['base_url']}. "
+            "Start the API service and retry."
+        ) from e
+
+    paper_cfg = config.get("paper", {})
+    max_queries = (
+        int(args.max_queries)
+        if args.max_queries is not None
+        else _resolve_max_queries(paper_cfg)
+    )
+    summary = await prepare_retrieval_evaluation(
+        ctx=ctx,
+        rag=rag,
+        queries_jsonl=Path(config["paths"]["queries_jsonl"]),
+        hyde_header_name=str(config["ask"]["hyde_header_name"]),
+        hyde_header_value=str(config["ask"]["hyde_header_value"]),
+        retrieval_pool_depth=int(args.retrieval_pool_depth),
+        max_queries=max_queries,
+        force=bool(args.force),
+    )
+    print(format_prepare_summary(summary))
+
+
+def _cmd_retrieval_eval_finalize(args: argparse.Namespace) -> None:
+    summary = finalize_retrieval_evaluation(
+        run_dir=Path(args.run_dir),
+        annotations_path=Path(args.annotations) if args.annotations else None,
+        k_values=args.k,
+    )
+    print(format_finalize_summary(summary))
+
+
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
     p.add_argument("--config", default="evaluation_metrics/config/eval.yaml")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -751,10 +928,66 @@ def main() -> None:
     s10.add_argument("--tasks-clean-json", default="")
     s10.set_defaults(func=_cmd_phase6)
 
+    s11 = sub.add_parser("qrels-create-template", aliases=["qrels_create_template"])
+    s11.add_argument("--direct", required=True)
+    s11.add_argument("--hyde", required=True)
+    s11.add_argument("--pooled-output", required=True)
+    s11.add_argument("--template-output", required=True)
+    s11.set_defaults(func=_cmd_qrels_create_template)
+
+    s12 = sub.add_parser("qrels-validate", aliases=["qrels_validate"])
+    s12.add_argument("--pooled", required=True)
+    s12.add_argument("--annotations", required=True)
+    s12.set_defaults(func=_cmd_qrels_validate)
+
+    s13 = sub.add_parser("qrels-generate", aliases=["qrels_generate"])
+    s13.add_argument("--pooled", required=True)
+    s13.add_argument("--annotations", required=True)
+    s13.add_argument("--qrels-output", required=True)
+    s13.set_defaults(func=_cmd_qrels_generate)
+
+    s13b = sub.add_parser("retrieval-metrics", aliases=["retrieval_metrics"])
+    s13b.add_argument("--direct", required=True)
+    s13b.add_argument("--hyde", required=True)
+    s13b.add_argument("--qrels", required=True)
+    s13b.add_argument("--summary-output", required=True)
+    s13b.add_argument("--per-query-output", required=True)
+    s13b.add_argument("--latex-output", required=True)
+    s13b.add_argument("--k", type=int, action="append", default=None)
+    s13b.add_argument("--strict", action="store_true")
+    s13b.set_defaults(func=_cmd_retrieval_metrics)
+
+    s14 = sub.add_parser("retrieval-export", aliases=["retrieval_export"])
+    s14.add_argument("--retrieval-pool-depth", type=int, default=50)
+    s14.add_argument("--max-queries", type=int, default=None)
+    s14.set_defaults(func=lambda a: _run_async(_cmd_retrieval_export(a)))
+
+    s15 = sub.add_parser("retrieval-eval-prepare", aliases=["retrieval_eval_prepare"])
+    s15.add_argument("--retrieval-pool-depth", type=int, default=50)
+    s15.add_argument("--max-queries", type=int, default=None)
+    s15.add_argument("--force", action="store_true")
+    s15.set_defaults(func=lambda a: _run_async(_cmd_retrieval_eval_prepare(a)))
+
+    s16 = sub.add_parser("retrieval-eval-finalize", aliases=["retrieval_eval_finalize"])
+    s16.add_argument("--run-dir", required=True)
+    s16.add_argument("--annotations", default=None)
+    s16.add_argument("--k", type=int, action="append", default=None)
+    s16.set_defaults(func=_cmd_retrieval_eval_finalize)
+
     s9 = sub.add_parser("paper")
     s9.set_defaults(func=lambda a: _run_async(_cmd_paper(a)))
 
-    args = p.parse_args()
+    return p
+
+
+def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        force=True,
+    )
+
+    args = build_parser().parse_args()
     args.func(args)
 
 

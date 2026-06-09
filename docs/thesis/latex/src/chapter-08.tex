@@ -1,0 +1,113 @@
+% chapter-08.tex
+\chapter{Discussion}
+
+\section{Architectural Interpretation of the Evaluation}
+
+The evaluation results are best interpreted as the behavior of a specific engineered biomedical RAG architecture, not as a general statement about all retrieval-augmented biomedical systems. The latest deterministic benchmark does not identify one universally superior configuration. Instead, it shows that the strongest configuration depends on the evaluation dimension.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/paper_benchmark_summary.json
+% evidence: docs/thesis/latex/src/chapter-07.tex
+
+This dimension-specific interpretation is important because biomedical RAG systems combine multiple subsystems whose failures are not equivalent. Retrieval failure means the system did not surface the right evidence. Generation failure means the answer did not express the evidence appropriately. Faithfulness failure means the answer moved beyond the supplied contexts. Extraction failure means the answer did not yield the expected structured factors. Operational failure means the benchmark is too slow, too expensive, or insufficiently reproducible. The thesis therefore treats evaluation as a diagnostic map of subsystem behavior rather than as a competition for a single best score.
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+% evidence: evaluation_metrics/src/phases/phase4_ragas.py
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+
+RAG without HyDE is the stronger extraction configuration in the latest deterministic benchmark. It achieves higher micro precision, micro recall, micro F1, macro precision, macro recall, and macro F1 than RAG with HyDE. It also recovers more true positives, 38 rather than 34, while both RAG configurations produce 23 false positives and 3 false negatives. This finding matters for a risk-factor extraction workflow because true-positive recovery and false-positive burden affect downstream human review differently.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_no_hyde_summary.csv
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_hyde_summary.csv
+
+The extraction result also shows why raw answer fluency is not enough for this domain. A biomedical answer can sound plausible but still omit a factor that the derived reference set expects, or introduce an extra factor that is not supported by that substrate. In the latest run, both RAG modes produced substantial false positives. This means that the architecture should continue to treat extraction as a review-support output rather than as an autonomous clinical decision. The stronger direct-RAG extraction score is useful evidence about the implemented pipeline, but it does not remove the need for human interpretation of extracted biomedical factors.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_no_hyde_summary.csv
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+
+HyDE is neither uniformly harmful nor uniformly beneficial. Relative to RAG without HyDE, it slightly improves answer relevancy and substantially improves RAGAS context precision without reference. However, it materially reduces faithfulness and lowers extraction performance. The most defensible interpretation is therefore a support-versus-grounding tradeoff: HyDE appears to focus the contexts that support its produced answers, but those answers are less faithful to the retrieved evidence under the evaluator and recover fewer derived risk factors.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase4_ragas_phase3_answers_rag_no_hyde.jsonl
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase4_ragas_phase3_answers_rag_hyde.jsonl
+
+This mixed HyDE behavior is architecturally plausible. HyDE changes the retrieval query by first generating a hypothetical answer-like document and then using that document to retrieve candidates. If the hypothetical document matches the semantic neighborhood of relevant evidence, retrieval can become more focused. If the hypothetical document introduces framing that is not sufficiently anchored in the final evidence, answer synthesis can become less faithful. The latest metrics are consistent with that kind of tradeoff, but they do not prove the internal causal mechanism. They show the observed benchmark outcome for the implemented HyDE path and current corpus state.
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hyde/hyde.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/paper_benchmark_summary.json
+
+The LLM-only baseline has the highest answer relevancy score in the deterministic run, but it cannot be assessed for evidence grounding because it has no retrieved contexts. This distinction is central to the thesis. A fluent answer that addresses the question is not the same as a source-supported answer, and a source-supported answer is not the same as clinical validation.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase4_ragas_phase3_answers_llm_only.jsonl
+
+The LLM-only result should therefore be read as a useful baseline rather than as a preferred biomedical architecture. It shows that the local model can often produce answers judged relevant to the questions. It does not show that those answers are traceable to a controlled corpus, that cited evidence supports each claim, or that a clinician should trust the output. In this thesis, the purpose of RAG is not merely to maximize answer relevancy; it is to make the path from corpus evidence to generated answer inspectable.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase4_ragas_phase3_answers_llm_only.jsonl
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hallucination/synthesis.py
+
+\section{Retrieval Behavior and Snapshot Boundaries}
+
+The retrieval subsystem is constrained by the interaction between Qdrant vector search, the selected embedding model, chunk construction, and the downstream reranker. Qdrant supplies dense candidates, while the application layer combines direct dense rank, optional HyDE rank, lexical signals, and section weighting. Final answer synthesis then consumes a bounded context set.
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/pipeline.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/retrieval/hybrid_ranker.py
+
+The finalized June 2026 retrieval benchmark demonstrates why corpus versioning and qrels completion are necessary for defensible retrieval claims. The benchmark contains 321 judged pooled candidates, completed qrels artifacts, and retrieval metrics for both Direct Retrieval and HyDE Retrieval. Because the judged candidate universe is now fixed, the retrieval metrics can be interpreted as benchmark evidence rather than as an unfinished preparation snapshot.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/pooled_candidates.jsonl
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/qrels_annotation_completed.csv
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/retrieval_metrics_summary.json
+
+This boundary still affects interpretation of HyDE. The finalized retrieval benchmark shows that HyDE improves early relevant-evidence discovery and Recall@5, while direct retrieval retains stronger Precision@5 and nDCG@5. The separate generation benchmark shows a different downstream pattern: HyDE improves context precision without reference but reduces faithfulness and extraction performance. These results should therefore be compared as complementary phases rather than merged into one claim about universal superiority.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/retrieval_metrics_summary.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/paper_benchmark_summary.json
+
+This separation is one of the strongest methodological lessons of the project. Retrieval, generation, and extraction are often discussed as if improvements transfer cleanly across phases. The evidence here is more cautious. A retrieval configuration can look beneficial under one retrieval metric and still harm faithfulness or extraction downstream. Conversely, a generation metric can improve while a structured extraction metric worsens. The platform's phase-separated artifacts make these divergences visible.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/paper_benchmark_summary.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/retrieval_metrics_summary.json
+
+\section{Human-in-the-Loop Validation}
+
+The Label Studio workflow strengthens corpus curation but does not establish clinical validation. The repository shows that abstracts are transformed into Label Studio tasks, reviewed tasks are exported, DOI and source metadata are enriched, clean records are separated from rejected records, and ingestion-ready items can be batched into the biomedical RAG API. This creates a traceable human-in-the-loop path between biomedical review activity and downstream ingestion.
+% evidence: labelstudio-tools/src/app/python/download_data/main.py
+% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
+% evidence: labelstudio-tools/ls_data/tasks_clean.json
+
+The methodological value of this path is that expert review can shape the evidence substrate and can provide a derived reference set for extraction evaluation. The limitation is equally important: the repository does not establish inter-annotator agreement, adjudication, prospective validation, or clinical outcome testing. The platform demonstrates traceable experimental architecture and curated evidence processing, not clinical readiness.
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+% evidence: docs/thesis/latex/src/chapter-05.tex
+
+This distinction protects the contribution from overclaiming. Human-in-the-loop curation improves traceability because records, citations, and labels can be inspected. It does not automatically make the resulting dataset clinically authoritative. A clinically stronger study would require independent expert review, adjudication of disagreements, clearer population and outcome definitions, and validation against clinical standards. The current repository provides the engineering path needed for such work, but not the completed clinical validation itself.
+% evidence: labelstudio-tools/ls_data/tasks_clean.json
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py
+
+\section{Operational and Reproducibility Implications}
+
+The latest benchmark exposes substantial runtime cost. The complete chained execution ran for 34 hours, 32 minutes, and 35 seconds. Phase 4 RAGAS evaluation consumed approximately 20 hours, 26 minutes, and 56 seconds, making it the main bottleneck. Mean generation latency was also materially higher for the RAG modes than for LLM only, with RAG with HyDE slower than RAG without HyDE.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
+
+The runtime profile has architectural consequences. A locally controlled Ollama deployment and CPU embedding setup support inspection and reproducibility, but they constrain throughput. If the evaluation framework is expanded to larger benchmarks or repeated evaluator calibration runs, runtime optimization and safe parallelization will become necessary rather than optional.
+% evidence: biomed_knowledge_platform/configs/llm.yaml
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
+
+The RAGAS bottleneck is especially important because evaluator cost can shape research behavior. If scoring is expensive, developers may run fewer evaluations, delay regression checks, or rely on small samples. That creates a risk that changes are accepted based on anecdotal answers rather than systematic evidence. The thesis therefore treats runtime as part of evaluation validity. A reproducible benchmark must not only produce metrics; it must also make repeated measurement operationally feasible.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
+
+The robustness artifacts also show a reproducibility boundary. The LLM-only baseline materially exercises seed and temperature variation, but the RAG API benchmark path remains deterministic under service-controlled generation defaults. Zero variance in RAG modes should therefore be interpreted as a configuration-path finding, not as evidence of stochastic robustness. Future work must expose request-level stochastic controls for RAG synthesis and HyDE generation before making robustness claims.
+% evidence: evaluation_metrics/src/phases/phase3_generate.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/robustness
+
+The repeated evaluator warning that one generation was returned where three were requested adds a second reproducibility boundary. The evaluation completed and produced usable artifacts, but evaluator configuration did not behave exactly as requested. That does not invalidate the benchmark; it changes how confidently the automated scores should be generalized. The result is a transparent limitation: the reported metrics are valid records of the executed pipeline, while future work should review evaluator configuration and calibrate automated judgments against expert review.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
+
+\section{Scalability and Engineering Architecture Implications}
+
+The strongest engineering property of the platform is separation of concerns. The FastAPI layer is kept distinct from use cases, domain models, ports, and infrastructure adapters. The scheduler service does not write directly to the vector database; it calls document and ingestion endpoints exposed by the biomedical RAG service. The evaluation subsystem does not reach into service internals; it calls APIs and stores phase outputs. This clean separation improves testability and makes architectural reasoning possible.
+% evidence: ../engineering-wiki/wiki/repo-profiles/rag.md
+% evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
+% evidence: scheduler_pubmed/src/adapters/rag/documents_client.py
+% evidence: evaluation_metrics/src/eval_cli.py
+
+At larger scale, the main architectural pressure points are durable ingestion state, vector-store lifecycle management, corpus versioning, model versioning, and evaluation dataset expansion. Qdrant can support larger vector collections than the thesis benchmark uses, but the application still needs durable queues, collection snapshots, explicit corpus versions, and model/runtime digests to make large-scale comparisons meaningful. Without these additions, metric changes could be caused by corpus or runtime drift rather than retrieval or generation improvements.
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
+% evidence: evaluation_metrics/src/eval_cli.py
+
+The evaluation artifacts make this point concrete. The thesis can identify the run directory, configuration snapshot, phase outputs, and log-derived timings. However, it cannot fully freeze every external state that could affect future reruns, such as complete vector-store snapshots and Ollama model digests. For engineering research this is an acceptable disclosed limitation. For stronger scientific claims, those identifiers should become mandatory run metadata.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/config_snapshot.json
+
+\section{Discussion Summary}
+
+The platform behaves like a carefully bounded local biomedical RAG prototype rather than a production clinical system. Its strengths are explicit subsystem boundaries, source-linked retrieval payloads, configurable local inference, traceable evaluation artifacts, and a human-in-the-loop curation path. The latest deterministic evidence favors RAG without HyDE for faithfulness and extraction, while HyDE improves a context-support proxy and slightly improves answer relevancy relative to direct RAG. The central contribution is therefore not a clinical superiority claim, but an auditable architecture and reproducible evaluation pipeline that make such tradeoffs visible.
+% evidence: docs/thesis/latex/src/chapter-07.tex

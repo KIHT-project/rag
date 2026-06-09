@@ -105,9 +105,17 @@ async def test_hyde_disabled_only_question_path_runs() -> None:
 
     merged_all = res.debug["merged_candidates_all"]
     merged_usable = res.debug["merged_candidates_usable"]
+    selected = res.debug["selected_candidates"]
 
     assert merged_all[0]["origin"] == "question"
     assert merged_usable[0]["origin"] == "question"
+    assert merged_all[0]["doc_id"] == "d"
+    assert merged_all[0]["doi"] == "10.1/x"
+    assert merged_all[0]["title"] == "t"
+    assert merged_all[0]["selected_for_context"] is True
+    assert selected[0]["chunk_id"] == "c1"
+    assert selected[0]["selected_for_context"] is True
+    assert res.debug["hyde_text"] is None
 
 
 @pytest.mark.anyio
@@ -170,6 +178,8 @@ async def test_hyde_enabled_merge_dedupes_and_keeps_best_score() -> None:
     assert merged_usable[0]["chunk_id"] == "c1"
     assert merged_usable[0]["origin"] == "both"
     assert merged_usable[0]["score"] > 0
+    assert res.debug["selected_candidates"][0]["selected_for_context"] is True
+    assert res.debug["hyde_text"] == "hyde text"
 
 
 @pytest.mark.anyio

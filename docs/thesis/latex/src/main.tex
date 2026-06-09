@@ -1,0 +1,66 @@
+% main.tex
+\documentclass[12pt,a4paper]{report}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{setspace}
+\usepackage{microtype}
+
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{array}
+
+\usepackage[hidelinks]{hyperref}
+
+\setlength{\parskip}{0.6em}
+\setlength{\parindent}{0pt}
+\onehalfspacing
+
+% Packages that must be in the preamble
+\input{preamble}
+
+% Acronym definitions, still preamble safe
+\input{glossaries}
+
+\begin{document}
+
+% Front matter
+\pagenumbering{roman}
+\include{frontmatter}
+
+\tableofcontents
+\cleardoublepage
+\addcontentsline{toc}{chapter}{List of Figures}
+\listoffigures
+\cleardoublepage
+\addcontentsline{toc}{chapter}{List of Tables}
+\listoftables
+\cleardoublepage
+
+% Print acronyms here in front matter
+\printglossary[type=\acronymtype,title=Acronyms]
+\clearpage
+
+% Main matter
+\pagenumbering{arabic}
+
+\include{chapter-01}
+\include{chapter-02}
+\include{chapter-03}
+\include{chapter-04}
+\include{chapter-05}
+\include{chapter-06}
+\include{chapter-07}
+\include{chapter-08}
+\include{chapter-09}
+
+\appendix
+\include{chapter-10}
+\include{chapter-11}
+
+\end{document}

@@ -1,0 +1,117 @@
+{
+  "run_id": "20260606_212735_nogit",
+  "retrieval_modes": [
+    "direct",
+    "hyde"
+  ],
+  "metric_depths": [
+    5
+  ],
+  "retrieval_pool_depth_by_mode": {
+    "direct": {
+      "min_depth": 5,
+      "max_depth": 10,
+      "depth_by_query": {
+        "thrombosis_q001": 8,
+        "thrombosis_q002": 9,
+        "thrombosis_q003": 7,
+        "thrombosis_q004": 9,
+        "thrombosis_q005": 8,
+        "thrombosis_q006": 10,
+        "thrombosis_q007": 8,
+        "thrombosis_q008": 8,
+        "thrombosis_q009": 6,
+        "thrombosis_q010": 8,
+        "thrombosis_q011": 5,
+        "thrombosis_q012": 8,
+        "thrombosis_q013": 10,
+        "thrombosis_q014": 10,
+        "thrombosis_q015": 9,
+        "thrombosis_q016": 9,
+        "thrombosis_q017": 7,
+        "thrombosis_q018": 7,
+        "thrombosis_q019": 10,
+        "thrombosis_q020": 10,
+        "thrombosis_q021": 9,
+        "thrombosis_q022": 10,
+        "thrombosis_q023": 7,
+        "thrombosis_q024": 9,
+        "thrombosis_q025": 9
+      }
+    },
+    "hyde": {
+      "min_depth": 5,
+      "max_depth": 10,
+      "depth_by_query": {
+        "thrombosis_q001": 9,
+        "thrombosis_q002": 8,
+        "thrombosis_q003": 8,
+        "thrombosis_q004": 8,
+        "thrombosis_q005": 8,
+        "thrombosis_q006": 8,
+        "thrombosis_q007": 9,
+        "thrombosis_q008": 9,
+        "thrombosis_q009": 5,
+        "thrombosis_q010": 8,
+        "thrombosis_q011": 9,
+        "thrombosis_q012": 8,
+        "thrombosis_q013": 10,
+        "thrombosis_q014": 10,
+        "thrombosis_q015": 10,
+        "thrombosis_q016": 8,
+        "thrombosis_q017": 6,
+        "thrombosis_q018": 7,
+        "thrombosis_q019": 10,
+        "thrombosis_q020": 10,
+        "thrombosis_q021": 10,
+        "thrombosis_q022": 9,
+        "thrombosis_q023": 8,
+        "thrombosis_q024": 10,
+        "thrombosis_q025": 7
+      }
+    }
+  },
+  "query_count": 25,
+  "evaluated_query_count_by_mode": {
+    "direct": 25,
+    "hyde": 25
+  },
+  "judged_candidate_count": 321,
+  "relevance_distribution": {
+    "0": 182,
+    "1": 108,
+    "2": 31
+  },
+  "excluded_query_counts_by_metric": {
+    "direct": {
+      "mrr": 0,
+      "precision_at_5": 0,
+      "recall_at_5": 0,
+      "ndcg_at_5": 0
+    },
+    "hyde": {
+      "mrr": 0,
+      "precision_at_5": 0,
+      "recall_at_5": 0,
+      "ndcg_at_5": 0
+    }
+  },
+  "aggregate_metrics_by_mode": {
+    "direct": {
+      "mrr": 0.865,
+      "precision_at_5": 0.552,
+      "recall_at_5": 0.5746897546897547,
+      "ndcg_at_5": 0.7590350769138976
+    },
+    "hyde": {
+      "mrr": 0.91,
+      "precision_at_5": 0.544,
+      "recall_at_5": 0.6174040404040404,
+      "ndcg_at_5": 0.7231373243001985
+    }
+  },
+  "qrels_queries_missing_in_retrieval_by_mode": {
+    "direct": [],
+    "hyde": []
+  }
+}
