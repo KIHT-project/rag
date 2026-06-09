@@ -1,5 +1,5 @@
 rag_api:
-  base_url: http://127.0.0.1:8000
+  base_url: http://c-labs-server-1.local:8000
   timeout_seconds: 2000.0
   search_top_k_pool: 5
   search_top_k_context: 10
@@ -56,4 +56,4 @@ metrics:
 audit:
   sample_size: 12
   seed: 42
-  postgres_dsn: postgresql://user:password@localhost:5432/biomed_knowledge_platform
+  postgres_dsn: postgresql://user:password@c-labs-server-1.local:5432/biomed_knowledge_platform

@@ -231,8 +231,22 @@ alembic heads
 ## Local Run
 Start dependencies:
 ```shell
-docker compose up
+  docker-compose \
+    --profile qdrant \
+    --profile postgres \
+    --profile app \
+    up --build --force-recreate
 ```
+Stop all containers:
+```shell
+docker-compose --profile qdrant --profile postgres --profile app down -v
+```
+
+When the active Docker context points at a remote daemon, do not use bind mounts for PostgreSQL init scripts from the macOS workspace. The Postgres service in `docker-compose.yaml` bakes `postgres/01-init-schemas.sql` into the image so initialization works on remote contexts as well.
+
+PostgreSQL only runs files in `/docker-entrypoint-initdb.d` when `PGDATA` is empty. If a prior failed start already created `postgres_data`, remove that volume before retrying so the schemas are created on the next first boot.
+
+The API image also bakes in `configs/`. Do not mount `./configs` from the macOS workspace when using a remote Docker context. Container-to-container config must use Compose service DNS names such as `postgres` and `qdrant`, not `localhost`.
 
 If you want to run the API separately:
 ```shell

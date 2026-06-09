@@ -1,0 +1,5 @@
+CREATE SCHEMA IF NOT EXISTS pubmed_scheduler;
+CREATE SCHEMA IF NOT EXISTS core_db;
+
+GRANT ALL PRIVILEGES ON SCHEMA pubmed_scheduler TO "user";
+GRANT ALL PRIVILEGES ON SCHEMA core_db TO "user";

@@ -23,7 +23,9 @@ services:
 
   postgres:
     profiles: ["postgres"]
-    image: postgres:17.7
+    build:
+      context: ./postgres
+    image: biomed_knowledge_platform-postgres:17.7
     container_name: postgres-db
     hostname: rdbms
     environment:
@@ -35,7 +37,6 @@ services:
     restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U user -d biomed_knowledge_platform" ]
       interval: 10s
@@ -50,8 +51,6 @@ services:
     build: .
     ports:
       - "8000:8000"
-    volumes:
-      - ./configs:/service/configs:ro
 
 volumes:
   qdrant_storage:

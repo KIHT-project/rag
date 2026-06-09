@@ -1,6 +1,6 @@
 qdrant:
-  url: "http://localhost:6333"
-  grpc_url: "http://localhost:6334"
+  url: "http://qdrant:6333"
+  grpc_url: "http://qdrant:6334"
   api_key: null
   timeout_seconds: 30.0
 
