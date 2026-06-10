@@ -49,6 +49,10 @@ services:
       - qdrant
       - postgres
     build: .
+    gpus: all
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     ports:
       - "8000:8000"
 

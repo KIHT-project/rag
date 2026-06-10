@@ -1,13 +1,13 @@
 rag_api:
-  base_url: http://c-labs-server-1.local:8000
+  base_url: http://localhost:8000
   timeout_seconds: 2000.0
   search_top_k_pool: 5
   search_top_k_context: 10
 ask:
   hyde_header_name: X-HyDE-Enabled
-  hyde_header_value: 'true'
+  hyde_header_value: "true"
 ollama:
-  base_url: http://192.168.2.3:11434
+  base_url: http://localhost:11434
   model: llama3.1:8b-instruct-q4_K_M
   temperature: 0.2
   num_predict: 700
@@ -28,7 +28,7 @@ paths:
   runs_dir: evaluation_metrics/runs
 ragas:
   embeddings_model: sentence-transformers/all-MiniLM-L6-v2
-  embeddings_device: cpu
+  embeddings_device: cuda
   embeddings_local_only: true
 extraction:
   enabled: true
@@ -37,7 +37,7 @@ extraction:
     - rag_no_hyde
     - rag_hyde
   reports_risk_field: reports_risk_factors
-  reports_positive_value: 'Yes'
+  reports_positive_value: "Yes"
   reports_confidence_field: confidence_reports_risk_factors
   min_confidence: 3
   allow_missing_confidence: true
@@ -50,10 +50,10 @@ extraction:
   pred_include_citation_snippets: true
 metrics:
   k_values:
-  - 5
-  - 10
-  - 20
+    - 5
+    - 10
+    - 20
 audit:
   sample_size: 12
   seed: 42
-  postgres_dsn: postgresql://user:password@c-labs-server-1.local:5432/biomed_knowledge_platform
+  postgres_dsn: postgresql://user:password@localhost:5432/biomed_knowledge_platform

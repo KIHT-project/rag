@@ -1,0 +1,371 @@
+{
+  "primary_deterministic": {
+    "seed": 42,
+    "temperature": 0.0,
+    "summary": {
+      "rag_no_hyde": {
+        "faithfulness": 0.6988571428571428,
+        "answer_relevancy": 0.5562776966607299,
+        "llm_context_precision_without_reference": 0.8011111110600183,
+        "extraction_micro_precision": 0.6666666666666666,
+        "extraction_micro_recall": 0.9361702127659575,
+        "extraction_micro_f1": 0.7787610619469028,
+        "extraction_macro_precision": 0.6848639455782312,
+        "extraction_macro_recall": 0.967687074829932,
+        "extraction_macro_f1": 0.7729488765203051,
+        "extraction_query_coverage_rate": 0.56,
+        "extraction_evaluated_queries": 14.0,
+        "extraction_skipped_no_gold": 11.0
+      },
+      "rag_hyde": {
+        "faithfulness": 0.6206666666666667,
+        "answer_relevancy": 0.6363169807093206,
+        "llm_context_precision_without_reference": 0.9088888888262037,
+        "extraction_micro_precision": 0.5428571428571428,
+        "extraction_micro_recall": 1.0,
+        "extraction_micro_f1": 0.7037037037037037,
+        "extraction_macro_precision": 0.5605442176870749,
+        "extraction_macro_recall": 1.0,
+        "extraction_macro_f1": 0.6892857142857143,
+        "extraction_query_coverage_rate": 0.56,
+        "extraction_evaluated_queries": 14.0,
+        "extraction_skipped_no_gold": 11.0
+      },
+      "llm_only": {
+        "answer_relevancy": 0.5015445416526955
+      }
+    },
+    "run_dir": "evaluation_metrics/runs/20260610_073937_nogit/primary_deterministic"
+  },
+  "robustness": {
+    "temperature": 0.2,
+    "seeds": [
+      11,
+      22,
+      33,
+      44,
+      55
+    ],
+    "runs": [
+      {
+        "seed": 11,
+        "summary": {
+          "rag_no_hyde": {
+            "faithfulness": 0.6988571428571428,
+            "answer_relevancy": 0.5562776966607299,
+            "llm_context_precision_without_reference": 0.8011111110600183,
+            "extraction_micro_precision": 0.6666666666666666,
+            "extraction_micro_recall": 0.9361702127659575,
+            "extraction_micro_f1": 0.7787610619469028,
+            "extraction_macro_precision": 0.6848639455782312,
+            "extraction_macro_recall": 0.967687074829932,
+            "extraction_macro_f1": 0.7729488765203051,
+            "extraction_query_coverage_rate": 0.56,
+            "extraction_evaluated_queries": 14.0,
+            "extraction_skipped_no_gold": 11.0
+          },
+          "rag_hyde": {
+            "faithfulness": 0.605072463768116,
+            "answer_relevancy": 0.6235621930735281,
+            "llm_context_precision_without_reference": 0.9133333332716665,
+            "extraction_micro_precision": 0.5652173913043478,
+            "extraction_micro_recall": 0.9285714285714286,
+            "extraction_micro_f1": 0.7027027027027025,
+            "extraction_macro_precision": 0.5680952380952381,
+            "extraction_macro_recall": 0.9333333333333333,
+            "extraction_macro_f1": 0.6713949013949014,
+            "extraction_query_coverage_rate": 0.6,
+            "extraction_evaluated_queries": 15.0,
+            "extraction_skipped_no_gold": 10.0
+          },
+          "llm_only": {
+            "answer_relevancy": 0.6560428606006183
+          }
+        },
+        "run_dir": "evaluation_metrics/runs/20260610_073937_nogit/robustness/seed_11"
+      },
+      {
+        "seed": 22,
+        "summary": {
+          "rag_no_hyde": {
+            "faithfulness": 0.6988571428571428,
+            "answer_relevancy": 0.5562776966607299,
+            "llm_context_precision_without_reference": 0.8011111110600183,
+            "extraction_micro_precision": 0.6666666666666666,
+            "extraction_micro_recall": 0.9361702127659575,
+            "extraction_micro_f1": 0.7787610619469028,
+            "extraction_macro_precision": 0.6848639455782312,
+            "extraction_macro_recall": 0.967687074829932,
+            "extraction_macro_f1": 0.7729488765203051,
+            "extraction_query_coverage_rate": 0.56,
+            "extraction_evaluated_queries": 14.0,
+            "extraction_skipped_no_gold": 11.0
+          },
+          "rag_hyde": {
+            "faithfulness": 0.605072463768116,
+            "answer_relevancy": 0.6235621930735281,
+            "llm_context_precision_without_reference": 0.9133333332716665,
+            "extraction_micro_precision": 0.5652173913043478,
+            "extraction_micro_recall": 0.9285714285714286,
+            "extraction_micro_f1": 0.7027027027027025,
+            "extraction_macro_precision": 0.5680952380952381,
+            "extraction_macro_recall": 0.9333333333333333,
+            "extraction_macro_f1": 0.6713949013949014,
+            "extraction_query_coverage_rate": 0.6,
+            "extraction_evaluated_queries": 15.0,
+            "extraction_skipped_no_gold": 10.0
+          },
+          "llm_only": {
+            "answer_relevancy": 0.626037108689498
+          }
+        },
+        "run_dir": "evaluation_metrics/runs/20260610_073937_nogit/robustness/seed_22"
+      },
+      {
+        "seed": 33,
+        "summary": {
+          "rag_no_hyde": {
+            "faithfulness": 0.6988571428571428,
+            "answer_relevancy": 0.5562776966607299,
+            "llm_context_precision_without_reference": 0.8011111110600183,
+            "extraction_micro_precision": 0.6666666666666666,
+            "extraction_micro_recall": 0.9361702127659575,
+            "extraction_micro_f1": 0.7787610619469028,
+            "extraction_macro_precision": 0.6848639455782312,
+            "extraction_macro_recall": 0.967687074829932,
+            "extraction_macro_f1": 0.7729488765203051,
+            "extraction_query_coverage_rate": 0.56,
+            "extraction_evaluated_queries": 14.0,
+            "extraction_skipped_no_gold": 11.0
+          },
+          "rag_hyde": {
+            "faithfulness": 0.6206666666666667,
+            "answer_relevancy": 0.6363169807093206,
+            "llm_context_precision_without_reference": 0.9088888888262037,
+            "extraction_micro_precision": 0.5428571428571428,
+            "extraction_micro_recall": 1.0,
+            "extraction_micro_f1": 0.7037037037037037,
+            "extraction_macro_precision": 0.5605442176870749,
+            "extraction_macro_recall": 1.0,
+            "extraction_macro_f1": 0.6892857142857143,
+            "extraction_query_coverage_rate": 0.56,
+            "extraction_evaluated_queries": 14.0,
+            "extraction_skipped_no_gold": 11.0
+          },
+          "llm_only": {
+            "answer_relevancy": 0.6250296930103949
+          }
+        },
+        "run_dir": "evaluation_metrics/runs/20260610_073937_nogit/robustness/seed_33"
+      },
+      {
+        "seed": 44,
+        "summary": {
+          "rag_no_hyde": {
+            "faithfulness": 0.6988571428571428,
+            "answer_relevancy": 0.5562776966607299,
+            "llm_context_precision_without_reference": 0.8011111110600183,
+            "extraction_micro_precision": 0.6666666666666666,
+            "extraction_micro_recall": 0.9361702127659575,
+            "extraction_micro_f1": 0.7787610619469028,
+            "extraction_macro_precision": 0.6848639455782312,
+            "extraction_macro_recall": 0.967687074829932,
+            "extraction_macro_f1": 0.7729488765203051,
+            "extraction_query_coverage_rate": 0.56,
+            "extraction_evaluated_queries": 14.0,
+            "extraction_skipped_no_gold": 11.0
+          },
+          "rag_hyde": {
+            "faithfulness": 0.605072463768116,
+            "answer_relevancy": 0.6235621930735281,
+            "llm_context_precision_without_reference": 0.9133333332716665,
+            "extraction_micro_precision": 0.5652173913043478,
+            "extraction_micro_recall": 0.9285714285714286,
+            "extraction_micro_f1": 0.7027027027027025,
+            "extraction_macro_precision": 0.5680952380952381,
+            "extraction_macro_recall": 0.9333333333333333,
+            "extraction_macro_f1": 0.6713949013949014,
+            "extraction_query_coverage_rate": 0.6,
+            "extraction_evaluated_queries": 15.0,
+            "extraction_skipped_no_gold": 10.0
+          },
+          "llm_only": {
+            "answer_relevancy": 0.5045987889547839
+          }
+        },
+        "run_dir": "evaluation_metrics/runs/20260610_073937_nogit/robustness/seed_44"
+      },
+      {
+        "seed": 55,
+        "summary": {
+          "rag_no_hyde": {
+            "faithfulness": 0.6988571428571428,
+            "answer_relevancy": 0.5562776966607299,
+            "llm_context_precision_without_reference": 0.8011111110600183,
+            "extraction_micro_precision": 0.6666666666666666,
+            "extraction_micro_recall": 0.9361702127659575,
+            "extraction_micro_f1": 0.7787610619469028,
+            "extraction_macro_precision": 0.6848639455782312,
+            "extraction_macro_recall": 0.967687074829932,
+            "extraction_macro_f1": 0.7729488765203051,
+            "extraction_query_coverage_rate": 0.56,
+            "extraction_evaluated_queries": 14.0,
+            "extraction_skipped_no_gold": 11.0
+          },
+          "rag_hyde": {
+            "faithfulness": 0.605072463768116,
+            "answer_relevancy": 0.6235621930735281,
+            "llm_context_precision_without_reference": 0.9133333332716665,
+            "extraction_micro_precision": 0.5652173913043478,
+            "extraction_micro_recall": 0.9285714285714286,
+            "extraction_micro_f1": 0.7027027027027025,
+            "extraction_macro_precision": 0.5680952380952381,
+            "extraction_macro_recall": 0.9333333333333333,
+            "extraction_macro_f1": 0.6713949013949014,
+            "extraction_query_coverage_rate": 0.6,
+            "extraction_evaluated_queries": 15.0,
+            "extraction_skipped_no_gold": 10.0
+          },
+          "llm_only": {
+            "answer_relevancy": 0.6326253788004017
+          }
+        },
+        "run_dir": "evaluation_metrics/runs/20260610_073937_nogit/robustness/seed_55"
+      }
+    ],
+    "aggregate": {
+      "rag_no_hyde": {
+        "faithfulness": {
+          "mean": 0.6988571428571428,
+          "std": 0.0,
+          "n": 5
+        },
+        "answer_relevancy": {
+          "mean": 0.5562776966607299,
+          "std": 0.0,
+          "n": 5
+        },
+        "llm_context_precision_without_reference": {
+          "mean": 0.8011111110600183,
+          "std": 0.0,
+          "n": 5
+        },
+        "extraction_micro_precision": {
+          "mean": 0.6666666666666666,
+          "std": 0.0,
+          "n": 5
+        },
+        "extraction_micro_recall": {
+          "mean": 0.9361702127659575,
+          "std": 0.0,
+          "n": 5
+        },
+        "extraction_micro_f1": {
+          "mean": 0.7787610619469028,
+          "std": 0.0,
+          "n": 5
+        },
+        "extraction_macro_precision": {
+          "mean": 0.6848639455782312,
+          "std": 0.0,
+          "n": 5
+        },
+        "extraction_macro_recall": {
+          "mean": 0.967687074829932,
+          "std": 0.0,
+          "n": 5
+        },
+        "extraction_macro_f1": {
+          "mean": 0.7729488765203051,
+          "std": 0.0,
+          "n": 5
+        },
+        "extraction_query_coverage_rate": {
+          "mean": 0.56,
+          "std": 0.0,
+          "n": 5
+        },
+        "extraction_evaluated_queries": {
+          "mean": 14.0,
+          "std": 0.0,
+          "n": 5
+        },
+        "extraction_skipped_no_gold": {
+          "mean": 11.0,
+          "std": 0.0,
+          "n": 5
+        }
+      },
+      "rag_hyde": {
+        "faithfulness": {
+          "mean": 0.6081913043478261,
+          "std": 0.00697393954721674,
+          "n": 5
+        },
+        "answer_relevancy": {
+          "mean": 0.6261131506006866,
+          "std": 0.005704114438441181,
+          "n": 5
+        },
+        "llm_context_precision_without_reference": {
+          "mean": 0.9124444443825739,
+          "std": 0.0019876159804552715,
+          "n": 5
+        },
+        "extraction_micro_precision": {
+          "mean": 0.5607453416149067,
+          "std": 0.009999807104346885,
+          "n": 5
+        },
+        "extraction_micro_recall": {
+          "mean": 0.9428571428571428,
+          "std": 0.03194382824999698,
+          "n": 5
+        },
+        "extraction_micro_f1": {
+          "mean": 0.7029029029029028,
+          "std": 0.0004476612567568039,
+          "n": 5
+        },
+        "extraction_macro_precision": {
+          "mean": 0.5665850340136054,
+          "std": 0.0033769189864282447,
+          "n": 5
+        },
+        "extraction_macro_recall": {
+          "mean": 0.9466666666666667,
+          "std": 0.029814239699997188,
+          "n": 5
+        },
+        "extraction_macro_f1": {
+          "mean": 0.674973063973064,
+          "std": 0.008001014759317408,
+          "n": 5
+        },
+        "extraction_query_coverage_rate": {
+          "mean": 0.592,
+          "std": 0.017888543819998284,
+          "n": 5
+        },
+        "extraction_evaluated_queries": {
+          "mean": 14.8,
+          "std": 0.4472135954999579,
+          "n": 5
+        },
+        "extraction_skipped_no_gold": {
+          "mean": 10.2,
+          "std": 0.4472135954999579,
+          "n": 5
+        }
+      },
+      "llm_only": {
+        "answer_relevancy": {
+          "mean": 0.6088667660111394,
+          "std": 0.059619475632308606,
+          "n": 5
+        }
+      }
+    },
+    "run_dir": "evaluation_metrics/runs/20260610_073937_nogit/robustness"
+  }
+}

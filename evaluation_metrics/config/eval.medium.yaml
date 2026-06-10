@@ -30,7 +30,7 @@ paths:
   runs_dir: evaluation_metrics/runs
 ragas:
   embeddings_model: sentence-transformers/all-MiniLM-L6-v2
-  embeddings_device: cpu
+  embeddings_device: cuda
   embeddings_local_only: true
   # One metric for medium-speed scoring.
   metrics:

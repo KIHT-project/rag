@@ -1,0 +1,130 @@
+{
+  "run_id": "20260610_115600_nogit",
+  "retrieval_modes": [
+    "direct",
+    "hyde"
+  ],
+  "metric_depths": [
+    5,
+    10
+  ],
+  "retrieval_pool_depth_by_mode": {
+    "direct": {
+      "min_depth": 15,
+      "max_depth": 25,
+      "depth_by_query": {
+        "thrombosis_q001": 15,
+        "thrombosis_q002": 16,
+        "thrombosis_q003": 16,
+        "thrombosis_q004": 23,
+        "thrombosis_q005": 21,
+        "thrombosis_q006": 25,
+        "thrombosis_q007": 22,
+        "thrombosis_q008": 21,
+        "thrombosis_q009": 16,
+        "thrombosis_q010": 22,
+        "thrombosis_q011": 19,
+        "thrombosis_q012": 22,
+        "thrombosis_q013": 23,
+        "thrombosis_q014": 23,
+        "thrombosis_q015": 24,
+        "thrombosis_q016": 22,
+        "thrombosis_q017": 16,
+        "thrombosis_q018": 18,
+        "thrombosis_q019": 23,
+        "thrombosis_q020": 24,
+        "thrombosis_q021": 15,
+        "thrombosis_q022": 24,
+        "thrombosis_q023": 18,
+        "thrombosis_q024": 23,
+        "thrombosis_q025": 19
+      }
+    },
+    "hyde": {
+      "min_depth": 16,
+      "max_depth": 25,
+      "depth_by_query": {
+        "thrombosis_q001": 18,
+        "thrombosis_q002": 17,
+        "thrombosis_q003": 16,
+        "thrombosis_q004": 20,
+        "thrombosis_q005": 18,
+        "thrombosis_q006": 23,
+        "thrombosis_q007": 22,
+        "thrombosis_q008": 21,
+        "thrombosis_q009": 18,
+        "thrombosis_q010": 21,
+        "thrombosis_q011": 22,
+        "thrombosis_q012": 23,
+        "thrombosis_q013": 22,
+        "thrombosis_q014": 23,
+        "thrombosis_q015": 24,
+        "thrombosis_q016": 20,
+        "thrombosis_q017": 18,
+        "thrombosis_q018": 20,
+        "thrombosis_q019": 25,
+        "thrombosis_q020": 25,
+        "thrombosis_q021": 17,
+        "thrombosis_q022": 24,
+        "thrombosis_q023": 20,
+        "thrombosis_q024": 23,
+        "thrombosis_q025": 21
+      }
+    }
+  },
+  "query_count": 25,
+  "evaluated_query_count_by_mode": {
+    "direct": 25,
+    "hyde": 25
+  },
+  "judged_candidate_count": 730,
+  "relevance_distribution": {
+    "0": 388,
+    "1": 190,
+    "2": 152
+  },
+  "excluded_query_counts_by_metric": {
+    "direct": {
+      "mrr": 0,
+      "precision_at_5": 0,
+      "precision_at_10": 0,
+      "recall_at_5": 0,
+      "recall_at_10": 0,
+      "ndcg_at_5": 0,
+      "ndcg_at_10": 0
+    },
+    "hyde": {
+      "mrr": 0,
+      "precision_at_5": 0,
+      "precision_at_10": 0,
+      "recall_at_5": 0,
+      "recall_at_10": 0,
+      "ndcg_at_5": 0,
+      "ndcg_at_10": 0
+    }
+  },
+  "aggregate_metrics_by_mode": {
+    "direct": {
+      "mrr": 0.8866666666666667,
+      "precision_at_5": 0.56,
+      "precision_at_10": 0.5479999999999999,
+      "recall_at_5": 0.22360704654822303,
+      "recall_at_10": 0.43678005001534415,
+      "ndcg_at_5": 0.539258975940148,
+      "ndcg_at_10": 0.5573126341470687
+    },
+    "hyde": {
+      "mrr": 0.8933333333333333,
+      "precision_at_5": 0.664,
+      "precision_at_10": 0.528,
+      "recall_at_5": 0.26977326921444567,
+      "recall_at_10": 0.4148276298864534,
+      "ndcg_at_5": 0.5930711892239301,
+      "ndcg_at_10": 0.5591817765605509
+    }
+  },
+  "qrels_queries_missing_in_retrieval_by_mode": {
+    "direct": [],
+    "hyde": []
+  }
+}

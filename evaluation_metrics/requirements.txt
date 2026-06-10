@@ -7,6 +7,7 @@ beir==2.2.0
 
 # Generation metrics
 ragas==0.4.3
+langchain-community==0.4.1
 datasets>=4.5.0
 numpy==2.4.1
 pandas==3.0.0
