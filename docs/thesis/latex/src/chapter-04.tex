@@ -60,7 +60,7 @@ This configuration should not be described as a generic cron file. The verified 
 
 \section{Evaluation Configuration}
 
-The \texttt{eval.yaml} file defines the experimental control surface for the evaluation subsystem. It records the RAG API endpoint, ask-mode HyDE header, Ollama model settings, deterministic and robustness seeds, query file, RAGAS embedding model, extraction policy, and metric \texttt{k} values. These settings define the comparison between LLM-only, RAG without HyDE, and RAG with HyDE configurations.
+The \texttt{eval.yaml} file defines the experimental control surface for the evaluation subsystem. It records the RAG API endpoint, ask-mode HyDE header, Ollama model settings, deterministic and robustness seeds, query file, RAGAS embedding model, RAGAS embedding execution device, extraction policy, and metric \texttt{k} values. These settings define the comparison between LLM-only, RAG without HyDE, and RAG with HyDE configurations.
 % evidence: evaluation_metrics/config/eval.yaml
 % evidence: evaluation_metrics/src/phases/phase3_generate.py
 % evidence: evaluation_metrics/src/phases/phase4_ragas.py
@@ -69,6 +69,19 @@ The \texttt{eval.yaml} file defines the experimental control surface for the eva
 The evaluation CLI writes configuration snapshots into run directories. This is essential for later interpretation because it links generated answer files, RAGAS outputs, extraction summaries, and aggregate benchmark summaries back to the execution settings that produced them. The snapshot is an audit artifact; it does not archive the complete vector database or Ollama runtime.
 % evidence: evaluation_metrics/src/eval_cli.py
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
+
+\subsection{CUDA Evaluation Execution Support}
+
+The evaluation pipeline also supports CUDA execution for the evaluation-side embedding workload used during RAGAS scoring. In the branch "cuda-validation-metrics", commit \texttt{a1faf166} introduced a workstation-oriented configuration in which the evaluation profiles switch the \texttt{ragas.embeddings\_device} setting from \texttt{cpu} to \texttt{cuda} and use local service endpoints for the RAG API, Ollama, and audit database. Conceptually, this is an execution-environment change for the evaluation subsystem rather than a change to the reported metric definitions or to the scientific interpretation of those metrics.
+% evidence: evaluation_metrics/config/eval.yaml
+% evidence: evaluation_metrics/config/eval.fast.yaml
+% evidence: evaluation_metrics/config/eval.medium.yaml
+% evidence: evaluation_metrics/src/eval_cli.py
+% evidence: evaluation_metrics/src/phases/phase4_ragas.py
+
+This distinction matters because the repository does not show a blanket migration of all thesis components to GPU execution. The verified change affects the evaluation path that constructs RAGAS embeddings, while the biomedical RAG service configuration remains separately defined in its own YAML files. The thesis therefore describes CUDA support as an available evaluation configuration, not as proof that every subsystem in every benchmark run executed on the same hardware path.
+% evidence: biomed_knowledge_platform/configs/rag.yaml
+% evidence: evaluation_metrics/config/eval.yaml
 
 \section{Configuration Boundaries and Drift Risks}
 

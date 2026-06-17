@@ -125,6 +125,17 @@ Behavior-driven tests~\cite{north2006bdd} are implemented explicitly in \texttt{
 % evidence: tests/bdd/conftest.py
 % evidence: tests/bdd/docker-compose.yaml
 
+\section{CUDA-Aware Evaluation Implementation}
+
+CUDA support in the thesis repository is implemented in the evaluation subsystem rather than in the core FastAPI service path. The evaluation CLI reads the \texttt{ragas.embeddings\_device} field from the active evaluation configuration and passes that value into the RAGAS execution phase, where the sentence-transformer evaluator embeddings are constructed for the configured device. In the branch "cuda-validation-metrics", commit \texttt{a1faf166} is the change point that introduced the CUDA-oriented evaluation profiles used for the RTX 5090 workstation configuration.
+% evidence: evaluation_metrics/config/eval.yaml
+% evidence: evaluation_metrics/src/eval_cli.py
+% evidence: evaluation_metrics/src/phases/phase4_ragas.py
+
+This implementation should be described narrowly. The verified CUDA path accelerates the evaluation-side embedding workload used during automated answer scoring; it does not by itself demonstrate that retrieval, indexing, or answer synthesis were all migrated to the same device. That boundary is important for methodological clarity because execution placement can change operational behavior without changing the meaning of the metric artifacts produced by the pipeline.
+% evidence: evaluation_metrics/src/phases/phase4_ragas.py
+% evidence: biomed_knowledge_platform/configs/rag.yaml
+
 \subsection{Test Strategy Discussion}
 
 The overall structure follows a pragmatic test-pyramid logic~\cite{cohn2009succeeding}. Most checks are isolated unit tests because the repository contains substantial deterministic logic in parsing, ranking, orchestration, mapping, and error handling. A smaller integration layer validates how those units are assembled at API, use-case, adapter, and repository boundaries. The smallest and most expensive layer is the BDD suite, which exercises complete workflows over realistic infrastructure and therefore provides the strongest confidence in operational behavior. This balance supports reproducibility because deterministic logic is checked cheaply and frequently, while critical cross-component paths such as ingestion, retrieval, auditing, and scheduler execution are still validated through scenario-based tests. A current limitation is that continuous integration executes the package-level \texttt{make test} suites for the biomedical platform and scheduler, but the present workflow file does not show automated execution of the top-level BDD suite or the \texttt{labelstudio-tools} tests.

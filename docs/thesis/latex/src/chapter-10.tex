@@ -99,13 +99,15 @@ llm_max_concurrency: 2
 
 \subsection{Evaluation Configuration}
 
-The evaluation configuration defines the RAG API endpoint, HyDE header, model settings, deterministic and robustness seeds, query file, RAGAS embedding model, extraction policy, and k values. This file is also copied into run artifacts as a configuration snapshot, which links benchmark outputs to the configuration that produced them. The latest answer-generation benchmark uses 25 questions, primary seed 42, primary temperature 0.0, and robustness seeds 11, 22, 33, 44, and 55 at configured temperature 0.2. The finalized retrieval benchmark uses the same thesis query set but evaluates ranked evidence with completed qrels-based metrics.
+The evaluation configuration defines the RAG API endpoint, HyDE header, model settings, deterministic and robustness seeds, query file, RAGAS embedding model, RAGAS embedding device, extraction policy, and k values. This file is also copied into run artifacts as a configuration snapshot, which links benchmark outputs to the configuration that produced them. The latest answer-generation benchmark uses 25 questions, primary seed 42, primary temperature 0.0, and robustness seeds 11, 22, 33, 44, and 55 at configured temperature 0.2. The finalized retrieval benchmark uses the same thesis query set but evaluates ranked evidence with completed qrels-based metrics.
 % evidence: evaluation_metrics/config/eval.yaml
 % evidence: evaluation_metrics/src/eval_cli.py
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/config_snapshot.json
 
 \begin{lstlisting}[language={},caption={Representative evaluation settings.}]
+ragas:
+  embeddings_device: cuda
 paper:
   primary_seed: 42
   primary_temperature: 0.0
@@ -117,6 +119,11 @@ extraction:
   enabled: true
   tasks_clean_json: evaluation_metrics/tasks_clean.json
 \end{lstlisting}
+
+This appendix example is with a verified CUDA-oriented evaluation profile. Commit \texttt{a1faf166} introduced the configuration used on the RTX 5090 workstation by moving the evaluation-side RAGAS embeddings from \texttt{cpu} to \texttt{cuda} in \texttt{eval.yaml}, \texttt{eval.fast.yaml}, and \texttt{eval.medium.yaml}, while also aligning dependent service endpoints with localhost-based execution. This change documents how the evaluation subsystem may be provisioned on a single CUDA-capable workstation; it does not alter the meaning of the benchmark metrics recorded elsewhere in the thesis.
+% evidence: evaluation_metrics/config/eval.yaml
+% evidence: evaluation_metrics/config/eval.fast.yaml
+% evidence: evaluation_metrics/config/eval.medium.yaml
 
 \section{Deployment and Infrastructure}
 
@@ -297,10 +304,29 @@ Local LLM behavior remains a reproducibility constraint. The service uses a loca
 % evidence: llm_server/ollama/llm-models.json
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
 
-Hardware and runtime dependencies also affect repeatability. Embeddings are configured for CPU execution, Qdrant and PostgreSQL persist local state through volumes, and the API uses in-memory ingestion queues and stores in the current composition. These are acceptable thesis-prototype choices, but they should be recorded when comparing new runs against the canonical run.
+Hardware and runtime dependencies also affect repeatability. The archived canonical benchmark used CPU-side evaluation embeddings, while the "cuda-validation-metrics" branch also documents a CUDA execution option for evaluation-side embeddings through commit \texttt{a1faf166}. Qdrant and PostgreSQL persist local state through volumes, and the API uses in-memory ingestion queues and stores in the current composition. These are acceptable thesis-prototype choices, but they should be recorded when comparing new runs against the canonical run.
 % evidence: biomed_knowledge_platform/configs/rag.yaml
+% evidence: evaluation_metrics/config/eval.yaml
 % evidence: biomed_knowledge_platform/docker-compose.yaml
 % evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
+
+\section{CUDA and APEX Preparation}
+
+CUDA execution for the evaluation subsystem should be prepared as an environment-validation procedure rather than as an informal host assumption. The required checks are straightforward. First, verify NVIDIA driver availability with \texttt{nvidia-smi}. Second, verify that the CUDA toolkit is available on the workstation and matches the intended runtime toolchain. Third, verify that the active PyTorch environment detects CUDA correctly before running the evaluation pipeline.
+% evidence: evaluation_metrics/config/eval.yaml
+% evidence: evaluation_metrics/src/phases/phase4_ragas.py
+
+\begin{lstlisting}[language=bash,caption={Minimal CUDA environment validation sequence.}]
+nvidia-smi
+nvcc --version
+python -c "import torch; print(torch.cuda.is_available())"
+\end{lstlisting}
+
+APEX should be treated conditionally. The verified repository configuration for the thesis evaluation subsystem does not declare NVIDIA APEX as a mandatory dependency, so APEX should only be installed or validated if a local execution profile explicitly requires it. When APEX is required, it must be built against the same CUDA toolkit and the same PyTorch environment that will execute the evaluation pipeline; mixing a different CUDA or PyTorch build is a common cause of import and runtime failures.
+% evidence: evaluation_metrics/requirements.txt
+% evidence: evaluation_metrics/config/eval.yaml
+
+A short troubleshooting rule is sufficient for most failures. If CUDA is visible to the host but not to PyTorch, the problem is usually an environment or binary compatibility mismatch. If APEX imports fail, undefined symbol errors or extension build errors should be treated first as a signal that APEX was compiled against a different CUDA or PyTorch installation than the one currently active. In that situation, the correct response is to rebuild or reinstall APEX inside the exact execution environment intended for the thesis run, rather than to treat the failure as a benchmark anomaly.
 
 \section{Additional Technical Notes}
 
