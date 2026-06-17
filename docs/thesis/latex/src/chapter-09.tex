@@ -44,6 +44,12 @@ The finalized retrieval benchmark shows a mixed retrieval tradeoff rather than a
 The operational findings also shape the conclusion. The complete chained execution required more than 34 hours, and RAGAS evaluation was the dominant bottleneck. This shows that reproducible biomedical RAG evaluation is not just a modeling problem; it is also an infrastructure and runtime-management problem. Larger benchmarks, evaluator calibration, and repeated robustness studies will require better scheduling, parallelization where safe, and stricter run metadata preservation.
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
 
+The CUDA configuration also shapes the conclusion. In the branch \texttt{cuda-validation-metrics}, commit \texttt{a1faf166} introduced a workstation-oriented execution profile for an RTX 5090 host by moving the evaluation-side RAGAS embedding path from \texttt{cpu} to \texttt{cuda} and aligning dependent services with localhost execution. This shows that reproducible biomedical RAG evaluation is also an environment-provisioning problem: hardware capability, CUDA availability, PyTorch compatibility, and optional APEX build consistency must be validated before execution. The role of this configuration is operational transparency and scalable evaluation setup, not a revision of the reported benchmark values.
+% evidence: evaluation_metrics/config/eval.yaml
+% evidence: evaluation_metrics/config/eval.fast.yaml
+% evidence: evaluation_metrics/config/eval.medium.yaml
+% evidence: evaluation_metrics/requirements.txt
+
 \section{Limitations}
 
 The first limitation is evaluation size and coverage. The answer-generation benchmark contains 25 thrombosis oriented questions, and extraction evaluation covers only 13 of them because 12 questions have no derived gold factors under the configured no-gold policy. The results are useful for system diagnosis and thesis evaluation, but they do not support broad clinical claims.
