@@ -5,7 +5,7 @@ Supervising Professor
 Eleni Kaldoudi
 
 Supervising PhD Candidate
-Nikolaos Portoakalidis
+Nikolaos Portokalidis
 
 This software was developed as part of an MSc thesis, Democritus University of Thrace, School of Medicine MSc in Bioinformatics.
 Reuse in academic research requires proper attribution.
@@ -51,3 +51,7 @@ To deactivate the virtual environment:
 ```shell
 deactivate
 ```
+cd ../engineering-wiki
+
+make preflight repo=drone-communication-simulator
+make check-profile repo=drone-communication-simulator

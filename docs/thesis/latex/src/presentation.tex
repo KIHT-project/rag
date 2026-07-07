@@ -1,9 +1,25 @@
 % presentation.tex
 \documentclass[aspectratio=169,11pt]{beamer}
 
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage{lmodern}
+\usepackage{fontspec}
+\defaultfontfeatures{Ligatures=TeX}
+\setmainfont{Calibri}[
+  Path=/Users/nchaikalis/Library/Fonts/,
+  Extension=.ttf,
+  UprightFont=Calibri,
+  BoldFont=Calibrib,
+  ItalicFont=Calibrii,
+  BoldItalicFont=Calibriz
+]
+\setsansfont{Calibri}[
+  Path=/Users/nchaikalis/Library/Fonts/,
+  Extension=.ttf,
+  UprightFont=Calibri,
+  BoldFont=Calibrib,
+  ItalicFont=Calibrii,
+  BoldItalicFont=Calibriz
+]
+\setmonofont{Menlo}
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{array}
