@@ -1,5 +1,9 @@
 **/*ignore*
 
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+
 # AWS
 .aws-sam/
 *.awscli
