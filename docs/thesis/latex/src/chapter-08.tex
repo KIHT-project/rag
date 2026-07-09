@@ -58,18 +58,13 @@ This separation is one of the strongest methodological lessons of the project. R
 
 \section{Human-in-the-Loop Validation}
 
-The Label Studio workflow strengthens corpus curation but does not establish clinical validation. The repository shows that abstracts are transformed into Label Studio tasks, reviewed tasks are exported, DOI and source metadata are enriched, clean records are separated from rejected records, and ingestion-ready items can be batched into the biomedical RAG API. This creates a traceable human-in-the-loop path between biomedical review activity and downstream ingestion.
-% evidence: labelstudio-tools/src/app/python/download_data/main.py
-% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
-% evidence: labelstudio-tools/ls_data/tasks_clean.json
+The human curation workflow strengthens corpus curation but does not establish clinical validation. The repository shows that reviewed tasks are exported, bibliographic metadata are enriched, clean records are separated from rejected records, and ingestion-ready items can be batched into the biomedical RAG API. This creates a traceable human-in-the-loop path between biomedical review activity and downstream ingestion.
 
 The methodological value of this path is that expert review can shape the evidence substrate and can provide a derived reference set for extraction evaluation. The limitation is equally important: the repository does not establish inter-annotator agreement, adjudication, prospective validation, or clinical outcome testing. The platform demonstrates traceable experimental architecture and curated evidence processing, not clinical readiness.
 % evidence: evaluation_metrics/src/phases/phase6_extraction.py
 % evidence: docs/thesis/latex/src/chapter-05.tex
 
 This distinction protects the contribution from overclaiming. Human-in-the-loop curation improves traceability because records, citations, and labels can be inspected. It does not automatically make the resulting dataset clinically authoritative. A clinically stronger study would require independent expert review, adjudication of disagreements, clearer population and outcome definitions, and validation against clinical standards. The current repository provides the engineering path needed for such work, but not the completed clinical validation itself.
-% evidence: labelstudio-tools/ls_data/tasks_clean.json
-% evidence: evaluation_metrics/src/phases/phase6_extraction.py
 
 \section{Operational and Reproducibility Implications}
 
