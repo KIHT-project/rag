@@ -1,145 +1,72 @@
 % chapter-06.tex
-\chapter{Implementation Details}
+\chapter{Methodology}
+\label{chap:methodology}
 
-\section{Label Studio Tools Pipeline}
+\section{Study Design}
 
-The \texttt{labelstudio-tools} package implements the curation-side integration between abstract preparation, Label Studio task management, exported review artifacts, and RAG ingestion handoff. Its implementation purpose is operational rather than algorithmic: it converts reviewable biomedical records into task payloads, retrieves reviewed tasks from Label Studio, enriches them with missing bibliographic identifiers, and serializes a clean subset that can be ingested through the biomedical platform API. This package is therefore part of the data-curation plane, not part of the online retrieval path.
-% evidence: labelstudio-tools/src/app/python/main.py
-% evidence: labelstudio-tools/src/app/python/download_data/main.py
-% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
+This chapter defines the methodological protocol used to connect system construction with evaluable evidence. The study design does not treat the platform solely as a retrieval service; instead, it examines a composite workflow in which automated acquisition, manual abstract review, ingestion control, and experimental evaluation contribute different forms of validity. This framing is necessary because system quality depends not only on retrieval metrics, but also on whether the indexed corpus can be curated in a traceable and reproducible manner.
+% evidence: docs/THESIS_PLAN.md
+% evidence: docs/thesis/STYLE_GUIDE.md
+% evidence: docs/thesis/evidence/CLAIMS.md
 
-\subsection{Configuration and Execution Model}
+Methodologically, the architecture supports a staged form of validation. Automated services provide acquisition, indexing, and answer generation behavior, while the human curation workflow supplies manually reviewed task records that can be exported, enriched, and selectively handed to downstream ingestion. The design decision is to separate curation from online retrieval so that review judgments and metadata-completeness checks refine the evidence base without being conflated with query-time behavior. This supports clearer interpretation of later evaluation outcomes, although it does not by itself constitute clinical validation.
 
-Configuration is environment-driven. The package resolves a project root from the active \texttt{.env} file, configures logging centrally, and exposes variables for Label Studio connectivity, Excel input location, filter toggles, export destinations, and RAG ingestion behavior. This design keeps the implementation portable across local runs and batch executions, while making behavior explicit enough to reproduce the same data-processing path under controlled settings.
-% evidence: labelstudio-tools/src/app/python/config.py
-% evidence: labelstudio-tools/README.md
+\section{Dataset Protocol}
 
-\subsection{Excel Loading, Filtering, and Task Transformation}
+The dataset protocol combines two complementary sources of evidence. First, biomedical documents enter the platform through scheduler-driven or direct ingestion workflows. Second, an annotation-oriented curation stream prepares abstract-level tasks for manual biomedical review. In the task-preparation stage, the workflow reads a structured Excel source, checks that required bibliographic columns are present, normalizes selected boolean review flags, optionally applies exclusion-oriented filters, and emits task payloads containing PMID, title, and abstract content.
 
-The task-preparation entrypoint loads an Excel worksheet into a dataframe, rejects empty inputs, and fails fast when required columns are missing. Optional boolean-like columns are normalized into consistent truth values before any filtering logic is applied. The filtering stage can exclude pre-marked records, records declared unrelated to venous thrombosis, or records not reporting on risk factors, depending on configuration. After optional sampling, each valid row is transformed into a minimal Label Studio task containing PMID, title, and abstract content; rows without PMID are skipped to avoid generating invalid review items.
-% evidence: labelstudio-tools/src/app/python/data_loader.py
-% evidence: labelstudio-tools/src/app/python/filters.py
-% evidence: labelstudio-tools/src/app/python/tasks.py
-% evidence: labelstudio-tools/src/app/python/main.py
+After export from the curation workflow, the reviewed task set is enriched with DOI and related source metadata and then partitioned into separate artifact classes. The repository contains raw exported tasks, a clean dataset prepared for ingestion, a rejected-task report, and a file listing source identifiers for unresolved DOI enrichment cases. In the current artifact snapshot, 1300 tasks are present in the raw export, 1288 are retained in the clean export, and 12 are listed as rejected due to missing ingest-critical metadata. This partitioning supports reproducibility because later ingestion and evaluation steps can be tied to explicit intermediate datasets rather than reconstructed retrospectively.
 
-\subsection{Task Upload and Retry Behavior}
+\section{Annotation-Based Validation}
 
-Task upload is implemented through the Label Studio Software Development Kit (SDK). Before import, the uploader checks authentication and verifies that the configured project identifier is visible to the current account. Tasks are then sent in fixed-size batches, with exponential retry backoff applied when a batch import fails. This implementation favors robustness over strict immediacy, which is appropriate for a curation workflow where transient network or service failures should not force a full restart of the import process.
-% evidence: labelstudio-tools/src/app/python/uploader.py
+Annotation-based validation is used here as a curation and evidence-screening mechanism rather than as an experimental endpoint with claimed clinical outcomes. Exported reviewed tasks retain manual annotation objects together with the underlying abstract text and enriched document identifiers. The observed task structure includes review signals such as inclusion evidence spans, relation-to-venous-thrombosis choices, confidence ratings, risk-factor reporting choices, article-type choices, and category selections. These annotations provide structured human judgments that can be inspected alongside the indexed source records.
 
-\subsection{Export, DOI Enrichment, and Clean Task Serialization}
+The methodological role of these curated tasks is twofold. First, they create a traceable bridge between manual screening activity and the subset of records eligible for RAG ingestion. Second, they provide a review-oriented substrate that can support later evaluation design, for example by identifying papers considered related to thrombosis or likely to contain risk-factor evidence. However, the current repository evidence does not establish inter-annotator agreement, annotation completeness guarantees, or a clinical adjudication protocol. Those limitations must therefore be preserved explicitly when interpreting any downstream findings.
 
-The export-side workflow uses the Label Studio API to page through project tasks, refresh an access token when needed, and collect the project task list. In the observed artifact snapshot, exported tasks are marked as labeled, but the code should still be understood as an export and cleaning utility rather than as an adjudication engine. Exported tasks are then passed through DOI enrichment, after which the pipeline validates whether each task contains the metadata required for downstream ingestion, including source, source identifier, DOI, year, journal, authors, title, and abstract. The implementation writes separate raw, clean, rejected, and missing-identifier JSON artifacts atomically, which improves recoverability and makes data-quality failures inspectable without rerunning the entire export.
-% evidence: labelstudio-tools/src/app/python/download_data/fetch_data_from_ls.py
-% evidence: labelstudio-tools/src/app/python/download_data/find_doi.py
-% evidence: labelstudio-tools/src/app/python/download_data/main.py
-% evidence: labelstudio-tools/src/app/python/download_data/save_data.py
+\section{Reproducibility Protocol}
 
-\subsection{RAG Ingestion Handoff}
+Reproducibility is supported through the project's repository-aware Engineering Wiki philosophy, configuration-driven execution, and durable intermediate artifacts. The curation workflow derives its behavior from environment variables controlling project identifiers, sheet selection, filter activation, export destinations, ingestion batch size, timeout values, and retry parameters. The export and ingestion stages both materialize inspectable files or request batches, which makes it possible to reconstruct which reviewed records were eligible for downstream import and which were excluded.
 
-When a clean task dataset is available, a dedicated integration script converts each task into the ingestion schema expected by the biomedical platform. Only tasks with complete DOI, year, title, journal, author list, and abstract fields are transformed into ingestion items. These items are batched and posted to the \texttt{/v1/ingest/items} endpoint, with special retry handling for transport failures, rate limiting responses, and server-side failures. A short post-success delay is also applied to reduce the probability of immediate rate-limit pressure on consecutive batches.
-% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
+This repository-aware protocol improves methodological transparency by preserving raw, clean, rejected, and missing-identifier artifacts as separate states in the curation lifecycle. Evaluation runs also preserve configuration snapshots, which supports traceability between metric outputs and the settings used during execution. These mechanisms improve reproducibility at the data-processing and artifact-audit levels, but they do not guarantee byte-identical future behavior because model runtime state, vector-store state, and corpus state may change. The main limitation is that some workflow assumptions remain external to the code, including the operational practice by which reviewers complete annotations before export. Consequently, certain governance properties of the review process still require procedural documentation beyond the repository.
 
-\section{Ingestion and Embedding Strategy}
+\section{Evaluation Protocol}
 
-The ingestion strategy is implemented in the biomedical RAG service. At the core of the indexing pipeline is a domain-specific \texttt{SectionAwareChunker}. Unlike naive token-based chunkers, this component respects biomedical document structure. It actively detects and filters out non-informative sections—such as bibliographies—ensuring that only evidence-bearing text is embedded and indexed. Embeddings are generated locally using the \texttt{SentenceTransformersEmbeddingProvider}, which transforms the chunks into dense vectors before they are stored in the Qdrant vector database~\cite{reimers2019sentencebert,qdrant2026collections}.
-% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/chunking.py
-% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
+The current evaluation protocol uses 25 thrombosis oriented questions for answer generation. Each question is evaluated under three modes: LLM only, RAG without HyDE, and RAG with HyDE. The deterministic primary condition uses seed 42 and temperature 0.0, while a robustness group records five nominal seed settings at temperature 0.2. 
 
-\section{Retrieval Logic}
+The evaluation is conducted using a phase-separated pipeline that materializes intermediate artifacts to ensure traceability and reproducibility. This approach separates the assessment of retrieval ranking from the assessment of answer quality and factor extraction. Table~\ref{tab:evaluation-phases} provides the master map of the six primary evaluation phases used throughout the thesis experiments.
 
-The retrieval logic, orchestrated by the \texttt{AskUseCase}, uses a multi-stage hybrid system rather than relying exclusively on dense vector search. The pipeline begins with an optional retrieval expansion phase using Hypothetical Document Embeddings (HyDE), which generates a hypothetical passage and retrieves additional candidates from the same vector index~\cite{gao2023hyde}.
+\begin{table}[htbp]
+\centering
+\caption{Overview of Evaluation Pipeline Phases.}
+\label{tab:evaluation-phases}
+\scriptsize
+\begin{tabularx}{\textwidth}{l >{\raggedright\arraybackslash}p{2cm} X >{\raggedright\arraybackslash}p{3.8cm} >{\raggedright\arraybackslash}p{1.8cm}}
+\toprule
+Phase & Name & Purpose & Input / Output & Metrics \\
+\midrule
+Phase 1 & Candidate Pooling & Extract candidate documents from multiple retrieval modes (Direct, HyDE) to build a pooled set for annotation. & \textbf{I:} Queries, RAG API \newline \textbf{O:} \texttt{pooled\_candidates.jsonl} & N/A \\
+Phase 2 & Retrieval Evaluation & Compute Information Retrieval (IR) metrics for ranked document lists against gold relevance judgments (Qrels). & \textbf{I:} \texttt{retrieval\_*.jsonl}, \texttt{qrels.tsv} \newline \textbf{O:} \texttt{retrieval\_metrics.json} & MRR, nDCG@k, P@k, R@k \\
+Phase 3 & Answer Generation & Execute the RAG pipeline or baseline LLM to generate answers for the query set. & \textbf{I:} Queries, RAG API, Ollama API \newline \textbf{O:} \texttt{phase3\_answers\_*.jsonl} & Mean Latency \\
+Phase 4 & RAGAS Evaluation & Assess answer quality using automated multi-dimensional metrics for RAG systems. & \textbf{I:} \texttt{phase3\_answers\_*.jsonl}, Ollama API \newline \textbf{O:} \texttt{phase4\_ragas\_*.jsonl} & Faithfulness, Relevancy \\
+Phase 5 & Consistency Audit & Sample generated outputs to support manual audit and verify internal system consistency. & \textbf{I:} \texttt{phase3\_answers\_*.jsonl} \newline \textbf{O:} \texttt{audit\_sample.json} & N/A \\
+Phase 6 & Extraction Evaluation & Compare extracted risk factors against a derived gold reference substrate from curated annotations. & \textbf{I:} \texttt{phase3\_answers\_*.jsonl}, \texttt{tasks\_clean.json} \newline \textbf{O:} \texttt{phase6\_extraction\_*.csv} & Precision, Recall, F1 \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
-Following candidate generation, the system uses a hybrid ranker to fuse signals. This ranker combines dense vector ranks, optional HyDE ranks, and in-memory lexical BM25-style ranks through reciprocal-rank fusion~\cite{cormack2009reciprocal}. It also applies section weights; for example, evidence located in results or conclusions sections receives higher weight than methods or supplementary sections. This domain-oriented ranking policy biases the final context window toward more evidence-bearing sections, but it does not guarantee that clinically most important evidence is always selected.
-% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
-% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hyde/hyde.py
-% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/retrieval/hybrid_ranker.py
+The output of each phase is materialized before the next phase runs, so generated answer files, RAGAS outputs, extraction summaries, and benchmark summaries can be inspected independently.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/paper_benchmark_summary.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase3_answers_llm_only.jsonl
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase3_answers_rag_no_hyde.jsonl
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase3_answers_rag_hyde.jsonl
 
-\section{Synthesis and Validation}
+Seeds are used so that repeated runs can separate random variation from architectural behavior. In simple terms, a seed fixes the random starting point used by the model when temperature is above zero. If two runs use the same prompt, same model, same temperature, and same seed, they should follow the same stochastic path more closely than runs with different seeds. For a non-technical reader, this can be understood like shuffling a deck of cards with a numbered shuffle recipe: using the same recipe reproduces the same order, while changing the recipe can change the order. This is why the deterministic benchmark fixes seed 42 and why the robustness group repeats the experiment across seeds 11, 22, 33, 44, and 55.
 
-Once the top-ranked contexts are finalized, the system enforces a strict JSON-only prompt during synthesis. The application layer performs post-generation parsing, schema validation, and citation backfilling so that extracted risk factors are linked to provided context chunks when possible. This validation layer reduces unsupported output and improves compatibility with downstream evaluators, but it does not eliminate hallucination risk or establish clinical correctness.
-% evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hallucination/synthesis.py
+Extraction evaluation is conditional on the availability of derived gold factors from the curated annotation substrate. Under the configured no-gold policy, queries without derived reference factors are skipped rather than counted as failures. This produces a query coverage rate of 0.52 and means that extraction results describe only the covered subset.
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_no_hyde_summary.csv
+% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_hyde_summary.csv
 
-\section{Error Handling}
-
-Error handling in the curation pipeline is structured around fail-fast validation and bounded retries. Invalid Excel inputs, missing required environment variables, missing project access, empty valid-task sets, and malformed task datasets all raise explicit runtime errors. By contrast, operations exposed to network variability use retry loops with exponential backoff, including Label Studio batch import and RAG ingestion requests. The implementation therefore distinguishes between non-recoverable configuration or data-shape faults and recoverable transport or service instability.
-% evidence: labelstudio-tools/src/app/python/data_loader.py
-% evidence: labelstudio-tools/src/app/python/uploader.py
-% evidence: labelstudio-tools/src/app/python/download_data/main.py
-% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
-
-\section{Testing Strategy}
-
-The repository uses a layered test layout rather than a single unit-test suite. The biomedical platform and scheduler keep pytest-based package-local tests~\cite{pytest2026docs} in their own \texttt{tests} directories and execute them through package-specific \texttt{make test} targets with coverage reporting and an 80\% threshold in the current continuous-integration workflow. The curation-side \texttt{labelstudio-tools} package keeps a separate \texttt{src/test/python} suite for deterministic data-processing behavior, while cross-component and workflow-level validation is concentrated in the top-level \texttt{tests/bdd} tree, which includes feature files, step definitions, helper clients, and a dedicated Docker Compose environment~\cite{dockercompose2026docs}.
-% evidence: biomed_knowledge_platform/Makefile
-% evidence: scheduler_pubmed/Makefile
-% evidence: .github/workflows/ci.yaml
-% evidence: labelstudio-tools/pyproject.toml
-% evidence: tests/Makefile
-% evidence: tests/README.md
-% evidence: tests/bdd/docker-compose.yaml
-
-\subsection{Unit Testing}
-
-Unit tests~\cite{meszaros2007xunit} are the dominant layer in the repository. In the biomedical platform they target API error handling, configuration loading, retrieval and ingestion use cases, chunking, hybrid ranking, synthesis, readiness checks, and adapter behavior. These tests isolate collaborators with \texttt{AsyncMock}, \texttt{MagicMock}, \texttt{monkeypatch}, and lightweight stubs so that ranking, chunk construction, idempotency handling, and error normalization can be verified without live infrastructure. The scheduler follows the same pattern for endpoint mapping, runtime orchestration, repository mapping, database utility logic, and external PubMed or RAG client adapters. The \texttt{labelstudio-tools} package uses \texttt{unittest} and \texttt{unittest.mock}~\cite{python2026unittest,python2026unittestmock} to cover environment parsing, Excel loading, filtering rules, task transformation, and uploader retry behavior.
-% evidence: biomed_knowledge_platform/tests/api/test_endpoints_unit.py
-% evidence: biomed_knowledge_platform/tests/core/use_cases/test_ask_use_case.py
-% evidence: biomed_knowledge_platform/tests/core/use_cases/test_ingestion_use_case.py
-% evidence: biomed_knowledge_platform/tests/core/services/ingestion/test_pipeline.py
-% evidence: biomed_knowledge_platform/tests/core/services/retrieval/test_hybrid_ranker.py
-% evidence: biomed_knowledge_platform/tests/core/services/test_readiness.py
-% evidence: scheduler_pubmed/tests/test_api_endpoints_scheduler.py
-% evidence: scheduler_pubmed/tests/test_adapters_pubmed_query_client.py
-% evidence: scheduler_pubmed/tests/test_db_repositories_scheduler_repository.py
-% evidence: labelstudio-tools/src/test/python/test_config.py
-% evidence: labelstudio-tools/src/test/python/test_data_loader.py
-% evidence: labelstudio-tools/src/test/python/test_filters.py
-% evidence: labelstudio-tools/src/test/python/test_tasks.py
-% evidence: labelstudio-tools/src/test/python/test_uploader.py
-
-\subsection{Integration Testing}
-
-Integration validation~\cite{istqb2024ctfl} is narrower but still present. At the service boundary, FastAPI endpoint tests~\cite{fastapi2026docs} instantiate application factories or route sets and verify request handling, dependency wiring, request identifiers, and normalized error envelopes. At the workflow boundary, ingestion and document-fetch tests validate how multiple components collaborate, including queueing, payload persistence, document reservation, chunking, embedding, vector upsert preparation, PubMed fetch resolution, and optional ingestion handoff. Database-oriented integration is split: scheduler repository tests exercise SQLAlchemy repository behavior~\cite{sqlalchemy2026docs} through fake asynchronous sessions, while live PostgreSQL verification~\cite{postgresql2026docs} is deferred to the higher-level BDD suite. The same pattern applies to retrieval: lower-level tests validate how embedders, vector indexes, HyDE generation, and synthesis are composed, while full retrieval execution against running infrastructure is covered elsewhere.
-% evidence: biomed_knowledge_platform/tests/api/test_app.py
-% evidence: biomed_knowledge_platform/tests/api/test_error_handlers.py
-% evidence: biomed_knowledge_platform/tests/core/use_cases/test_document_fetch_use_case.py
-% evidence: biomed_knowledge_platform/tests/core/use_cases/test_ingestion_use_case.py
-% evidence: biomed_knowledge_platform/tests/core/services/hyde/test_hybrid_retrieval.py
-% evidence: biomed_knowledge_platform/tests/adapters/qdrant/test_vector_index.py
-% evidence: scheduler_pubmed/tests/test_db_repositories_scheduler_repository.py
-% evidence: scheduler_pubmed/tests/test_db_repositories_pubmed_query_repository.py
-
-\subsection{Behavior Driven Development (BDD)}
-
-Behavior-driven tests~\cite{north2006bdd} are implemented explicitly in \texttt{tests/bdd} with \texttt{pytest-bdd}~\cite{pytestbdd2026docs}. This suite does not provide generic examples; it codifies repository workflows as feature files for ingestion, search, ask, readiness, audit persistence, document deletion and fetch, scheduler control, scheduler runs, and PubMed query management. The step definitions follow a concrete Given/When/Then structure~\cite{cucumber2026gherkin} that prepares documents, triggers HTTP requests or in-process clients, polls asynchronous ingestion jobs, and asserts observable business outcomes such as citation inclusion, filter exclusion, request auditing, section-aware reference removal, and scheduler status transitions. The suite can run against in-process FastAPI applications or against dockerized HTTP services, and its fixtures provision dedicated configuration, cleanup scripts, and isolated Postgres and Qdrant instances. In practice, this is the repository's main end-to-end validation layer.
-% evidence: tests/requirements.txt
-% evidence: tests/bdd/features/ingestion.feature
-% evidence: tests/bdd/features/search.feature
-% evidence: tests/bdd/features/ask.feature
-% evidence: tests/bdd/features/audit.feature
-% evidence: tests/bdd/features/documents.feature
-% evidence: tests/bdd/features/documents_fetch.feature
-% evidence: tests/bdd/features/pubmed_queries.feature
-% evidence: tests/bdd/features/scheduler_control.feature
-% evidence: tests/bdd/features/scheduler_runs.feature
-% evidence: tests/bdd/conftest.py
-% evidence: tests/bdd/docker-compose.yaml
-
-\section{CUDA-Aware Evaluation Implementation}
-
-CUDA support in the thesis repository is implemented in the evaluation subsystem rather than in the core FastAPI service path. The evaluation CLI reads the \texttt{ragas.embeddings\_device} field from the active evaluation configuration and passes that value into the RAGAS execution phase, where the sentence-transformer evaluator embeddings are constructed for the configured device. In the branch "cuda-validation-metrics", commit \texttt{a1faf166} is the change point that introduced the CUDA-oriented evaluation profiles used for the RTX 5090 workstation configuration.
-% evidence: evaluation_metrics/config/eval.yaml
-% evidence: evaluation_metrics/src/eval_cli.py
-% evidence: evaluation_metrics/src/phases/phase4_ragas.py
-
-This implementation should be described narrowly. The verified CUDA path accelerates the evaluation-side embedding workload used during automated answer scoring; it does not by itself demonstrate that retrieval, indexing, or answer synthesis were all migrated to the same device. That boundary is important for methodological clarity because execution placement can change operational behavior without changing the meaning of the metric artifacts produced by the pipeline.
-% evidence: evaluation_metrics/src/phases/phase4_ragas.py
-% evidence: biomed_knowledge_platform/configs/rag.yaml
-
-\subsection{Test Strategy Discussion}
-
-The overall structure follows a pragmatic test-pyramid logic~\cite{cohn2009succeeding}. Most checks are isolated unit tests because the repository contains substantial deterministic logic in parsing, ranking, orchestration, mapping, and error handling. A smaller integration layer validates how those units are assembled at API, use-case, adapter, and repository boundaries. The smallest and most expensive layer is the BDD suite, which exercises complete workflows over realistic infrastructure and therefore provides the strongest confidence in operational behavior. This balance supports reproducibility because deterministic logic is checked cheaply and frequently, while critical cross-component paths such as ingestion, retrieval, auditing, and scheduler execution are still validated through scenario-based tests. A current limitation is that continuous integration executes the package-level \texttt{make test} suites for the biomedical platform and scheduler, but the present workflow file does not show automated execution of the top-level BDD suite or the \texttt{labelstudio-tools} tests.
-% evidence: biomed_knowledge_platform/Makefile
-% evidence: scheduler_pubmed/Makefile
-% evidence: .github/workflows/ci.yaml
-% evidence: tests/Makefile
+The reference substrate remains useful for reproducible system evaluation because it ties scoring to explicit curation artifacts, DOI alignment, confidence policy, and canonical factor matching. It should not be interpreted as an adjudicated clinical gold standard. This distinction is central to the methodology: the thesis evaluates a research prototype and its measurement pipeline, not clinical safety or diagnostic correctness.
+% evidence: evaluation_metrics/src/phases/phase6_extraction.py

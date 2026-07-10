@@ -26,17 +26,6 @@ The authoritative independent retrieval benchmark for this chapter is the finali
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/qrels.tsv
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/retrieval_metrics_summary.json
 
-\subsection{CUDA Execution Environment}
-
-The thesis also records that the evaluation pipeline can be executed in a CUDA-based environment. In the branch "cuda-validation-metrics", commit \texttt{a1faf166} introduced a local workstation configuration for an RTX 5090 host by switching the evaluation-side RAGAS embedding device to \texttt{cuda} and aligning the service endpoints with localhost execution. This update should be interpreted as documentation of an available execution profile, not as a separate benchmark result set and not as a revision of the metric values reported in this chapter.
-% evidence: evaluation_metrics/config/eval.yaml
-% evidence: evaluation_metrics/config/eval.fast.yaml
-% evidence: evaluation_metrics/config/eval.medium.yaml
-
-Accordingly, the reported tables and figures remain tied to their cited run artifacts. The CUDA configuration changes how later evaluation runs may be provisioned and executed, but it does not authorize retroactive changes to the archived June metric snapshots. The scientific role of this subsection is therefore operational transparency: it clarifies how the evaluation pipeline may be run on a GPU-capable workstation while preserving the evidence boundaries of the documented benchmark results.
-% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
-% evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/config_snapshot.json
-
 \section{Evaluation Dataset and Query Protocol}
 
 The current answer-generation benchmark contains 25 thrombosis oriented questions. Each question is evaluated under all three answer-generation configurations, so the primary deterministic run contains 25 generated answer records per mode. The benchmark is sufficient for diagnostic comparison of the implemented pipeline, but it remains too small for broad statistical claims about biomedical or clinical performance.

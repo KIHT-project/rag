@@ -37,11 +37,11 @@ The remainder of the thesis is organized to move from conceptual grounding to ar
 
 Chapter 3 presents the system architecture, including subsystem responsibilities, workflow design, and operational constraints. It explains why the platform is structured as coordinated services and how architectural tradeoffs are handled with respect to reproducibility, observability, and evidence grounding.
 
-Chapter 4 describes the configuration management strategy, highlighting how externalized configuration files and version locking support reproducibility and experimental control.
+Chapter 4 reports the implementation and configuration details of the architecture. This chapter maps conceptual components to concrete service behavior, explains how curation and retrieval are realized in code, and clarifies how externalized configuration influences execution and reproducibility.
 
-Chapter 5 defines the experimental methodology. It specifies evaluation objectives, dataset protocols, and the reproducibility strategy, ensuring that empirical claims in later chapters can be interpreted within a transparent framework.
+Chapter 5 describes the deployment and execution model of the platform. It explains how the services are provisioned locally, how runtime dependencies are separated, and how execution-environment choices such as CUDA-based evaluation affect operational reproducibility.
 
-Chapter 6 reports the implementation details of the architecture. This chapter maps conceptual components to concrete service behavior, focusing on retrieval logic, human-in-the-loop curation, and error handling.
+Chapter 6 defines the experimental methodology. It specifies evaluation objectives, dataset protocols, and the reproducibility strategy, ensuring that empirical claims in later chapters can be interpreted within a transparent framework.
 
 Chapter 7 provides the evaluation results, examining retrieval and generation behavior through the defined methodology. It relies on canonical artifacts to present quantitative metrics.
 
