@@ -3,13 +3,13 @@
 
 \section{Conclusion}
 
-This thesis produced a repository-backed biomedical RAG platform rather than a standalone model demonstration. The implemented system consists of a modular FastAPI biomedical RAG service, a PubMed scheduler service, a phase-based evaluation subsystem, a local-first Ollama deployment stack, and a Label Studio curation workflow. The biomedical RAG service performs asynchronous ingestion, section-aware chunking, sentence-transformer embedding, Qdrant vector indexing, retrieval, optional HyDE expansion, reranking, and cited answer synthesis.
+This thesis produced a repository-backed biomedical RAG platform rather than a standalone model demonstration. The implemented system consists of a modular FastAPI biomedical RAG service, a PubMed scheduler service, a phase-based evaluation subsystem, a local-first Ollama deployment stack, and a human-in-the-loop curation workflow. The biomedical RAG service performs asynchronous ingestion, section-aware chunking, sentence-transformer embedding, Qdrant vector indexing, retrieval, optional HyDE expansion, reranking, and cited answer synthesis.
 % evidence: ../engineering-wiki/wiki/repo-profiles/rag.md
 % evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
 % evidence: scheduler_pubmed/src/core/use_cases/scheduler.py
 % evidence: evaluation_metrics/src/eval_cli.py
 
-The main contribution is the integration of these components into an auditable architecture with explicit boundaries. API endpoints remain separated from use cases, domain objects, ports, and infrastructure adapters. This matters because Qdrant, Ollama, PubMed, Label Studio exports, and evaluation clients can be inspected as external integrations rather than hidden domain logic. The project therefore contributes a defensible engineering research foundation with reproducible evaluation artifacts, not a claim of clinical superiority.
+The main contribution is the integration of these components into an auditable architecture with explicit boundaries. API endpoints remain separated from use cases, domain objects, ports, and infrastructure adapters. This matters because Qdrant, Ollama, PubMed, curated export artifacts, and evaluation clients can be inspected as external integrations rather than hidden domain logic. The project therefore contributes a defensible engineering research foundation with reproducible evaluation artifacts, not a claim of clinical superiority.
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/ingestion.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/ollama/ollama_client.py
@@ -41,10 +41,10 @@ The evidence for HyDE is therefore conditional. It can be useful when the goal i
 The finalized retrieval benchmark shows a mixed retrieval tradeoff rather than a single winner. HyDE improves MRR and Recall@5, while direct retrieval retains slightly stronger Precision@5 and nDCG@5. This means HyDE is better at surfacing at least one useful source early and recovering more judged relevant evidence in the top five, while direct retrieval is slightly better at keeping the top-five set clean and well ordered by graded relevance.
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/retrieval_metrics_summary.json
 
-The operational findings also shape the conclusion. The complete chained execution required more than 34 hours, and RAGAS evaluation was the dominant bottleneck. This shows that reproducible biomedical RAG evaluation is not just a modeling problem; it is also an infrastructure and runtime-management problem. Larger benchmarks, evaluator calibration, and repeated robustness studies will require better scheduling, parallelization where safe, and stricter run metadata preservation.
+The operational findings also shape the conclusion. The complete chained execution required more than a day of wall-clock time (Chapter~\ref{chap:evaluation}), and RAGAS evaluation was the dominant bottleneck. This shows that reproducible biomedical RAG evaluation is not just a modeling problem; it is also an infrastructure and runtime-management problem. Larger benchmarks, evaluator calibration, and repeated robustness studies will require better scheduling, parallelization where safe, and stricter run metadata preservation.
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
 
-The CUDA configuration also shapes the conclusion. In the branch \texttt{cuda-validation-metrics}, commit \texttt{a1faf166} introduced a workstation-oriented execution profile for an RTX 5090 host by moving the evaluation-side RAGAS embedding path from \texttt{cpu} to \texttt{cuda} and aligning dependent services with localhost execution. This shows that reproducible biomedical RAG evaluation is also an environment-provisioning problem: hardware capability, CUDA availability, PyTorch compatibility, and optional APEX build consistency must be validated before execution. The role of this configuration is operational transparency and scalable evaluation setup, not a revision of the reported benchmark values.
+The CUDA configuration also shapes the conclusion. The optional \texttt{cuda-validation-metrics} evaluation profile shows that reproducible biomedical RAG evaluation is also an environment-provisioning problem: hardware capability, CUDA availability, PyTorch compatibility, and optional APEX build consistency must be validated before execution. The role of this configuration is operational transparency and scalable evaluation setup, not a revision of the reported benchmark values; its mechanics are detailed in Chapter~\ref{chap:deployment} and Appendix~A.
 % evidence: evaluation_metrics/config/eval.yaml
 % evidence: evaluation_metrics/config/eval.fast.yaml
 % evidence: evaluation_metrics/config/eval.medium.yaml
@@ -95,7 +95,7 @@ The third priority is larger and more clinically reviewed extraction coverage. M
 
 Expanded extraction coverage should preserve the distinction between reproducible derived gold factors and clinical gold standards. A practical next step is to increase the number of questions with derived factors and then introduce expert adjudication for a smaller validation subset. This would allow the project to ask two separate questions: whether the system agrees with repository-derived factors, and whether those factors align with expert biomedical judgment.
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_no_hyde_summary.csv
-% evidence: docs/thesis/latex/src/chapter-05.tex
+% evidence: docs/thesis/latex/src/chapter-06.tex
 
 The fourth priority is experiment provenance. Future runs should record corpus version identifiers, Qdrant collection snapshots or snapshot metadata, Ollama model digests, evaluator model/runtime digests, and evaluation code version identifiers. These artifacts would reduce ambiguity when comparing results across changing corpora and local inference environments.
 % evidence: evaluation_metrics/src/eval_cli.py

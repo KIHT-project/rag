@@ -17,23 +17,19 @@ PRESENTATION_PDF := $(abspath $(LATEX_OUT))/$(PRESENTATION:.tex=.pdf)
 
 latex-build:
 	mkdir -p $(LATEX_OUT)
-	cd $(LATEX_SRC) && pdflatex -file-line-error -interaction=nonstopmode -synctex=1 \
-	-output-format=pdf \
+	cd $(LATEX_SRC) && xelatex -file-line-error -interaction=nonstopmode -synctex=1 \
 	-output-directory=$(abspath $(LATEX_OUT)) \
 	$(MAIN)
-	cd $(LATEX_SRC) && pdflatex -file-line-error -interaction=nonstopmode -synctex=1 \
-	-output-format=pdf \
+	cd $(LATEX_SRC) && xelatex -file-line-error -interaction=nonstopmode -synctex=1 \
 	-output-directory=$(abspath $(LATEX_OUT)) \
 	$(MAIN)
 
 latex-presentation presentation.pdf:
 	mkdir -p $(LATEX_OUT)
-	cd $(LATEX_SRC) && pdflatex -file-line-error -interaction=nonstopmode -synctex=1 \
-	-output-format=pdf \
+	cd $(LATEX_SRC) && xelatex -file-line-error -interaction=nonstopmode -synctex=1 \
 	-output-directory=$(abspath $(LATEX_OUT)) \
 	$(PRESENTATION)
-	cd $(LATEX_SRC) && pdflatex -file-line-error -interaction=nonstopmode -synctex=1 \
-	-output-format=pdf \
+	cd $(LATEX_SRC) && xelatex -file-line-error -interaction=nonstopmode -synctex=1 \
 	-output-directory=$(abspath $(LATEX_OUT)) \
 	$(PRESENTATION)
 

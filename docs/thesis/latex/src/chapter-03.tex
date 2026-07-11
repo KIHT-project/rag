@@ -1,34 +1,9 @@
 % chapter-03.tex
 \chapter{System Architecture}
 
-\section{Context and Architectural Scope}
+\section{Requirements and Scope}
 
-This chapter defines the architecture of a platform that must support both continuous biomedical evidence acquisition and grounded analytical responses for thrombosis-oriented information needs. The architectural problem is not only to retrieve relevant literature, but to couple retrieval quality with lifecycle control, operational transparency, and experiment reproducibility. For this reason, the system is scoped as an integrated architecture rather than a single question answering service.
-
-The platform is organized as three cooperating subsystems: a Biomedical Retrieval Augmented Generation (RAG) service~\cite{lewis2020rag}, a PubMed scheduler service, and an evaluation subsystem used to execute comparative experiments. This scope establishes a full path from literature acquisition, to indexing and retrieval, to measured experimental outputs.
-% evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
-% evidence: scheduler_pubmed/src/api/app.py
-% evidence: evaluation_metrics/src/phases/phase1_pool.py
-% evidence: evaluation_metrics/src/phases/phase3_generate.py
-
-This scope also establishes a separation between online inference concerns and experimental concerns. The biomedical RAG service is optimized for serving bounded-latency retrieval and synthesis requests, whereas the evaluation subsystem is designed to run multi-stage analyses that may be computationally intensive and asynchronous. The scheduler service bridges these two temporal scales by injecting new evidence into the retrieval corpus without requiring direct synchronization with user query timing.
-% evidence: biomed_knowledge_platform/src/biomed_platform/api/endpoints/retrieval.py
-% evidence: biomed_knowledge_platform/src/biomed_platform/api/endpoints/ask.py
-% evidence: scheduler_pubmed/src/core/services/scheduler_runtime.py
-% evidence: evaluation_metrics/src/phases/phase4_ragas.py
-
-At repository level, this architecture is reflected in a monorepo with explicit subsystem boundaries. The biomedical RAG service and scheduler service are implemented as independent API applications with their own application and persistence lifecycles, the evaluation subsystem is implemented as a phase-oriented command-line pipeline, and the LLM server stack is separated as deployment infrastructure for model hosting. This organization expresses a deliberate architectural approach in which serving, orchestration, evaluation, and model-hosting responsibilities remain distinct while interoperating through explicit API contracts.
-% evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
-% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ingestion.py
-% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
-% evidence: scheduler_pubmed/src/api/app.py
-% evidence: scheduler_pubmed/src/core/use_cases/scheduler.py
-% evidence: evaluation_metrics/src/eval_cli.py
-% evidence: llm_server/docker-compose.yml
-
-The architectural implication of this monorepo structure is controlled evolution. Subsystems can evolve at different rates without forcing tightly coupled release behavior, while shared evaluation contracts preserve comparability across runs. In practice, this supports maintainability by localizing change impact and supports reproducibility by preserving stable boundaries between acquisition, retrieval, and evaluation concerns.
-
-\section{Architectural Drivers and Constraints}
+The scope of the proposed system is not merely to enable retrieval of the relevant literature, but to couple retrieval quality with lifecycle control, operational transparency, and experiment reproducibility. For this reason, the system is scoped as an integrated architecture rather than a single question answering service.
 
 The dominant architectural driver is reproducibility. System behavior must be inspectable through explicit job states, persistent run records, and staged evaluation artifacts so that observed performance can be interpreted as the result of identifiable processing decisions. This requirement motivates asynchronous job orchestration and explicit persistence of both operational and experimental outputs.
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/domains/ingestion.py
@@ -55,7 +30,7 @@ Queue capacity and worker parallelism are additional constraints that influence 
 
 \section{High Level Architecture}
 
-At the system level, the architecture separates acquisition, retrieval, and evaluation concerns into distinct services with explicit interfaces. The biomedical RAG service exposes ingestion, retrieval, synthesis, and document management capabilities through an Application Programming Interface (API). The scheduler service governs periodic and manual acquisition workflows. The evaluation subsystem executes phase-based pipelines that query the API and materialize experiment artifacts.
+The platform is organized as three cooperating subsystems with explicit interfaces. First, the Biomedical Retrieval-Augmented Generation (RAG) service exposes ingestion, retrieval, synthesis, and document management capabilities through an Application Programming Interface (API)~\cite{lewis2020rag}. Second, the PubMed scheduler service governs periodic and manual acquisition workflows, injecting new evidence into the retrieval corpus without requiring direct synchronization with user query timing. Third, the evaluation subsystem supports the execution of pipelines that query the API and materialize experiments, including retrieval pooling, answer generation, automated quality scoring, and extraction scoring.
 % evidence: biomed_knowledge_platform/src/biomed_platform/api/endpoints/ingestion.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/api/endpoints/retrieval.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/api/endpoints/ask.py
@@ -66,7 +41,7 @@ At the system level, the architecture separates acquisition, retrieval, and eval
 % evidence: evaluation_metrics/src/phases/phase2_beir.py
 % evidence: evaluation_metrics/src/phases/phase3_generate.py
 
-\begin{figure}[h]
+\begin{figure}[!ht]
 \centering
 \includegraphics[width=0.9\linewidth]{resources/images/HLD.pdf}
 \caption{High level architecture of the platform.}
@@ -75,33 +50,25 @@ At the system level, the architecture separates acquisition, retrieval, and eval
 
 Figure~\ref{fig:architecture-high-level} summarizes this decomposition and highlights a key design decision: scheduler execution and query-serving execution are operationally decoupled. This limits failure propagation across subsystems, but introduces eventual consistency between newly acquired literature and immediately retrievable indexed content.
 
-\subsection{Subsystem Boundaries}
+This organization establishes both a full path from literature acquisition, to indexing and retrieval, to measured experimental outputs, and a separation between online inference concerns and experimental concerns. The biomedical RAG service is optimized for serving bounded-latency retrieval and synthesis requests, whereas the evaluation subsystem is designed to run multi-stage analyses that may be computationally intensive and asynchronous.
+% evidence: biomed_knowledge_platform/src/biomed_platform/api/endpoints/retrieval.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/api/endpoints/ask.py
+% evidence: scheduler_pubmed/src/core/services/scheduler_runtime.py
+% evidence: evaluation_metrics/src/phases/phase4_ragas.py
 
-The high-level topology also reflects a contract-oriented integration strategy. The scheduler does not directly manipulate vector storage; instead, it communicates with the biomedical RAG service through documented endpoints for document existence checks, batch fetch, and ingest-job status tracking. This preserves ownership boundaries and reduces cross-service schema leakage, at the cost of additional network round-trips and stricter interface-version management.
-% evidence: scheduler_pubmed/src/adapters/rag/documents_client.py
-% evidence: scheduler_pubmed/src/core/ports/documents_client.py
-% evidence: biomed_knowledge_platform/src/biomed_platform/api/endpoints/documents.py
-% evidence: biomed_knowledge_platform/src/biomed_platform/api/endpoints/ingestion.py
+The biomedical RAG service and scheduler service are implemented as independent API applications with their own application and persistence lifecycles, the evaluation subsystem is implemented as a phase-oriented command-line pipeline, and the LLM server stack is separated as deployment infrastructure for model hosting. This organization expresses a deliberate architectural approach in which serving, orchestration, evaluation, and model-hosting responsibilities remain distinct while interoperating through explicit API contracts.
+% evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ingestion.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
+% evidence: scheduler_pubmed/src/api/app.py
+% evidence: scheduler_pubmed/src/core/use_cases/scheduler.py
+% evidence: evaluation_metrics/src/eval_cli.py
+% evidence: llm_server/docker-compose.yml
 
-\section{Human-in-the-Loop Curation Subsystem}
+Subsystems can evolve at different rates without forcing tightly coupled release behavior, while shared evaluation contracts preserve comparability across runs. In practice, this supports maintainability by localizing change impact and supports reproducibility by preserving stable boundaries between acquisition, retrieval, and evaluation concerns.
 
-Label Studio~\cite{tkachenko2020labelstudio} is positioned in this architecture as a human-in-the-loop curation subsystem rather than as a core retrieval or answer-generation service. Its role is to host manually reviewed biomedical-abstract tasks, while the surrounding \texttt{labelstudio-tools} package prepares tasks for upload, exports reviewed tasks, enriches them with bibliographic metadata, and hands metadata-complete records to the biomedical RAG ingestion API. This placement preserves a clean separation between evidence curation and online retrieval, while still allowing curated judgments to influence evaluation-oriented analysis and corpus-preparation decisions.
-% evidence: labelstudio-tools/src/app/python/main.py
-% evidence: labelstudio-tools/src/app/python/uploader.py
-% evidence: labelstudio-tools/src/app/python/download_data/main.py
-% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
-
-Architecturally, this subsystem sits between manual biomedical validation and downstream ingestion. Upstream, Excel-based abstract collections are loaded, optional exclusion filters are applied, and valid rows are transformed into Label Studio task payloads containing at minimum PMID, title, and abstract fields. Downstream, exported tasks are enriched with DOI and source metadata, partitioned into clean and rejected datasets according to ingestion requirements, and then transformed into batch ingestion requests for the biomedical RAG service. The resulting workflow constrains human review to a dedicated curation surface while keeping ingestion contracts explicit and machine-verifiable.
-% evidence: labelstudio-tools/src/app/python/data_loader.py
-% evidence: labelstudio-tools/src/app/python/filters.py
-% evidence: labelstudio-tools/src/app/python/tasks.py
-% evidence: labelstudio-tools/src/app/python/download_data/doi_enrich_any.py
-% evidence: labelstudio-tools/src/app/python/download_data/main.py
-% evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
-
-This curation layer also has methodological significance for later evaluation chapters. The exported task structure retains manual annotation content alongside bibliographic identifiers and enriched metadata, which means curated tasks can act as traceable review artifacts rather than transient operator notes. At the same time, the current implementation validates metadata completeness for ingestion, but does not itself enforce annotation completeness or inter-annotator agreement constraints. The architectural tradeoff is therefore pragmatic: the subsystem increases traceability and enables review-informed dataset refinement, yet stronger annotation-governance guarantees remain an external workflow responsibility rather than a property enforced entirely in code.
-% evidence: labelstudio-tools/ls_data/tasks_raw.json
-% evidence: labelstudio-tools/src/app/python/download_data/main.py
+% Flush the high-level architecture figure so it stays within Section 3.2.
+\clearpage
 
 \section{Component Architecture of the Biomedical RAG Service}
 
@@ -112,7 +79,7 @@ The biomedical RAG service is organized around four conceptual components: inges
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/document_lookup.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/delete_document.py
 
-Architecturally, the service applies Clean Architecture~\cite{martin2017cleanarchitecture} with a ports-and-adapters realization~\cite{cockburn2005hexagonal}. The API layer performs transport and schema duties, use cases orchestrate business workflows, the domain layer holds framework-independent models, and adapters implement infrastructure integrations behind abstract ports. Dependency direction is inward: outer layers depend on inner policies through interfaces, while the domain remains independent of frameworks and vendors. This structure improves maintainability through low coupling and supports reproducibility by making workflow behavior explicit at use-case boundaries. The Engineering Wiki complements this architecture as a documentation and governance layer that records current repository facts; it is not a runtime subsystem of the RAG service.
+Architecturally, the service applies Clean Architecture~\cite{martin2017cleanarchitecture} with a ports-and-adapters realization~\cite{cockburn2005hexagonal}. The API layer performs transport and schema duties, use cases orchestrate business workflows, the domain layer holds framework-independent models, and adapters implement infrastructure integrations behind abstract ports. Dependency direction is inward: outer layers depend on inner policies through interfaces, while the domain remains independent of frameworks and vendors. This structure improves maintainability through low coupling and supports reproducibility by making workflow behavior explicit at use-case boundaries.
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/ingestion.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/retrieval.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/pubmed.py
@@ -123,19 +90,6 @@ Architecturally, the service applies Clean Architecture~\cite{martin2017cleanarc
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/pubmed/pubmed_client.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/ollama/ollama_client.py
-
-\subsection{Dependency Direction and Encapsulation}
-
-Within this structure, request lifecycle management is explicitly layered. Middleware components provide request identifiers, access logging, and audit capture before and after endpoint execution, while use cases handle domain-specific validation and orchestration. This partition clarifies operational accountability by separating cross-cutting concerns from business flow logic.
-% evidence: biomed_knowledge_platform/src/biomed_platform/common/middleware/request_context.py
-% evidence: biomed_knowledge_platform/src/biomed_platform/common/middleware/audit.py
-% evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
-
-The scheduler service follows the same architectural approach with its own API, domain, use-case, adapter, and repository layers. This symmetry reduces conceptual overhead when reasoning about cross-service workflows and facilitates consistent error and status semantics between ingestion-oriented and acquisition-oriented operations.
-% evidence: scheduler_pubmed/src/api/app.py
-% evidence: scheduler_pubmed/src/core/domains/scheduler.py
-% evidence: scheduler_pubmed/src/core/use_cases/scheduler.py
-% evidence: scheduler_pubmed/src/db/repositories/scheduler_repository.py
 
 \section{Scheduler Architecture and Continuous Literature Acquisition}
 
@@ -255,7 +209,5 @@ Finally, reproducibility is strong at the workflow and artifact level but limite
 An additional limitation is sensitivity to identifier completeness in upstream biomedical sources. Scheduler-side DOI extraction and downstream document existence checks rely on consistent metadata availability; when identifiers are missing or inconsistently formatted, conservative failure or skip paths may reduce acquisition coverage for a given run window.
 % evidence: scheduler_pubmed/src/adapters/pubmed/query_client.py
 % evidence: scheduler_pubmed/src/core/use_cases/scheduler.py
-
-\subsection{Architectural Tradeoffs Summary}
 
 Taken together, the architecture favors explicit subsystem boundaries, inward dependency direction, and asynchronous workflow isolation to improve maintainability and reproducibility. The corresponding tradeoffs are eventual consistency, additional coordination overhead between services, and bounded but non-zero variance in LLM-mediated synthesis behavior.
