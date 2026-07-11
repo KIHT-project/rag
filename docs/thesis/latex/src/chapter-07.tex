@@ -1,5 +1,6 @@
 % chapter-07.tex
 \chapter{Evaluation}
+\label{chap:evaluation}
 
 \section{Experimental Setup}
 
@@ -141,7 +142,7 @@ Table~\ref{tab:retrieval-metrics-comparison} shows the finalized retrieval compa
 
 The finalized metrics show why retrieval interpretation must remain multidimensional. HyDE's higher MRR means the first relevant item tended to appear earlier. Its higher Recall@5 means more of the judged relevant evidence was recovered in the first five results. Direct retrieval's slightly higher Precision@5 means a slightly larger share of its top-five items were relevant, and its higher nDCG@5 means its ordering of weakly relevant and highly relevant documents was stronger at the same cutoff. The evidence therefore supports a tradeoff rather than a single winner: HyDE is stronger for early-hit discovery and coverage, while direct retrieval is stronger for top-five purity and graded ordering.
 
-The interpretation of this result is that HyDE acts as an effective discovery mechanism—it is more likely to surface a relevant document even when the user query is slightly misaligned with the corpus terminology. However, direct retrieval remains the precision leader; when it finds relevant documents, it ranks them more accurately according to their graded relevance. For a biomedical researcher, this means HyDE is better for broad evidence gathering, while direct retrieval is more reliable for ranking known high-quality evidence.
+The interpretation of this result is that HyDE acts as an effective discovery mechanism, it is more likely to surface a relevant document even when the user query is slightly misaligned with the corpus terminology. However, direct retrieval remains the precision leader; when it finds relevant documents, it ranks them more accurately according to their graded relevance. For a biomedical researcher, this means HyDE is better for broad evidence gathering, while direct retrieval is more reliable for ranking known high-quality evidence.
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260606_212735_nogit/retrieval_metrics_summary.json
 
 \section{Generation and RAGAS Evaluation}
@@ -322,17 +323,17 @@ The principal RAGAS error pattern is a support tradeoff. HyDE appears to focus t
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase4_ragas_phase3_answers_rag_no_hyde.jsonl
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase4_ragas_phase3_answers_rag_hyde.jsonl
 
-The principal extraction error pattern is over-extraction. Both RAG configurations produce substantial false positives, with 23 false positives each, and both miss 3 derived gold factors. RAG without HyDE is stronger because it recovers 38 true positives rather than 34. However, these results cover only the 13 queries with derived gold factors; the remaining 12 questions are outside the extraction metric denominator.
+The principal extraction error pattern is over-extraction. As summarized in Table~\ref{tab:extraction-error-profile}, both RAG configurations produce substantial and equal false-positive and false-negative counts, and RAG without HyDE is stronger only because it recovers more true positives. However, these results cover only the 13 queries with derived gold factors; the remaining 12 questions are outside the extraction metric denominator.
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_no_hyde_summary.csv
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/primary_deterministic/phase6_extraction_phase3_answers_rag_hyde_summary.csv
 
 \section{Threats to Validity}
 
-The first threat is benchmark size. The answer-generation benchmark contains 25 questions. These size is appropriate for inspecting the research prototype, but is not supporting broad statistical or clinical claims.
+The first threat is benchmark size. The answer-generation benchmark contains 25 questions. This size is appropriate for inspecting the research prototype, but does not support broad statistical or clinical claims.
 % evidence: evaluation_metrics/queries/queries.jsonl
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/paper_benchmark_summary.json
 
-The second threat is reference construction. Extraction gold factors are derived from curated tasks, confidence policy, cited DOI alignment, and canonical factor matching. This substrate is reproducible, but it is not an adjudicated clinical gold standard.
+The second threat is reference construction. Extraction gold factors are derived from curated tasks, confidence policy, cited DOI alignment, and canonical factor matching. As noted in the dataset protocol above, this substrate is reproducible but does not constitute an adjudicated clinical gold standard.
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/config_snapshot.json
 % evidence: evaluation_metrics/src/phases/phase6_extraction.py
 
@@ -345,7 +346,7 @@ The fourth threat is evaluator behavior. RAGAS scoring depends on evaluator mode
 
 \section{Evaluation Synthesis}
 
-The evaluation demonstrate that the platform achieves its goal of a traceable, multi-phase biomedical RAG benchmark. The results establish that system performance is not uniform across different tasks.
+The evaluation demonstrates that the platform achieves its goal of a traceable, multi-phase biomedical RAG benchmark. The results establish that system performance is not uniform across different tasks.
 
 \begin{itemize}
     \item \textbf{Retrieval Performance:} HyDE is superior for early-hit discovery (MRR) and coverage (Recall), making it suitable for broader literature search. Direct retrieval is superior for top-K purity (Precision) and graded ordering (nDCG), making it better for specific evidence ranking.

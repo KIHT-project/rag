@@ -21,6 +21,41 @@
 ]
 \setmonofont{Menlo}
 
+% Greek support (bilingual front matter). Loaded after fontspec, before hyperref.
+\usepackage{polyglossia}
+\setmainlanguage{english}
+\setotherlanguage[variant=monotonic]{greek}
+% Greek is shaped with the same Calibri family already used for the body text.
+\newfontfamily\greekfont[
+  Path=/Users/nchaikalis/Library/Fonts/,
+  Extension=.ttf,
+  UprightFont=Calibri,
+  BoldFont=Calibrib,
+  ItalicFont=Calibrii,
+  BoldItalicFont=Calibriz,
+  Script=Greek
+]{Calibri}
+% Greek sans and mono fall back to Calibri (Menlo lacks Greek); the only mono
+% use inside Greek is the ASCII DOI placeholder, which Calibri renders cleanly.
+\newfontfamily\greekfontsf[
+  Path=/Users/nchaikalis/Library/Fonts/,
+  Extension=.ttf,
+  UprightFont=Calibri,
+  BoldFont=Calibrib,
+  ItalicFont=Calibrii,
+  BoldItalicFont=Calibriz,
+  Script=Greek
+]{Calibri}
+\newfontfamily\greekfonttt[
+  Path=/Users/nchaikalis/Library/Fonts/,
+  Extension=.ttf,
+  UprightFont=Calibri,
+  BoldFont=Calibrib,
+  ItalicFont=Calibrii,
+  BoldItalicFont=Calibriz,
+  Script=Greek
+]{Calibri}
+
 \usepackage[a4paper,margin=2.5cm]{geometry}
 \usepackage{setspace}
 \usepackage{microtype}
@@ -31,7 +66,7 @@
 \usepackage{tabularx}
 \usepackage{array}
 
-\usepackage[hidelinks]{hyperref}
+\usepackage[hidelinks,unicode]{hyperref}
 
 \setlength{\parskip}{0.6em}
 \setlength{\parindent}{0pt}

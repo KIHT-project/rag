@@ -3,7 +3,7 @@
 
 \section{Requirements and Scope}
 
-The scope of the proposed system is to enable the relevant literature, but to couple retrieval quality with lifecycle control, operational transparency, and experiment reproducibility. For this reason, the system is scoped as an integrated architecture rather than a single question answering service.
+The scope of the proposed system is not merely to enable retrieval of the relevant literature, but to couple retrieval quality with lifecycle control, operational transparency, and experiment reproducibility. For this reason, the system is scoped as an integrated architecture rather than a single question answering service.
 
 The dominant architectural driver is reproducibility. System behavior must be inspectable through explicit job states, persistent run records, and staged evaluation artifacts so that observed performance can be interpreted as the result of identifiable processing decisions. This requirement motivates asynchronous job orchestration and explicit persistence of both operational and experimental outputs.
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/domains/ingestion.py

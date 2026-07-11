@@ -68,7 +68,7 @@ This distinction protects the contribution from overclaiming. Human-in-the-loop 
 
 \section{Operational and Reproducibility Implications}
 
-The latest benchmark exposes substantial runtime cost. The complete chained execution ran for 34 hours, 32 minutes, and 35 seconds. Phase 4 RAGAS evaluation consumed approximately 20 hours, 26 minutes, and 56 seconds, making it the main bottleneck. Mean generation latency was also materially higher for the RAG modes than for LLM only, with RAG with HyDE slower than RAG without HyDE.
+The latest benchmark exposes substantial runtime cost. The complete chained execution ran for more than a day, and Phase 4 RAGAS evaluation was the main bottleneck, consuming the majority of that time (the full timings are reported in Chapter~\ref{chap:evaluation}). Mean generation latency was also materially higher for the RAG modes than for LLM only, with RAG with HyDE slower than RAG without HyDE.
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
 
 The runtime profile has architectural consequences. A locally controlled Ollama deployment and CPU embedding setup support inspection and reproducibility, but they constrain throughput. If the evaluation framework is expanded to larger benchmarks or repeated evaluator calibration runs, runtime optimization and safe parallelization will become necessary rather than optional.
@@ -78,12 +78,12 @@ The runtime profile has architectural consequences. A locally controlled Ollama 
 The RAGAS bottleneck is especially important because evaluator cost can shape research behavior. If scoring is expensive, developers may run fewer evaluations, delay regression checks, or rely on small samples. That creates a risk that changes are accepted based on anecdotal answers rather than systematic evidence. The thesis therefore treats runtime as part of evaluation validity. A reproducible benchmark must not only produce metrics; it must also make repeated measurement operationally feasible.
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
 
-The robustness artifacts also show a reproducibility boundary. The LLM-only baseline materially exercises seed and temperature variation, but the RAG API benchmark path remains deterministic under service-controlled generation defaults. Zero variance in RAG modes should therefore be interpreted as a configuration-path finding, not as evidence of stochastic robustness. Future work must expose request-level stochastic controls for RAG synthesis and HyDE generation before making robustness claims.
+The robustness artifacts also show a reproducibility boundary. As detailed in the robustness interpretation of Chapter~\ref{chap:evaluation}, the zero variance observed across RAG robustness seeds is a configuration-path finding rather than evidence of stochastic robustness, because the RAG API path does not receive the request-level stochastic controls that reach the LLM-only baseline. Future work must expose such controls for RAG synthesis and HyDE generation before making robustness claims.
 % evidence: evaluation_metrics/src/phases/phase3_generate.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/20260605_123942_nogit/robustness
 
-The repeated evaluator warning that one generation was returned where three were requested adds a second reproducibility boundary. The evaluation completed and produced usable artifacts, but evaluator configuration did not behave exactly as requested. That does not invalidate the benchmark; it changes how confidently the automated scores should be generalized. The result is a transparent limitation: the reported metrics are valid records of the executed pipeline, while future work should review evaluator configuration and calibrate automated judgments against expert review.
+A second reproducibility boundary is the evaluator warning discussed in Chapter~\ref{chap:evaluation}, in which one generation was returned where three were requested. This does not invalidate the benchmark, but it changes how confidently the automated scores should be generalized, and future work should review evaluator configuration and calibrate automated judgments against expert review.
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
 
 \section{Scalability and Engineering Architecture Implications}

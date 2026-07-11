@@ -1,5 +1,6 @@
 % chapter-05.tex
 \chapter{Deployment and Execution}
+\label{chap:deployment}
 
 This chapter describes how the implemented platform is executed in practice. The focus is operational rather than algorithmic: the goal is to show how the biomedical RAG service, scheduler, evaluation pipeline, vector store, relational database, and local language-model runtime are provisioned and coordinated during thesis execution. This matters because a reproducible thesis artifact is not only source code; it is also a concrete runtime environment whose service boundaries, infrastructure assumptions, and hardware profile influence what can be reproduced.
 % evidence: ../engineering-wiki/wiki/repo-profiles/rag.md
@@ -54,7 +55,7 @@ The evaluation subsystem is executed as a command-line pipeline rather than as a
 
 \section{CUDA-Enabled Evaluation Execution}
 
-The repository also supports a CUDA-oriented execution profile for the evaluation-side embedding workload used during RAGAS scoring. In the branch \texttt{cuda-validation-metrics}, commit \texttt{a1faf166} introduced a workstation-oriented configuration in which the evaluation profiles switch the \texttt{ragas.embeddings\_device} setting from \texttt{cpu} to \texttt{cuda} and align the dependent service endpoints with localhost execution. Conceptually, this is an execution-environment change for the evaluator rather than a change to the metric definitions or to the scientific interpretation of those metrics.
+The repository also supports a CUDA-oriented execution profile for the evaluation-side embedding workload used during RAGAS scoring. In the \texttt{cuda-validation-metrics} branch, a workstation-oriented configuration switches the evaluation profiles' \texttt{ragas.embeddings\_device} setting from \texttt{cpu} to \texttt{cuda} and aligns the dependent service endpoints with localhost execution. Conceptually, this is an execution-environment change for the evaluator rather than a change to the metric definitions or to the scientific interpretation of those metrics.
 % evidence: evaluation_metrics/config/eval.yaml
 % evidence: evaluation_metrics/config/eval.fast.yaml
 % evidence: evaluation_metrics/config/eval.medium.yaml

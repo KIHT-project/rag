@@ -41,7 +41,7 @@ The scheduler and evaluation modules follow the same repository philosophy. The 
 
 \section{Configuration Architecture}
 
-Configuration is deliberately externalized. The platform uses YAML files for service configuration and evaluation configuration, while Label Studio tooling uses environment variables for curation-specific secrets and runtime paths. This is consistent with the Engineering Wiki guidance to keep configuration explicit and avoid hidden runtime state.
+Configuration is deliberately externalized. The platform uses YAML files~\cite{yaml2021spec} for service configuration and evaluation configuration, while Label Studio tooling uses environment variables for curation-specific secrets and runtime paths. This is consistent with the Engineering Wiki guidance to keep configuration explicit and avoid hidden runtime state.
 % evidence: ../engineering-wiki/wiki/configuration/yaml-configuration.md
 % evidence: biomed_knowledge_platform/src/biomed_platform/common/settings.py
 % evidence: scheduler_pubmed/src/common/settings.py
@@ -434,13 +434,13 @@ The current ingestion runtime uses one worker, a small in-memory queue, in-memor
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/in_memory_queue.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/backpressure.py
 
-The complete chained June execution ran from 2026-06-05 15:39:43.685 to 2026-06-07 02:12:18.683, for 34 hours, 32 minutes, and 35 seconds. The paper benchmark phase consumed 32 hours, 47 minutes, and 46 seconds, followed by 1 hour, 44 minutes, and 42 seconds for retrieval preparation. Phase 4 RAGAS evaluation consumed approximately 20 hours, 26 minutes, and 56 seconds, making it the dominant runtime bottleneck.
+The complete chained June execution and its per-phase timings, including the dominant Phase 4 RAGAS bottleneck, are reported in the operational runtime evaluation of Chapter~\ref{chap:evaluation}.
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
 
-The same logs contain repeated warnings that the evaluator returned one generation instead of the requested three. RAGAS scoring completed successfully, but this evaluator behavior must be disclosed when interpreting the reported metrics. The logs also contain a Python 3.14 compatibility warning involving Pydantic V1 functionality; this is recorded here as an operational caveat rather than as a central scientific finding.
+The same logs contain the evaluator warning noted in Chapter~\ref{chap:evaluation} (one generation returned where three were requested) together with a Python 3.14 compatibility warning involving Pydantic V1 functionality. Both are recorded as operational caveats rather than central scientific findings; RAGAS scoring nonetheless completed successfully.
 % evidence: evaluation_metrics/runs/old/june-07-valid-full-run-25-queries/evaluation.logs
 
-The nominal robustness runs should also be interpreted with care. The evaluation CLI passes seed and temperature controls to the direct Ollama call used by the LLM-only baseline. The current RAG API path does not expose equivalent request-level stochastic controls for synthesis or HyDE generation, and the RAG answers and contexts are identical across robustness seeds except for volatile identifiers. Zero variance in the RAG modes is therefore deterministic service behavior under the benchmark path, not evidence of stochastic robustness.
+The nominal robustness runs should also be interpreted with care. As explained in the robustness interpretation of Chapter~\ref{chap:evaluation}, seed and temperature controls reach only the direct Ollama call used by the LLM-only baseline, so the zero variance observed across RAG robustness seeds reflects deterministic service behavior under the benchmark path rather than stochastic robustness.
 % evidence: evaluation_metrics/src/phases/phase3_generate.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ask.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hallucination/synthesis.py

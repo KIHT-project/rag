@@ -7,7 +7,7 @@ This chapter connects the architectural design presented earlier to the concrete
 
 \section{Label Studio Tools Pipeline}
 
-The \texttt{labelstudio-tools} package implements the curation-side integration between abstract preparation, Label Studio task management, exported review artifacts, and RAG ingestion handoff. Its implementation purpose is operational rather than algorithmic: it converts reviewable biomedical records into task payloads, retrieves reviewed tasks from Label Studio, enriches them with missing bibliographic identifiers, and serializes a clean subset that can be ingested through the biomedical platform API. This package is therefore part of the data-curation plane, not part of the online retrieval path.
+The \texttt{labelstudio-tools} package implements the curation-side integration between abstract preparation, Label Studio~\cite{tkachenko2020labelstudio} task management, exported review artifacts, and RAG ingestion handoff. Its implementation purpose is operational rather than algorithmic: it converts reviewable biomedical records into task payloads, retrieves reviewed tasks from Label Studio, enriches them with missing bibliographic identifiers, and serializes a clean subset that can be ingested through the biomedical platform API. This package is therefore part of the data-curation plane, not part of the online retrieval path.
 % evidence: labelstudio-tools/src/app/python/main.py
 % evidence: labelstudio-tools/src/app/python/download_data/main.py
 % evidence: labelstudio-tools/src/app/python/rag_importer/rag_integration.py
@@ -46,7 +46,7 @@ When a clean task dataset is available, a dedicated integration script converts 
 
 \section{Ingestion and Embedding Strategy}
 
-The ingestion strategy is implemented in the biomedical RAG service. At the core of the indexing pipeline is a domain-specific \texttt{SectionAwareChunker}. Unlike naive token-based chunkers, this component respects biomedical document structure. It actively detects and filters out non-informative sections, such as bibliographies, ensuring that only evidence-bearing text is embedded and indexed. Embeddings are generated locally using the \texttt{SentenceTransformersEmbeddingProvider}, which transforms the chunks into dense vectors before they are stored in the Qdrant vector database~\cite{reimers2019sentencebert,qdrant2026collections}.
+The ingestion strategy is implemented in the biomedical RAG service. At the core of the indexing pipeline is a domain-specific \texttt{SectionAwareChunker}. Unlike naive token-based chunkers, this component respects biomedical document structure. It actively detects and filters out non-informative sections, such as bibliographies, ensuring that only evidence-bearing text is embedded and indexed. Embeddings are generated locally using the\linebreak\texttt{SentenceTransformersEmbeddingProvider}, which transforms the chunks into dense vectors before they are stored in the Qdrant vector database~\cite{reimers2019sentencebert,qdrant2026collections}.
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/ingestion/chunking.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
 
@@ -63,6 +63,28 @@ Following candidate generation, the system uses a hybrid ranker to fuse signals.
 
 Once the top-ranked contexts are finalized, the system enforces a strict JSON-only prompt during synthesis. The application layer performs post-generation parsing, schema validation, and citation backfilling so that extracted risk factors are linked to provided context chunks when possible. This validation layer reduces unsupported output and improves compatibility with downstream evaluators, but it does not eliminate hallucination risk or establish clinical correctness.
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/services/hallucination/synthesis.py
+
+\section{PubMed Scheduler Run Execution}
+
+The scheduler implements continuous acquisition as an asynchronous run pipeline rather than as a blocking request. A trigger, either a scheduled slot matching the configured UTC times or a manual API call, first persists a run record and returns immediately, after which a background task executes the acquisition workflow. For each enabled PubMed query, the pipeline searches PubMed, filters the results against the query's last successful run timestamp to preserve incremental semantics, resolves unique DOIs, checks each DOI against the biomedical RAG service, enqueues only previously unseen documents through the batch fetch endpoint, and then polls the resulting ingestion job until it reaches a terminal state. Run-level, query-level, and per-DOI outcomes are persisted separately, which is what allows partial success to be distinguished from complete failure.
+% evidence: scheduler_pubmed/src/core/services/scheduler_runtime.py
+% evidence: scheduler_pubmed/src/core/use_cases/scheduler.py
+% evidence: scheduler_pubmed/src/adapters/pubmed/query_client.py
+% evidence: scheduler_pubmed/src/adapters/rag/documents_client.py
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[page=2,clip,viewport=18 205 451 635,width=\linewidth]{resources/images/pubmed-scheduler-seq-diagram.pdf}
+\caption{Sequence of a PubMed scheduler run: trigger and asynchronous hand-off, per-query PubMed search with incremental filtering, per-DOI existence checks against the biomedical RAG service, batch ingestion hand-off, ingest-job polling, and persisted run outcomes.}
+\label{fig:pubmed-scheduler-sequence}
+\end{figure}
+
+Figure~\ref{fig:pubmed-scheduler-sequence} summarizes this sequence. Two implementation properties are visible in it. First, the acquisition control plane is decoupled from the ingestion data plane: the scheduler never writes to the vector store directly, but coordinates document existence checks, batch fetches, and ingest-job polling through the biomedical RAG API. Second, the incremental watermark is only advanced when a query execution completes successfully or partially, which prevents a failed run from silently skipping publications in the next acquisition window.
+% evidence: scheduler_pubmed/src/core/use_cases/scheduler.py
+% evidence: scheduler_pubmed/src/adapters/rag/documents_client.py
+
+% Flush the scheduler sequence figure so it stays within Section 4.5.
+\clearpage
 
 \section{Platform Configuration and Execution Model}
 
@@ -137,16 +159,9 @@ The evaluation CLI writes configuration snapshots into run directories. This is 
 
 \subsection{CUDA Evaluation Execution Support}
 
-The evaluation pipeline also supports CUDA execution for the evaluation-side embedding workload used during RAGAS scoring. In the branch \texttt{cuda-validation-metrics}, commit \texttt{a1faf166} introduced a workstation-oriented configuration in which the evaluation profiles switch the \texttt{ragas.embeddings\_device} setting from \texttt{cpu} to \texttt{cuda} and use local service endpoints for the RAG API, Ollama, and audit database. Conceptually, this is an execution-environment change for the evaluation subsystem rather than a change to the reported metric definitions or to the scientific interpretation of those metrics.
+The evaluation pipeline also supports an optional CUDA execution profile for the evaluation-side embedding workload used during RAGAS scoring. This is an execution-environment option for the evaluation subsystem rather than a change to the reported metric definitions or to the scientific interpretation of those metrics, and it does not imply that every subsystem executed on the same hardware path. The deployment mechanics of this profile are described in Chapter~\ref{chap:deployment}, and the environment-validation procedure is given in Appendix~A.
 % evidence: evaluation_metrics/config/eval.yaml
-% evidence: evaluation_metrics/config/eval.fast.yaml
-% evidence: evaluation_metrics/config/eval.medium.yaml
-% evidence: evaluation_metrics/src/eval_cli.py
 % evidence: evaluation_metrics/src/phases/phase4_ragas.py
-
-This distinction matters because the repository does not show a blanket migration of all thesis components to GPU execution. The verified change affects the evaluation path that constructs RAGAS embeddings, while the biomedical RAG service configuration remains separately defined in its own YAML files. The thesis therefore describes CUDA support as an available evaluation configuration, not as proof that every subsystem in every benchmark run executed on the same hardware path.
-% evidence: biomed_knowledge_platform/configs/rag.yaml
-% evidence: evaluation_metrics/config/eval.yaml
 
 \subsection{Configuration Boundaries and Reproducibility}
 
