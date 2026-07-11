@@ -284,7 +284,7 @@ The thesis contributes a reproducible biomedical RAG architecture, an incrementa
 
 Η θρόμβωση αποτελεί σημαντικό παράγοντα καρδιαγγειακής νοσηρότητας και θνησιμότητας παγκοσμίως. Η βιοϊατρική γνώση που σχετίζεται με τους παράγοντες κινδύνου θρόμβωσης εξελίσσεται συνεχώς μέσω νέων επιστημονικών δημοσιεύσεων· ωστόσο, οι κλινικοί ιατροί και οι ερευνητές βασίζονται κυρίως σε στατικές βιβλιογραφικές ανασκοπήσεις και σε συστήματα αναζήτησης βασισμένα σε λέξεις-κλειδιά. Οι παραδοσιακές αυτές προσεγγίσεις στερούνται σημασιολογικής κατανόησης, δομημένης ανάκτησης, αυτοματοποιημένης παρακολούθησης της επικαιρότητας της γνώσης και ενσωματωμένων ροών επικύρωσης.
 
-Η παρούσα διπλωματική εργασία παρουσιάζει τη σχεδίαση, την υλοποίηση και την αξιολόγηση μιας εξειδικευμένης για το πεδίο πλατφόρμας Ανάκτησης-Επαυξημένης Παραγωγής\linebreak(Retrieval Augmented Generation), προσαρμοσμένης στην εξαγωγή παραγόντων κινδύνου \babelhyphenation{θρό-μβωσης} από τη βιβλιογραφία του PubMed. Το προτεινόμενο σύστημα ενσωματώνει σημασιολογική ανάκτηση βασισμένη σε ενσωματώσεις (embeddings), αποθήκευση σε διανυσματική βάση δεδομένων, παραμετροποιήσιμη παραγωγή κειμένου από μεγάλο γλωσσικό μοντέλο και έναν συνεχή χρονοπρογραμματιστή εισαγωγής δεδομένων σε επίπεδο DOI. Μια ροή επιμέλειας με τον άνθρωπο στον βρόχο ενσωματώνεται μέσω εργαλείων επισημείωσης, επιτρέποντας την επικύρωση και τη σταδιακή βελτίωση της εξαγόμενης γνώσης.
+Η παρούσα διπλωματική εργασία παρουσιάζει τη σχεδίαση, την υλοποίηση και την αξιολόγηση μιας εξειδικευμένης για το πεδίο πλατφόρμας Ανάκτησης-Επαυξημένης Παραγωγής\linebreak(Retrieval Augmented Generation), προσαρμοσμένης στην εξαγωγή παραγόντων κινδύνου θρό\-μβωσης από τη βιβλιογραφία του PubMed. Το προτεινόμενο σύστημα ενσωματώνει σημασιολογική ανάκτηση βασισμένη σε ενσωματώσεις (embeddings), αποθήκευση σε διανυσματική βάση δεδομένων, παραμετροποιήσιμη παραγωγή κειμένου από μεγάλο γλωσσικό μοντέλο και έναν συνεχή χρονοπρογραμματιστή εισαγωγής δεδομένων σε επίπεδο DOI. Μια ροή επιμέλειας με τον άνθρωπο στον βρόχο ενσωματώνεται μέσω εργαλείων επισημείωσης, επιτρέποντας την επικύρωση και τη σταδιακή βελτίωση της εξαγόμενης γνώσης.
 
 Η πλατφόρμα ακολουθεί αρθρωτές αρχιτεκτονικές αρχές που δίνουν έμφαση στην αναπαραγωγιμότητα, στην παρατηρησιμότητα και στον πειραματισμό καθοδηγούμενο από τη διαμόρφωση. Ένα πλαίσιο αξιολόγησης πολλαπλών φάσεων εκτιμά την ποιότητα ανάκτησης, τη θεμελίωση των απαντήσεων στις πηγές, την ακρίβεια εξαγωγής και τη λειτουργική αναπαραγωγιμότητα, χρησιμοποιώντας μετρικές κατάταξης βασισμένες σε qrels, μετρικές RAGAS, μετρικές εξαγωγής και καταγεγραμμένα τεκμήρια εκτελέσεων. Το σημείο αναφοράς παραγωγής του Ιουνίου 2026 αξιολογεί 25 ερωτήσεις προσανατολισμένες στη θρόμβωση σε τρεις λειτουργίες, μόνο LLM, RAG χωρίς HyDE και RAG με HyDE, με τις μετρικές εξαγωγής να αναφέρονται μόνο για τις 13 ερωτήσεις που διαθέτουν παραγόμενους παράγοντες αναφοράς, ενώ το οριστικοποιημένο σημείο αναφοράς ανάκτησης του Ιουνίου 2026 αναφέρει μετρικές κατάταξης βασισμένες σε qrels από μια χωριστή, ανεξάρτητη φάση ανάκτησης 25 ερωτημάτων.
 
@@ -297,16 +297,35 @@ The thesis contributes a reproducible biomedical RAG architecture, an incrementa
 \clearpage
 
 % ---------------------------------------------------------------------------
-% Dedication
+% Contributions
 % ---------------------------------------------------------------------------
-\thispagestyle{empty}
-\vspace*{\fill}
-\begin{center}
-\begin{greek}
-{\itshape Στην οικογένειά μου.}
-\end{greek}
-\end{center}
-\vspace*{\fill}
+\chapter*{Contributions}
+\addcontentsline{toc}{chapter}{Contributions}
+
+This section acknowledges the individuals whose technical guidance, annotation work, and academic supervision materially supported the thesis. The project combined software engineering, biomedical review, and evaluation design, and its completion depended on contributions from both technical collaborators and domain experts.
+
+\section*{Technical Guidance}
+
+I express my sincere thanks to Mr. Nikolaos Portokalidis for his assistance and technical guidance during the development of this thesis. His support as a PhD candidate at the Democritus University of Thrace was valuable in clarifying technical decisions and sustaining progress across the implementation and evaluation stages.
+
+I also thank Dr. Stylianos Didaskalou for his contribution and guidance regarding Label Studio related technical matters. His advice was particularly helpful in shaping the practical use of the annotation workflow and in resolving technical questions around the curation process.
+
+\section*{Annotation Contributions}
+
+I gratefully acknowledge the team of Dr. Aliki Fiska, Professor School of Medicine, Democritus University of Thrace, Greece, for their contribution to the annotation of the dataset in Label Studio. Their work provided the reviewed annotation substrate that supported the curation workflow and later evaluation stages of the thesis.
+
+The contributors to this annotation effort were:
+
+\begin{itemize}
+    \item Dr. Aliki Fiska, Professor School of Medicine, Democritus University of Thrace
+    \item Mr. Iasonas Kalamporas, School of Medicine undergraduate student, Democritus University of Thrace
+    \item Mr. Gravriil Efthymiou, School of Medicine undergraduate student, Democritus University of Thrace
+    \item Mr. Konstantinos Fregkos, School of Medicine undergraduate student, Democritus University of Thrace
+\end{itemize}
+
+\section*{Supervision}
+
+I express my sincere gratitude to my supervisor, Dr. Eleni Kaldoudi Professor of Medical Physics and Medical Informatics School of Medicine, for her supervision, guidance, and continuous support throughout the thesis. Her academic direction was essential in shaping the research focus, maintaining methodological discipline, and bringing the work to completion.
 
 \clearpage
 

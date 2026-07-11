@@ -41,7 +41,7 @@ The platform is organized as three cooperating subsystems with explicit interfac
 % evidence: evaluation_metrics/src/phases/phase2_beir.py
 % evidence: evaluation_metrics/src/phases/phase3_generate.py
 
-\begin{figure}[h]
+\begin{figure}[!ht]
 \centering
 \includegraphics[width=0.9\linewidth]{resources/images/HLD.pdf}
 \caption{High level architecture of the platform.}
@@ -67,6 +67,9 @@ At repository level, this architecture is reflected in a monorepo with explicit 
 
 The architectural implication of this monorepo structure is controlled evolution. Subsystems can evolve at different rates without forcing tightly coupled release behavior, while shared evaluation contracts preserve comparability across runs. In practice, this supports maintainability by localizing change impact and supports reproducibility by preserving stable boundaries between acquisition, retrieval, and evaluation concerns.
 
+% Flush the high-level architecture figure so it stays within Section 3.2.
+\clearpage
+
 \section{Component Architecture of the Biomedical RAG Service}
 
 The biomedical RAG service is organized around four conceptual components: ingestion, retrieval, synthesis, and document management. The ingestion component accepts normalized document payloads, enforces duplicate constraints, and orchestrates asynchronous indexing. The retrieval component transforms user questions into vector-space candidates and assembles context-bearing evidence. The synthesis component produces structured answers with explicit citations. The document management component provides lifecycle controls required for lookup, verification, and deletion.
@@ -87,19 +90,6 @@ Architecturally, the service applies Clean Architecture~\cite{martin2017cleanarc
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/pubmed/pubmed_client.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/ollama/ollama_client.py
-
-\subsection{Dependency Direction and Encapsulation}
-
-Within this structure, request lifecycle management is explicitly layered. Middleware components provide request identifiers, access logging, and audit capture before and after endpoint execution, while use cases handle domain-specific validation and orchestration. This partition clarifies operational accountability by separating cross-cutting concerns from business flow logic.
-% evidence: biomed_knowledge_platform/src/biomed_platform/common/middleware/request_context.py
-% evidence: biomed_knowledge_platform/src/biomed_platform/common/middleware/audit.py
-% evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
-
-The scheduler service follows the same architectural approach with its own API, domain, use-case, adapter, and repository layers. This symmetry reduces conceptual overhead when reasoning about cross-service workflows and facilitates consistent error and status semantics between ingestion-oriented and acquisition-oriented operations.
-% evidence: scheduler_pubmed/src/api/app.py
-% evidence: scheduler_pubmed/src/core/domains/scheduler.py
-% evidence: scheduler_pubmed/src/core/use_cases/scheduler.py
-% evidence: scheduler_pubmed/src/db/repositories/scheduler_repository.py
 
 \section{Scheduler Architecture and Continuous Literature Acquisition}
 

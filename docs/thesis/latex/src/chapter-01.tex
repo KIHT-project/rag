@@ -30,25 +30,3 @@ The second objective is to enable automated literature ingestion from PubMed thr
 The third objective is to define a reproducible evaluation framework for both retrieval and generation behavior. This objective requires stage-level artifact production, explicit run organization, and metrics-oriented execution paths that allow reanalysis. The intent is to ensure that reported behavior can be interpreted through transparent process history rather than isolated endpoint measurements.
 
 The fourth objective is to support evidence-grounded question answering with configurable retrieval strategies, including Hypothetical Document Embeddings (HyDE)~\cite{gao2023hyde}, while preserving observability of system behavior. This objective introduces a deliberate tradeoff: advanced retrieval augmentation can improve semantic recall in difficult queries, yet it may increase latency variance and dependence on additional generation steps. The thesis therefore treats configurability and measurement as inseparable.
-
-\section{Thesis Structure}
-
-The remainder of the thesis is organized to move from conceptual grounding to architectural definition, then to implementation and empirical analysis. Chapter 2 reviews related literature and establishes the scientific context for retrieval-augmented biomedical question answering. It clarifies how existing retrieval and generation paradigms motivate the architectural direction adopted in this work.
-
-Chapter 3 presents the system architecture, including subsystem responsibilities, workflow design, and operational constraints. It explains why the platform is structured as coordinated services and how architectural tradeoffs are handled with respect to reproducibility, observability, and evidence grounding.
-
-Chapter 4 reports the implementation and configuration details of the architecture. This chapter maps conceptual components to concrete service behavior, explains how curation and retrieval are realized in code, and clarifies how externalized configuration influences execution and reproducibility.
-
-Chapter 5 describes the deployment and execution model of the platform. It explains how the services are provisioned locally, how runtime dependencies are separated, and how execution-environment choices such as CUDA-based evaluation affect operational reproducibility.
-
-Chapter 6 defines the experimental methodology. It specifies evaluation objectives, dataset protocols, and the reproducibility strategy, ensuring that empirical claims in later chapters can be interpreted within a transparent framework.
-
-Chapter 7 provides the evaluation results, examining retrieval and generation behavior through the defined methodology. It relies on canonical artifacts to present quantitative metrics.
-
-Chapter 8 provides discussion, including implications for biomedical information access and system design. It connects empirical findings to broader methodological questions and architectural limitations.
-
-Chapter 9 concludes the thesis by summarizing the problem framing, contributions, and principal findings. It restates the significance of integrating continuous ingestion, retrieval-grounded synthesis, and reproducible evaluation in a single biomedical platform.
-
-Appendix A provides supplementary material covering repository structure, configuration and deployment excerpts, evaluation-pipeline details, Engineering Wiki, reproducibility notes, and the observed Label Studio export structure.
-
-This chapter progression is designed to preserve argumentative continuity: each chapter establishes prerequisites for the next, ensuring that final conclusions are grounded in explicit architectural reasoning and empirically traceable methodology.

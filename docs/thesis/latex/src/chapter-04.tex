@@ -5,6 +5,19 @@ This chapter connects the architectural design presented earlier to the concrete
 % evidence: biomed_knowledge_platform/src/biomed_platform/common/settings.py
 % evidence: evaluation_metrics/src/eval_cli.py
 
+\section{Service Layering and Request Lifecycle}
+
+In implementation, request lifecycle management is explicitly layered. Middleware components attach request identifiers, perform access logging, and capture audit events before and after endpoint execution, while use cases handle domain-specific validation and workflow orchestration. This partition makes operational accountability concrete in the running service by separating cross-cutting concerns from business-flow logic.
+% evidence: biomed_knowledge_platform/src/biomed_platform/common/middleware/request_context.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/common/middleware/audit.py
+% evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
+
+The scheduler service applies the same implementation pattern through its own API, domain, use-case, adapter, and repository layers. In practice, this symmetry gives both services a consistent structure for cross-service workflows and aligns their error and status semantics across ingestion-oriented and acquisition-oriented operations.
+% evidence: scheduler_pubmed/src/api/app.py
+% evidence: scheduler_pubmed/src/core/domains/scheduler.py
+% evidence: scheduler_pubmed/src/core/use_cases/scheduler.py
+% evidence: scheduler_pubmed/src/db/repositories/scheduler_repository.py
+
 \section{Label Studio Tools Pipeline}
 
 The \texttt{labelstudio-tools} package implements the curation-side integration between abstract preparation, Label Studio~\cite{tkachenko2020labelstudio} task management, exported review artifacts, and RAG ingestion handoff. Its implementation purpose is operational rather than algorithmic: it converts reviewable biomedical records into task payloads, retrieves reviewed tasks from Label Studio, enriches them with missing bibliographic identifiers, and serializes a clean subset that can be ingested through the biomedical platform API. This package is therefore part of the data-curation plane, not part of the online retrieval path.
