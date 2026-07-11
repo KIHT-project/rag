@@ -41,7 +41,7 @@ The scheduler and evaluation modules follow the same repository philosophy. The 
 
 \section{Configuration Architecture}
 
-Configuration is deliberately externalized. The platform uses YAML files~\cite{yaml2021spec} for service configuration and evaluation configuration, while Label Studio tooling uses environment variables for curation-specific secrets and runtime paths. This is consistent with the Engineering Wiki guidance to keep configuration explicit and avoid hidden runtime state.
+Configuration is deliberately externalized. The platform uses YAML files~\cite{yaml2021spec} for service configuration and evaluation configuration, while Label Studio tooling uses environment variables for curation-specific secrets and runtime paths.
 % evidence: ../engineering-wiki/wiki/configuration/yaml-configuration.md
 % evidence: biomed_knowledge_platform/src/biomed_platform/common/settings.py
 % evidence: scheduler_pubmed/src/common/settings.py
@@ -127,7 +127,7 @@ This appendix example is with a verified CUDA-oriented evaluation profile. Commi
 
 \section{Deployment and Infrastructure}
 
-Deployment is local-first and Compose-based. The Engineering Wiki identifies Docker Compose as the verified local dependency mechanism for this repository; there are no verified Helm or Kubernetes deployment files for the current thesis implementation. This local-first design supports thesis reproducibility and inspection, but it also means the deployment should not be described as production-grade orchestration.
+Deployment is local-first and Compose-based. The Docker Compose runs as local dependency mechanism for this repository; there are no verified Helm or Kubernetes deployment files for the current thesis implementation. This local-first design supports thesis reproducibility and inspection, but it also means the deployment should not be described as production-grade orchestration.
 % evidence: ../engineering-wiki/wiki/repo-profiles/rag.md
 % evidence: ../engineering-wiki/wiki/platform/docker-compose.md
 

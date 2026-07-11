@@ -56,7 +56,7 @@ This organization establishes both a full path from literature acquisition, to i
 % evidence: scheduler_pubmed/src/core/services/scheduler_runtime.py
 % evidence: evaluation_metrics/src/phases/phase4_ragas.py
 
-At repository level, this architecture is reflected in a monorepo with explicit subsystem boundaries. The biomedical RAG service and scheduler service are implemented as independent API applications with their own application and persistence lifecycles, the evaluation subsystem is implemented as a phase-oriented command-line pipeline, and the LLM server stack is separated as deployment infrastructure for model hosting. This organization expresses a deliberate architectural approach in which serving, orchestration, evaluation, and model-hosting responsibilities remain distinct while interoperating through explicit API contracts.
+The biomedical RAG service and scheduler service are implemented as independent API applications with their own application and persistence lifecycles, the evaluation subsystem is implemented as a phase-oriented command-line pipeline, and the LLM server stack is separated as deployment infrastructure for model hosting. This organization expresses a deliberate architectural approach in which serving, orchestration, evaluation, and model-hosting responsibilities remain distinct while interoperating through explicit API contracts.
 % evidence: biomed_knowledge_platform/src/biomed_platform/api/app.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/ingestion.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/adapters/qdrant/vector_index.py
@@ -65,7 +65,7 @@ At repository level, this architecture is reflected in a monorepo with explicit 
 % evidence: evaluation_metrics/src/eval_cli.py
 % evidence: llm_server/docker-compose.yml
 
-The architectural implication of this monorepo structure is controlled evolution. Subsystems can evolve at different rates without forcing tightly coupled release behavior, while shared evaluation contracts preserve comparability across runs. In practice, this supports maintainability by localizing change impact and supports reproducibility by preserving stable boundaries between acquisition, retrieval, and evaluation concerns.
+Subsystems can evolve at different rates without forcing tightly coupled release behavior, while shared evaluation contracts preserve comparability across runs. In practice, this supports maintainability by localizing change impact and supports reproducibility by preserving stable boundaries between acquisition, retrieval, and evaluation concerns.
 
 % Flush the high-level architecture figure so it stays within Section 3.2.
 \clearpage
@@ -79,7 +79,7 @@ The biomedical RAG service is organized around four conceptual components: inges
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/document_lookup.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/use_cases/delete_document.py
 
-Architecturally, the service applies Clean Architecture~\cite{martin2017cleanarchitecture} with a ports-and-adapters realization~\cite{cockburn2005hexagonal}. The API layer performs transport and schema duties, use cases orchestrate business workflows, the domain layer holds framework-independent models, and adapters implement infrastructure integrations behind abstract ports. Dependency direction is inward: outer layers depend on inner policies through interfaces, while the domain remains independent of frameworks and vendors. This structure improves maintainability through low coupling and supports reproducibility by making workflow behavior explicit at use-case boundaries. The Engineering Wiki complements this architecture as a documentation and governance layer that records current repository facts; it is not a runtime subsystem of the RAG service.
+Architecturally, the service applies Clean Architecture~\cite{martin2017cleanarchitecture} with a ports-and-adapters realization~\cite{cockburn2005hexagonal}. The API layer performs transport and schema duties, use cases orchestrate business workflows, the domain layer holds framework-independent models, and adapters implement infrastructure integrations behind abstract ports. Dependency direction is inward: outer layers depend on inner policies through interfaces, while the domain remains independent of frameworks and vendors. This structure improves maintainability through low coupling and supports reproducibility by making workflow behavior explicit at use-case boundaries.
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/ingestion.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/retrieval.py
 % evidence: biomed_knowledge_platform/src/biomed_platform/core/ports/pubmed.py
